@@ -1,7 +1,6 @@
 use clap::{App, Arg};
 use num_cpus;
 use rayon;
-use regex;
 // use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -10,12 +9,6 @@ fn main() {
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     let regex_string = del::del_info::regex_search(format).unwrap();
-    let format_search = regex::Regex::new(&regex_string).unwrap();
-    let found = format_search.captures("NAGCACGAACTCGGAGGTCTTGCAGACAGAGGAGCAGCCACTCGTTGGGAATTCCATGCTTGAGTGCAAGCGATTGTGTCCAGAAGTGAATCTCGTATGCCGTCTTCTGCTTGAAAAAAAAATTCTTTATATTTCCGGCTATCCACGTA").unwrap();
-    println!("Sample: {}", &found["sample"]);
-    println!("BB1: {}", &found["bb1"]);
-    println!("BB2: {}", &found["bb2"]);
-    println!("BB3: {}", &found["bb3"]);
 
     rayon::scope(|s| {
         let seq = Arc::new(Mutex::new(Vec::new()));
@@ -32,8 +25,10 @@ fn main() {
         for thread in 1..threads {
             let seq_clone = Arc::clone(&seq);
             let finished_clone = Arc::clone(&finished);
+            let regex_string_clone = regex_string.clone();
             s.spawn(move |_| {
-                del::parse_sequences::parse(seq_clone, finished_clone, thread).unwrap();
+                del::parse_sequences::parse(seq_clone, finished_clone, regex_string_clone, thread)
+                    .unwrap();
             })
         }
     });
