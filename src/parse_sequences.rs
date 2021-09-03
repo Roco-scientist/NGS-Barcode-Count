@@ -6,19 +6,20 @@ use std::{
 pub fn parse(
     seq_clone: Arc<Mutex<Vec<String>>>,
     finished_clone: Arc<Mutex<bool>>,
+    thread: u8,
 ) -> Result<(), Box<dyn Error>> {
     loop {
-        while seq_clone.lock().unwrap().len() == 0 {
+        while seq_clone.lock().unwrap().is_empty() {
             if *finished_clone.lock().unwrap() {
                 break;
             }
         }
-        if *finished_clone.lock().unwrap() {
+        if seq_clone.lock().unwrap().is_empty() && *finished_clone.lock().unwrap() {
             break;
         }
         let seq = seq_clone.lock().unwrap().pop();
         if let Some(sequence) = seq {
-            println!("Sequence: {}", sequence);
+            // println!("Thread - {} - Sequence: {}", thread, sequence);
         }
     }
     Ok(())
