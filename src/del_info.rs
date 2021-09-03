@@ -1,6 +1,5 @@
-use std::{char, error::Error, fs};
+use std::{error::Error, fs};
 
-// [11]GGAGGTCTTGCAGACAGAGGA{8}TCGT{8}CCAT{8}GCAAGCGATT
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
     let format_data = fs::read_to_string(format)?
         .lines()
@@ -11,13 +10,13 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
         })
         .collect::<Vec<String>>()
         .join("");
+
     let mut final_format = String::new();
     let mut bb_num = 0;
     for letter in format_data.chars() {
         if letter == '#' {
             bb_num += 1;
-            let bb_string = bb_num.to_string();
-            for bb_char in bb_string.chars() {
+            for bb_char in bb_num.to_string().chars() {
                 final_format.push(bb_char);
             }
         } else {
@@ -25,7 +24,7 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
         }
     }
     println!("Format: {}", &final_format);
-    Ok(String::new())
+    Ok(final_format)
 }
 
 fn reformat_line(mut line: String) -> String {
