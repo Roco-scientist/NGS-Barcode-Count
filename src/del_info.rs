@@ -1,4 +1,5 @@
-use std::{error::Error, fs};
+use itertools::Itertools;
+use std::{collections::HashMap, error::Error, fs};
 
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
     let format_data = fs::read_to_string(format)?
@@ -35,4 +36,22 @@ fn reformat_line(mut line: String) -> String {
         line = line.replace("[", "(?P<sample>.{").replace("]", "})");
     }
     line
+}
+
+pub fn sample_barcodes(barcode_path: String) -> Result<HashMap<String, String>, Box<dyn Error>> {
+    let barcode_data: HashMap<String, String> = fs::read_to_string(barcode_path)?
+        .lines()
+        .skip(1)
+        .map(|line| {
+            line.split(",")
+                .take(2)
+                .map(|value| value.to_string())
+                .collect_tuple()
+                .unwrap_or(("".to_string(), "".to_string()))
+        })
+        .collect::<Vec<(String, String)>>()
+        .iter()
+        .cloned()
+        .collect();
+    Ok(barcode_data)
 }
