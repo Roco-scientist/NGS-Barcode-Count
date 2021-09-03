@@ -15,5 +15,5 @@ DNA encoded library decoding
 </ul>
 
 ## Setup
-`$ cargo build`<br>
+`$ cargo build --release`<br>
 `$ ./target/release/del -f <fastq_file>`
