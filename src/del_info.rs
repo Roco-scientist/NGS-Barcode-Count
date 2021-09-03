@@ -1,27 +1,36 @@
-use std::{error::Error, fs};
+use std::{char, error::Error, fs};
 
 // [11]GGAGGTCTTGCAGACAGAGGA{8}TCGT{8}CCAT{8}GCAAGCGATT
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
-    let mut bb_num = 0;
     let format_data = fs::read_to_string(format)?
         .lines()
-        .enumerate()
-        .filter(|(_, line)| !line.contains("#"))
-        .map(|(line_num, line)| {
-            let new_line = reformat_line(line.to_string(), line_num);
+        .filter(|line| !line.starts_with("#"))
+        .map(|line| {
+            let new_line = reformat_line(line.to_string());
             new_line
         })
         .collect::<Vec<String>>()
         .join("");
-    println!("Format: {}", &format_data);
+    let mut final_format = String::new();
+    let mut bb_num = 0;
+    for letter in format_data.chars() {
+        if letter == '#' {
+            bb_num += 1;
+            let bb_string = bb_num.to_string();
+            for bb_char in bb_string.chars() {
+                final_format.push(bb_char);
+            }
+        } else {
+            final_format.push(letter);
+        }
+    }
+    println!("Format: {}", &final_format);
     Ok(String::new())
 }
 
-fn reformat_line(mut line: String, bb_num: usize) -> String {
+fn reformat_line(mut line: String) -> String {
     if line.contains("{") {
-        let mut replacement = format!("(?P<bb_{}>.", bb_num);
-        replacement.push('{');
-        line = line.replace("{", &replacement).replace("}", "})");
+        line = line.replace("{", "(?P<bb#>.{").replace("}", "})");
     }
     if line.contains("[") {
         line = line.replace("[", "(?P<sample>.{").replace("]", "})");
