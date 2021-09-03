@@ -1,3 +1,4 @@
+pub mod del_info;
 pub mod parse_sequences;
 
 use std::{
@@ -8,8 +9,7 @@ use std::{
 };
 
 pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(), Box<dyn Error>> {
-    let fastq_file =
-        File::open(fastq).unwrap_or_else(|err| panic!("Error reading fastq file: {}", err));
+    let fastq_file = File::open(fastq)?;
     let mut line_num = 1;
     for line in BufReader::new(fastq_file).lines() {
         if line_num == 2 {
