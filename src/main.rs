@@ -1,6 +1,7 @@
 use clap::{App, Arg};
 use num_cpus;
 use rayon;
+use regex;
 // use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -8,7 +9,13 @@ fn main() {
     let (fastq, format, _samples, threads) =
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
-    let regex_string = del::del_info::regex_search(format);
+    let regex_string = del::del_info::regex_search(format).unwrap();
+    let format_search = regex::Regex::new(&regex_string).unwrap();
+    let found = format_search.captures("NAGCACGAACTCGGAGGTCTTGCAGACAGAGGAGCAGCCACTCGTTGGGAATTCCATGCTTGAGTGCAAGCGATTGTGTCCAGAAGTGAATCTCGTATGCCGTCTTCTGCTTGAAAAAAAAATTCTTTATATTTCCGGCTATCCACGTA").unwrap();
+    println!("Sample: {}", &found["sample"]);
+    println!("BB1: {}", &found["bb1"]);
+    println!("BB2: {}", &found["bb2"]);
+    println!("BB3: {}", &found["bb3"]);
 
     rayon::scope(|s| {
         let seq = Arc::new(Mutex::new(Vec::new()));
