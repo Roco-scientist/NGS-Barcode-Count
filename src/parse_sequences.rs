@@ -11,6 +11,7 @@ pub fn parse(
     regex_string: String,
     results_clone: Arc<Mutex<HashMap<String, u32>>>,
     samples_clone: HashMap<String, String>,
+    sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
     thread: u8,
 ) -> Result<(), Box<dyn Error>> {
     let format_search = Regex::new(&regex_string)?;
@@ -40,6 +41,7 @@ pub fn parse(
                             Some(samples_clone.get(&sample_seq_new).unwrap().to_string());
                     } else {
                         sample_name_option = None;
+                        sequence_errors_clone.lock().unwrap().sample_barcode_error();
                     }
                 }
                 if let Some(mut result_string) = sample_name_option {
@@ -56,6 +58,10 @@ pub fn parse(
                     *count += 1;
                 }
             } else {
+                sequence_errors_clone
+                    .lock()
+                    .unwrap()
+                    .constant_region_error();
                 // println!("Thread {} - barcodes not found: {}", thread, sequence);
             }
         }

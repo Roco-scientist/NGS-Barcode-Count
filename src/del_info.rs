@@ -1,6 +1,35 @@
 use itertools::Itertools;
 use std::{collections::HashMap, error::Error, fs};
 
+pub struct SequenceErrors {
+    constant_region: u64,
+    sample_barcode: u64,
+}
+
+impl SequenceErrors {
+    pub fn new() -> SequenceErrors {
+        SequenceErrors {
+            constant_region: 0,
+            sample_barcode: 0,
+        }
+    }
+
+    pub fn constant_region_error(&mut self) {
+        self.constant_region += 1;
+    }
+
+    pub fn sample_barcode_error(&mut self) {
+        self.sample_barcode += 1;
+    }
+
+    pub fn display(&mut self) {
+        println!(
+            "Constant Region Mismatches: {}\nSample Barcode Mismatches: {}",
+            self.constant_region, self.sample_barcode
+        )
+    }
+}
+
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
     let format_data = fs::read_to_string(format)?
         .lines()
