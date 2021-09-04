@@ -147,11 +147,11 @@ fn fix_error(
         if mismatches < best_mismatch_count {
             keep = true;
             best_mismatch_count = mismatches;
-            best_match = Some(true_seq);
+            best_match = Some(true_seq.to_string());
         }
     }
     if keep && best_match.is_some() {
-        Ok(Some(best_match.unwrap().to_string()))
+        Ok(best_match)
     } else {
         Ok(None)
     }
