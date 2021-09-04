@@ -17,9 +17,9 @@ impl SequenceErrors {
     ///
     /// # Example
     /// ```
-    /// use del::del_info;
+    /// use del::del_info::SequenceErrors;
     ///
-    /// let sequence_errors = del_info::new();
+    /// let mut sequence_errors = SequenceErrors::new();
     /// ```
     pub fn new() -> SequenceErrors {
         SequenceErrors {
@@ -33,9 +33,9 @@ impl SequenceErrors {
     ///
     /// # Example
     /// ```
-    /// use del::del_info;
+    /// use del::del_info::SequenceErrors;
     ///
-    /// let sequence_errors = del_info::new();
+    /// let mut sequence_errors = SequenceErrors::new();
     /// sequence_errors.constant_region_error();
     /// ```
     pub fn constant_region_error(&mut self) {
@@ -46,9 +46,9 @@ impl SequenceErrors {
     ///
     /// # Example
     /// ```
-    /// use del::del_info;
+    /// use del::del_info::SequenceErrors;
     ///
-    /// let sequence_errors = del_info::new();
+    /// let mut sequence_errors = SequenceErrors::new();
     /// sequence_errors.sample_barcode_error();
     /// ```
     pub fn sample_barcode_error(&mut self) {
@@ -59,9 +59,9 @@ impl SequenceErrors {
     ///
     /// # Example
     /// ```
-    /// use del::del_info;
+    /// use del::del_info::SequenceErrors;
     ///
-    /// let sequence_errors = del_info::new();
+    /// let mut sequence_errors = SequenceErrors::new();
     /// sequence_errors.bb_barcode_error();
     /// ```
     pub fn bb_barcode_error(&mut self) {
@@ -72,9 +72,9 @@ impl SequenceErrors {
     ///
     /// # Example
     /// ```
-    /// use del::del_info;
+    /// use del::del_info::SequenceErrors;
     ///
-    /// let sequence_errors = del_info::new();
+    /// let mut sequence_errors = SequenceErrors::new();
     /// sequence_errors.bb_barcode_error();
     /// sequence_errors.display();
     /// ```
