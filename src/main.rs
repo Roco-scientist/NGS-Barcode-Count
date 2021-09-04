@@ -10,11 +10,12 @@ use time::PreciseTime;
 
 fn main() {
     let start = PreciseTime::now();
-    let (fastq, format, samples, threads) =
+    let (fastq, format, samples, output_dir, threads) =
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     let regex_string = del::del_info::regex_search(format).unwrap();
     let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    let bb_num = regex_string.matches("bb").count();
     println!("Format: {}", constant_region_string);
 
     let results = Arc::new(Mutex::new(HashMap::new()));
@@ -60,12 +61,14 @@ fn main() {
     sequence_errors.lock().unwrap().display();
     let end = PreciseTime::now();
     let seconds = start.to(end).num_milliseconds() / 1000;
+    println!("Writing counts");
+    del::output_counts(output_dir, results, bb_num).unwrap();
     println!("Total time: {} seconds", seconds);
     // println!("results: {:?}", results.lock().unwrap());
 }
 
 /// Gets the command line arguments
-pub fn arguments() -> Result<(String, String, String, u8), Box<dyn std::error::Error>> {
+pub fn arguments() -> Result<(String, String, String, String, u8), Box<dyn std::error::Error>> {
     let total_cpus = num_cpus::get().to_string();
     // parse arguments
     let args = App::new("DEL analysis")
@@ -104,12 +107,21 @@ pub fn arguments() -> Result<(String, String, String, u8), Box<dyn std::error::E
                 .default_value(&total_cpus)
                 .help("Number of threads"),
         )
+        .arg(
+            Arg::with_name("output_dir")
+                .short("o")
+                .long("output_dir")
+                .takes_value(true)
+                .default_value("./")
+                .help("Directory to output the counts to"),
+        )
         .get_matches();
 
     return Ok((
         args.value_of("fastq").unwrap().to_string(),
         args.value_of("sequence_format").unwrap().to_string(),
         args.value_of("sample_barcodes").unwrap().to_string(),
+        args.value_of("output_dir").unwrap().to_string(),
         args.value_of("threads").unwrap().parse::<u8>().unwrap(),
     ));
 }
