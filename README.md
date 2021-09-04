@@ -34,4 +34,4 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 </tr>
 </table>
 
-And sequence_format_file is in the format of the example.
+And sequence_format_file is in the format of the [example.scheme.txt](example.scheme.txt)
