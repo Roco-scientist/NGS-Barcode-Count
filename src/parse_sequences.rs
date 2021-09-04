@@ -28,35 +28,19 @@ pub fn parse(
         }
         let seq = seq_clone.lock().unwrap().pop();
         if let Some(sequence) = seq {
-            let barcode_search = format_search.captures(&sequence);
-            if let Some(barcodes) = barcode_search {
-                let sample_seq = barcodes["sample"].to_string();
-                let sample_name_option;
-                if let Some(sample) = samples_clone.get(&sample_seq) {
-                    sample_name_option = Some(sample.to_string())
-                } else {
-                    let sample_seq_option = fix_error(&sample_seq, &sample_seqs, 3)?;
-                    if let Some(sample_seq_new) = sample_seq_option {
-                        sample_name_option =
-                            Some(samples_clone.get(&sample_seq_new).unwrap().to_string());
-                    } else {
-                        sample_name_option = None;
-                        sequence_errors_clone.lock().unwrap().sample_barcode_error();
-                    }
-                }
-                if let Some(mut result_string) = sample_name_option {
-                    for x in 0..building_block_num {
-                        let bb_num = format!("bb{}", x + 1);
-                        result_string.push_str(",");
-                        result_string.push_str(&barcodes[bb_num.as_str()]);
-                    }
-                    // println!("Thread {} - result: {}", thread, &result_string);
+            let result_string_option = match_seq(
+                &sequence,
+                &format_search,
+                &samples_clone,
+                &sequence_errors_clone,
+                building_block_num,
+                &sample_seqs,
+            )?;
+            if let Some(result_string) = result_string_option {
+                let mut results_hashmap = results_clone.lock().unwrap();
 
-                    let mut results_hashmap = results_clone.lock().unwrap();
-
-                    let count = results_hashmap.entry(result_string).or_insert(0);
-                    *count += 1;
-                }
+                let count = results_hashmap.entry(result_string).or_insert(0);
+                *count += 1;
             } else {
                 let barcode_length = constant_clone.len();
                 let ns = constant_clone.matches("N").count();
@@ -76,40 +60,19 @@ pub fn parse(
                     fix_error(&constant_clone, &possible_seqs, errors_allowed as u8)?;
                 if let Some(new_sequence) = fixed_constant_option {
                     let fixed_sequence = fix_constant_region(new_sequence, &constant_clone);
-                    let barcode_search = format_search.captures(&fixed_sequence);
-                    if let Some(barcodes) = barcode_search {
-                        let sample_seq = barcodes["sample"].to_string();
-                        let sample_name_option;
-                        if let Some(sample) = samples_clone.get(&sample_seq) {
-                            sample_name_option = Some(sample.to_string())
-                        } else {
-                            let sample_seq_option = fix_error(&sample_seq, &sample_seqs, 3)?;
-                            if let Some(sample_seq_new) = sample_seq_option {
-                                sample_name_option =
-                                    Some(samples_clone.get(&sample_seq_new).unwrap().to_string());
-                            } else {
-                                sample_name_option = None;
-                                sequence_errors_clone.lock().unwrap().sample_barcode_error();
-                            }
-                        }
-                        if let Some(mut result_string) = sample_name_option {
-                            for x in 0..building_block_num {
-                                let bb_num = format!("bb{}", x + 1);
-                                result_string.push_str(",");
-                                result_string.push_str(&barcodes[bb_num.as_str()]);
-                            }
-                            // println!("Thread {} - result: {}", thread, &result_string);
+                    let result_string_option = match_seq(
+                        &fixed_sequence,
+                        &format_search,
+                        &samples_clone,
+                        &sequence_errors_clone,
+                        building_block_num,
+                        &sample_seqs,
+                    )?;
+                    if let Some(result_string) = result_string_option {
+                        let mut results_hashmap = results_clone.lock().unwrap();
 
-                            let mut results_hashmap = results_clone.lock().unwrap();
-
-                            let count = results_hashmap.entry(result_string).or_insert(0);
-                            *count += 1;
-                        }
-                    } else {
-                        sequence_errors_clone
-                            .lock()
-                            .unwrap()
-                            .constant_region_error();
+                        let count = results_hashmap.entry(result_string).or_insert(0);
+                        *count += 1;
                     }
                 } else {
                     sequence_errors_clone
@@ -167,4 +130,44 @@ fn fix_constant_region(old_sequence: String, sequence_fix: &String) -> String {
         }
     }
     return fixed_sequence;
+}
+
+fn match_seq(
+    sequence: &String,
+    format_search: &Regex,
+    samples_clone: &HashMap<String, String>,
+    sequence_errors_clone: &Arc<Mutex<super::del_info::SequenceErrors>>,
+    building_block_num: usize,
+    sample_seqs: &Vec<String>,
+) -> Result<Option<String>, Box<dyn Error>> {
+    // find the barcodes with the reges search
+    let barcode_search = format_search.captures(&sequence);
+
+    // if the barcodes are found continue, else return None
+    if let Some(barcodes) = barcode_search {
+        // Look for sample conversion
+        let sample_seq = barcodes["sample"].to_string();
+        // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
+        let sample_name_option;
+        if let Some(sample) = samples_clone.get(&sample_seq) {
+            sample_name_option = Some(sample.to_string())
+        } else {
+            let sample_seq_option = fix_error(&sample_seq, &sample_seqs, 3)?;
+            if let Some(sample_seq_new) = sample_seq_option {
+                sample_name_option = Some(samples_clone.get(&sample_seq_new).unwrap().to_string());
+            } else {
+                sequence_errors_clone.lock().unwrap().sample_barcode_error();
+                return Ok(None);
+            }
+        }
+        if let Some(mut result_string) = sample_name_option {
+            for x in 0..building_block_num {
+                let bb_num = format!("bb{}", x + 1);
+                result_string.push_str(",");
+                result_string.push_str(&barcodes[bb_num.as_str()]);
+            }
+            return Ok(Some(result_string));
+        }
+    }
+    Ok(None)
 }
