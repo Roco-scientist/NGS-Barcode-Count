@@ -16,10 +16,10 @@ With very large DEL libraries, there may be some memory creep because it needs t
 </ul>
 
 ## Run
-Enter DEL-Encode directory and compile for the first time
+Enter DEL-Encode directory and compile for the first time<br>
 `$ cargo build --release`<br>
 <br>
-Run DEL-Decode
+Run DEL-Decode<br>
 `$ ./target/release/del --fastq <fastq_file> --sample_barcodes <sample_barcode_file> --sequence_format <sequence_format_file>`<br>
 
 ## Files Needed
