@@ -3,6 +3,7 @@ use regex::Regex;
 use std::{collections::HashMap, error::Error, fs};
 
 // Struct to keep track of sequencing errors
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SequenceErrors {
     // errors within the constant region
     constant_region: u64,
