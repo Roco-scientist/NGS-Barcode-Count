@@ -6,21 +6,14 @@ With very large DEL libraries, there may be some memory creep because it needs t
 ## Table of Contents
 <ul>
 <li><a href=#Requirements>Requirements</a></li>
-<li><a href=#run>Run</a></li>
 <li><a href=#files-needed>Files Needed</a></li>
+<li><a href=#run>Run</a></li>
 </ul>
 
 ## Requirements
 <ul>
 <li>Rust install</li>
 </ul>
-
-## Run
-Enter DEL-Encode directory and compile for the first time<br>
-`$ cargo build --release`<br>
-<br>
-Run DEL-Decode<br>
-`$ ./target/release/del --fastq <fastq_file> --sample_barcodes <sample_barcode_file> --sequence_format <sequence_format_file>`<br>
 
 ## Files Needed
 Currently supports FASTQ, Sample Barcode, and Sequence Format.  Building block barcode and random barcode are still a work in progress.
@@ -66,3 +59,10 @@ The sequence format file should be a text file that is line separated by the typ
 </table>
 
 An example can be found in [example.scheme.txt](example.scheme.txt)
+
+## Run
+Enter DEL-Encode directory and compile for the first time<br>
+`$ cargo build --release`<br>
+<br>
+Run DEL-Decode<br>
+`$ ./target/release/del --fastq <fastq_file> --sample_barcodes <sample_barcode_file> --sequence_format <sequence_format_file>`<br>
