@@ -9,10 +9,10 @@ pub fn parse(
     seq_clone: Arc<Mutex<Vec<String>>>,
     finished_clone: Arc<Mutex<bool>>,
     regex_string: String,
+    constant_clone: String,
     results_clone: Arc<Mutex<HashMap<String, u32>>>,
     samples_clone: HashMap<String, String>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
-    thread: u8,
 ) -> Result<(), Box<dyn Error>> {
     let format_search = Regex::new(&regex_string)?;
     let building_block_num = regex_string.matches("bb").count();
@@ -58,11 +58,65 @@ pub fn parse(
                     *count += 1;
                 }
             } else {
-                sequence_errors_clone
-                    .lock()
-                    .unwrap()
-                    .constant_region_error();
-                // println!("Thread {} - barcodes not found: {}", thread, sequence);
+                let barcode_length = constant_clone.len();
+                let ns = constant_clone.matches("N").count();
+                let errors_allowed = (barcode_length - ns) / 5;
+                let sequence_length = sequence.len();
+                let length_diff = sequence_length - barcode_length;
+                let mut possible_seqs = Vec::new();
+                for index in 0..length_diff {
+                    let possible_seq = sequence
+                        .chars()
+                        .skip(index)
+                        .take(barcode_length)
+                        .collect::<String>();
+                    possible_seqs.push(possible_seq);
+                }
+                let fixed_constant_option =
+                    fix_error(&constant_clone, &possible_seqs, errors_allowed as u8)?;
+                if let Some(new_sequence) = fixed_constant_option {
+                    let fixed_sequence = fix_constant_region(new_sequence, &constant_clone);
+                    let barcode_search = format_search.captures(&fixed_sequence);
+                    if let Some(barcodes) = barcode_search {
+                        let sample_seq = barcodes["sample"].to_string();
+                        let sample_name_option;
+                        if let Some(sample) = samples_clone.get(&sample_seq) {
+                            sample_name_option = Some(sample.to_string())
+                        } else {
+                            let sample_seq_option = fix_error(&sample_seq, &sample_seqs, 3)?;
+                            if let Some(sample_seq_new) = sample_seq_option {
+                                sample_name_option =
+                                    Some(samples_clone.get(&sample_seq_new).unwrap().to_string());
+                            } else {
+                                sample_name_option = None;
+                                sequence_errors_clone.lock().unwrap().sample_barcode_error();
+                            }
+                        }
+                        if let Some(mut result_string) = sample_name_option {
+                            for x in 0..building_block_num {
+                                let bb_num = format!("bb{}", x + 1);
+                                result_string.push_str(",");
+                                result_string.push_str(&barcodes[bb_num.as_str()]);
+                            }
+                            // println!("Thread {} - result: {}", thread, &result_string);
+
+                            let mut results_hashmap = results_clone.lock().unwrap();
+
+                            let count = results_hashmap.entry(result_string).or_insert(0);
+                            *count += 1;
+                        }
+                    } else {
+                        sequence_errors_clone
+                            .lock()
+                            .unwrap()
+                            .constant_region_error();
+                    }
+                } else {
+                    sequence_errors_clone
+                        .lock()
+                        .unwrap()
+                        .constant_region_error();
+                }
             }
         }
     }
@@ -80,7 +134,7 @@ fn fix_error(
     for true_seq in possible_seqs {
         let mut mismatches = 0;
         for (possible_char, current_char) in true_seq.chars().zip(mismatch_seq.chars()) {
-            if possible_char != current_char {
+            if possible_char != current_char && current_char != 'N' {
                 mismatches += 1;
             }
             if mismatches > best_mismatch_count {
@@ -101,4 +155,16 @@ fn fix_error(
     } else {
         Ok(None)
     }
+}
+
+fn fix_constant_region(old_sequence: String, sequence_fix: &String) -> String {
+    let mut fixed_sequence = String::new();
+    for (old_char, new_char) in old_sequence.chars().zip(sequence_fix.chars()) {
+        if new_char == 'N' {
+            fixed_sequence.push_str(&old_char.to_string());
+        } else {
+            fixed_sequence.push_str(&new_char.to_string());
+        }
+    }
+    return fixed_sequence;
 }

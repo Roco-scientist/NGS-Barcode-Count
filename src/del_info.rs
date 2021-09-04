@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use regex::Regex;
 use std::{collections::HashMap, error::Error, fs};
 
 pub struct SequenceErrors {
@@ -53,8 +54,26 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
             final_format.push(letter);
         }
     }
-    println!("Format: {}", &final_format);
     Ok(final_format)
+}
+
+pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
+    let remove_search = Regex::new(r"(\(\?P<sample>.)|(\(\?P<bb\d+>.)|(\}\))|\{")?;
+    let captures_search = Regex::new(r"(\d+)|([ATGC]+)")?;
+    let regex_string_cleaned = remove_search.replace_all(regex_string, "");
+    let mut new_format = String::new();
+    for capture in captures_search.find_iter(&regex_string_cleaned) {
+        let found = capture.as_str().to_string();
+        let digit_check = found.parse::<u32>();
+        if let Ok(digit) = digit_check {
+            for _ in 0..digit {
+                new_format.push_str("N");
+            }
+        } else {
+            new_format.push_str(&found);
+        }
+    }
+    Ok(new_format)
 }
 
 fn reformat_line(mut line: String) -> String {

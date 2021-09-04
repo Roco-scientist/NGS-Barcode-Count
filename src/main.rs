@@ -14,6 +14,8 @@ fn main() {
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     let regex_string = del::del_info::regex_search(format).unwrap();
+    let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    println!("Format: {}", constant_region_string);
 
     let results = Arc::new(Mutex::new(HashMap::new()));
 
@@ -33,22 +35,23 @@ fn main() {
             *finished_clone.lock().unwrap() = true;
         });
 
-        for thread in 1..threads {
+        for _ in 1..threads {
             let seq_clone = Arc::clone(&seq);
             let finished_clone = Arc::clone(&finished);
             let regex_string_clone = regex_string.clone();
             let results_clone = Arc::clone(&results);
             let samples_clone = samples_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
+            let constant_clone = constant_region_string.clone();
             s.spawn(move |_| {
                 del::parse_sequences::parse(
                     seq_clone,
                     finished_clone,
                     regex_string_clone,
+                    constant_clone,
                     results_clone,
                     samples_clone,
                     sequence_errors_clone,
-                    thread,
                 )
                 .unwrap();
             })
