@@ -9,7 +9,7 @@ DNA encoded library decoding
 <li><a href=#setup>Setup</a></li>
 </ul>
 
-## Requirments
+## Requirements
 <ul>
 <li>Rust install</li>
 </ul>
