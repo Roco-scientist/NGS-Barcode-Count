@@ -12,7 +12,7 @@ With very large DEL libraries, there may be some memory creep because it needs t
 
 ## Requirements
 <ul>
-<li>Rust install</li>
+<li>Rust install: <a href=https://www.rust-lang.org/tools/install>instructions here</a></li>
 </ul>
 
 ## Files Needed
