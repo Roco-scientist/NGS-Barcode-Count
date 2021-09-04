@@ -3,9 +3,10 @@ pub mod parse_sequences;
 
 // use flate2::read::GzDecoder;
 use std::{
+    collections::HashMap,
     error::Error,
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     sync::{Arc, Mutex},
 };
 
@@ -38,5 +39,25 @@ pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(
         // seq_clone.lock().unwrap().insert(0, flate_line);
     }
     println!();
+    Ok(())
+}
+
+pub fn output_counts(
+    output_dir: String,
+    results: Arc<Mutex<HashMap<String, u32>>>,
+    bb_num: usize,
+) -> Result<(), Box<dyn Error>> {
+    let results_hasmap = results.lock().unwrap();
+    let mut output = File::create(format!("{}{}", output_dir, "Counts.csv"))?;
+    let mut header = "Sample_ID".to_string();
+    for num in 0..bb_num {
+        header.push_str(&format!(",BB_{}", num + 1))
+    }
+    header.push_str(",Count\n");
+    output.write_all(header.as_bytes())?;
+    for (code, count) in results_hasmap.iter() {
+        let row = format!("{},{}\n", code, count);
+        output.write_all(row.as_bytes())?;
+    }
     Ok(())
 }
