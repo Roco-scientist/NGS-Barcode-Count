@@ -1,5 +1,5 @@
 # DEL-Decode
-DNA encoded library decoding.  Multithreaded and low resource use.  Uses one thread to read and the rest to process the data, so at least a 2 threaded machine essential.
+DNA encoded library decoding.  Multithreaded and low resource use.  Uses one thread to read and the rest to process the data, so at least a 2 threaded machine is essential.
 This program does not store all data within RAM but instead sequentially processed the sequencing data in order to remain memory efficient.  
 With very large DEL libraries, there may be some memory creep because it needs to count all occurances of building block barcodes and therefore needs to store any that are found.
 
@@ -60,4 +60,5 @@ The sequence format file should be a text file that is line separated by the typ
 <td>{#}</td>
 </tr>
 </table>
+
 An example can be found in [example.scheme.txt](example.scheme.txt)
