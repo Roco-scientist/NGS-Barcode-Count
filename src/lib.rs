@@ -21,7 +21,9 @@ pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(
                     seq_clone.lock().unwrap().insert(0, sequence_data);
                 }
                 total_reads += 1;
-                print!("Total sequences: {}\r", total_reads);
+                if total_reads % 1000 == 0 {
+                    print!("Total sequences: {}\r", total_reads);
+                }
             }
             line_num += 1;
             if line_num == 5 {
