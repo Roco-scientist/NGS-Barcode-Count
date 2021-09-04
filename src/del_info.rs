@@ -1,4 +1,35 @@
-use std::{error::Error, fs};
+use itertools::Itertools;
+use regex::Regex;
+use std::{collections::HashMap, error::Error, fs};
+
+pub struct SequenceErrors {
+    constant_region: u64,
+    sample_barcode: u64,
+}
+
+impl SequenceErrors {
+    pub fn new() -> SequenceErrors {
+        SequenceErrors {
+            constant_region: 0,
+            sample_barcode: 0,
+        }
+    }
+
+    pub fn constant_region_error(&mut self) {
+        self.constant_region += 1;
+    }
+
+    pub fn sample_barcode_error(&mut self) {
+        self.sample_barcode += 1;
+    }
+
+    pub fn display(&mut self) {
+        println!(
+            "Constant Region Mismatches: {}\nSample Barcode Mismatches: {}",
+            self.constant_region, self.sample_barcode
+        )
+    }
+}
 
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
     let format_data = fs::read_to_string(format)?
@@ -23,8 +54,26 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
             final_format.push(letter);
         }
     }
-    println!("Format: {}", &final_format);
     Ok(final_format)
+}
+
+pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
+    let remove_search = Regex::new(r"(\(\?P<sample>.)|(\(\?P<bb\d+>.)|(\}\))|\{")?;
+    let captures_search = Regex::new(r"(\d+)|([ATGC]+)")?;
+    let regex_string_cleaned = remove_search.replace_all(regex_string, "");
+    let mut new_format = String::new();
+    for capture in captures_search.find_iter(&regex_string_cleaned) {
+        let found = capture.as_str().to_string();
+        let digit_check = found.parse::<u32>();
+        if let Ok(digit) = digit_check {
+            for _ in 0..digit {
+                new_format.push_str("N");
+            }
+        } else {
+            new_format.push_str(&found);
+        }
+    }
+    Ok(new_format)
 }
 
 fn reformat_line(mut line: String) -> String {
@@ -35,4 +84,22 @@ fn reformat_line(mut line: String) -> String {
         line = line.replace("[", "(?P<sample>.{").replace("]", "})");
     }
     line
+}
+
+pub fn sample_barcodes(barcode_path: String) -> Result<HashMap<String, String>, Box<dyn Error>> {
+    let barcode_data: HashMap<String, String> = fs::read_to_string(barcode_path)?
+        .lines()
+        .skip(1)
+        .map(|line| {
+            line.split(",")
+                .take(2)
+                .map(|value| value.to_string())
+                .collect_tuple()
+                .unwrap_or(("".to_string(), "".to_string()))
+        })
+        .collect::<Vec<(String, String)>>()
+        .iter()
+        .cloned()
+        .collect();
+    Ok(barcode_data)
 }

@@ -2,13 +2,26 @@ use clap::{App, Arg};
 use num_cpus;
 use rayon;
 // use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+use time::PreciseTime;
 
 fn main() {
-    let (fastq, format, _samples, threads) =
+    let start = PreciseTime::now();
+    let (fastq, format, samples, threads) =
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     let regex_string = del::del_info::regex_search(format).unwrap();
+    let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    println!("Format: {}", constant_region_string);
+
+    let results = Arc::new(Mutex::new(HashMap::new()));
+
+    let samples_hashmap = del::del_info::sample_barcodes(samples).unwrap();
+
+    let sequence_errors = Arc::new(Mutex::new(del::del_info::SequenceErrors::new()));
 
     rayon::scope(|s| {
         let seq = Arc::new(Mutex::new(Vec::new()));
@@ -22,16 +35,33 @@ fn main() {
             *finished_clone.lock().unwrap() = true;
         });
 
-        for thread in 1..threads {
+        for _ in 1..threads {
             let seq_clone = Arc::clone(&seq);
             let finished_clone = Arc::clone(&finished);
             let regex_string_clone = regex_string.clone();
+            let results_clone = Arc::clone(&results);
+            let samples_clone = samples_hashmap.clone();
+            let sequence_errors_clone = Arc::clone(&sequence_errors);
+            let constant_clone = constant_region_string.clone();
             s.spawn(move |_| {
-                del::parse_sequences::parse(seq_clone, finished_clone, regex_string_clone, thread)
-                    .unwrap();
+                del::parse_sequences::parse(
+                    seq_clone,
+                    finished_clone,
+                    regex_string_clone,
+                    constant_clone,
+                    results_clone,
+                    samples_clone,
+                    sequence_errors_clone,
+                )
+                .unwrap();
             })
         }
     });
+    sequence_errors.lock().unwrap().display();
+    let end = PreciseTime::now();
+    let seconds = start.to(end).num_milliseconds() / 1000;
+    println!("Total time: {} seconds", seconds);
+    // println!("results: {:?}", results.lock().unwrap());
 }
 
 /// Gets the command line arguments
