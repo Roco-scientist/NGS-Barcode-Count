@@ -6,7 +6,8 @@ With very large DEL libraries, there may be some memory creep because it needs t
 ## Table of Contents
 <ul>
 <li><a href=#Requirements>Requirements</a></li>
-<li><a href=#setup>Setup</a></li>
+<li><a href=#run>Run</a></li>
+<li><a href=#files-needed>Files Needed</a></li>
 </ul>
 
 ## Requirements
@@ -14,8 +15,11 @@ With very large DEL libraries, there may be some memory creep because it needs t
 <li>Rust install</li>
 </ul>
 
-## Setup
+## Run
+Enter DEL-Encode directory and compile for the first time
 `$ cargo build --release`<br>
+<br>
+Run DEL-Decode
 `$ ./target/release/del --fastq <fastq_file> --sample_barcodes <sample_barcode_file> --sequence_format <sequence_format_file>`<br>
 
 ## Files Needed
