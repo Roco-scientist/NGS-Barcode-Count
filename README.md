@@ -73,25 +73,19 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 The sample_barcode_file is a comma separate file with the following format:<br>
 <table>
 <tr>
-<th>Barcode_1</th>
-<th>Barcode_2</th>
-<th>Barcode_3</th>
-<th>Barcode_n</th>
+<th>Barcode</th>
 <th>BB_ID</th>
+<th>BB_Number</th>
 </tr>
 <tr>
-<td>AGCATAC</td>
-<td>TACAGCC</td>
-<td>GCAGTGC</td>
 <td>CAGAGAC</td>
 <td>BB_name_1</td>
+<td>1</td>
 </tr>
 <tr>
 <td>AACTTAC</td>
-<td>TTCAGAC</td>
-<td>GGCAGGC</td>
-<td>CAGACAC</td>
 <td>BB_name_2</td>
+<td>3</td>
 </tr>
 </table>
 Where the last column is the ID and the first columns are continued for as many building blocks that exist.  The number of building blocks needs to match what
