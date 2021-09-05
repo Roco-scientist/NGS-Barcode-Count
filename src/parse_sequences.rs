@@ -16,7 +16,7 @@ pub fn parse(
     constant_clone: String,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     samples_clone: Option<HashMap<String, String>>,
-    bb_clone: Option<HashMap<String, String>>,
+    _bb_clone: Option<HashMap<String, String>>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
 ) -> Result<(), Box<dyn Error>> {
     // Create a new regex search that has captures for each barcode
