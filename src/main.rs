@@ -28,7 +28,7 @@ fn main() {
     let results = Arc::new(Mutex::new(HashMap::new()));
 
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
-    let samples_hashmap = del::del_info::sample_barcodes(samples).unwrap();
+    let samples_hashmap = del::del_info::barcode_file_conversion(samples).unwrap();
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
     let sequence_errors = Arc::new(Mutex::new(del::del_info::SequenceErrors::new()));

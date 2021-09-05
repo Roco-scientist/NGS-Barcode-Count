@@ -2,48 +2,108 @@ use itertools::Itertools;
 use regex::Regex;
 use std::{collections::HashMap, error::Error, fs};
 
+// Struct to keep track of sequencing errors
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SequenceErrors {
+    // errors within the constant region
     constant_region: u64,
+    // errors within the sample barcode
     sample_barcode: u64,
+    // erors within the building block barcode
+    bb_barcode: u64,
 }
 
 impl SequenceErrors {
+    /// Create a new sequence error struct
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// ```
     pub fn new() -> SequenceErrors {
         SequenceErrors {
             constant_region: 0,
             sample_barcode: 0,
+            bb_barcode: 0,
         }
     }
 
+    /// Add one to constant region error
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// sequence_errors.constant_region_error();
+    /// ```
     pub fn constant_region_error(&mut self) {
         self.constant_region += 1;
     }
 
+    /// Add one to sample barcode error
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// sequence_errors.sample_barcode_error();
+    /// ```
     pub fn sample_barcode_error(&mut self) {
         self.sample_barcode += 1;
     }
 
+    /// Add one to building block barcode error
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// sequence_errors.bb_barcode_error();
+    /// ```
+    pub fn bb_barcode_error(&mut self) {
+        self.bb_barcode += 1;
+    }
+
+    /// Print to stdout all sequencing error counts
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// sequence_errors.bb_barcode_error();
+    /// sequence_errors.display();
+    /// ```
     pub fn display(&mut self) {
         println!(
-            "Constant Region Mismatches: {}\nSample Barcode Mismatches: {}",
-            self.constant_region, self.sample_barcode
+            "Constant Region Mismatches: {}\nSample Barcode Mismatches: {}\nBuilding Block Mismatches: {}",
+            self.constant_region, self.sample_barcode, self.bb_barcode
         )
     }
 }
 
+/// Reads in the sequencing format file and outputs a regex string with captures
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
+    // Read sequenc format file to string
     let format_data = fs::read_to_string(format)?
-        .lines()
-        .filter(|line| !line.starts_with("#"))
+        .lines() // split into lines
+        .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
         .map(|line| {
             let new_line = reformat_line(line.to_string());
             new_line
-        })
-        .collect::<Vec<String>>()
-        .join("");
+        }) // reformat any indication of barcode into a regex capture
+        .collect::<String>(); // collect into a String
 
+    // the previous does not bumber each barcode but names each caputre with bb#
+    // The '#' needs to bre replaced with teh sequential number
     let mut final_format = String::new();
     let mut bb_num = 0;
+    // Fore each character, if the character is #, replace with the sequential building block number
     for letter in format_data.chars() {
         if letter == '#' {
             bb_num += 1;
@@ -57,13 +117,45 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
     Ok(final_format)
 }
 
+fn reformat_line(mut line: String) -> String {
+    // if the line contains '{#}' replace with a capture with bb# group
+    if line.contains("{") {
+        line = line.replace("{", "(?P<bb#>.{").replace("}", "})");
+    }
+    // if the line contains '[#]' replace with a capture with sample group
+    if line.contains("[") {
+        line = line.replace("[", "(?P<sample>.{").replace("]", "})");
+    }
+    line
+}
+
+/// Replaces the capture groups in the regex string with 'N's hte lenght of the barcode
+/// returns the reformatted string
+///
+/// # Example
+/// ```
+/// use del::del_info;
+/// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC";
+/// let sequence_format = del_info::replace_group(regex_string);
+/// assert_eq!(sequence_format.unwrap(), "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGC")
+/// ```
 pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
+    // Create a search for all of the captures in order to remove
     let remove_search = Regex::new(r"(\(\?P<sample>.)|(\(\?P<bb\d+>.)|(\}\))|\{")?;
+    // Create a capture for digits or sequences
     let captures_search = Regex::new(r"(\d+)|([ATGC]+)")?;
+
+    // Clean the regex string by removing the captures only leaving the numbers
     let regex_string_cleaned = remove_search.replace_all(regex_string, "");
+
+    // setup a new string to push into for the final return
     let mut new_format = String::new();
+
+    // For each group of numbers or nucleotids, if it is a number, repeat 'N' for the amount of number.
+    // If it is a group of nucleotides, just push those to the final string
     for capture in captures_search.find_iter(&regex_string_cleaned) {
         let found = capture.as_str().to_string();
+        // If it is a number, repeat Ns, otherwise just add the nucleotides
         let digit_check = found.parse::<u32>();
         if let Ok(digit) = digit_check {
             for _ in 0..digit {
@@ -76,30 +168,25 @@ pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
     Ok(new_format)
 }
 
-fn reformat_line(mut line: String) -> String {
-    if line.contains("{") {
-        line = line.replace("{", "(?P<bb#>.{").replace("}", "})");
-    }
-    if line.contains("[") {
-        line = line.replace("[", "(?P<sample>.{").replace("]", "})");
-    }
-    line
-}
-
-pub fn sample_barcodes(barcode_path: String) -> Result<HashMap<String, String>, Box<dyn Error>> {
+/// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
+/// and the second needs to be the ID
+pub fn barcode_file_conversion(
+    barcode_path: String,
+) -> Result<HashMap<String, String>, Box<dyn Error>> {
+    // read in the sample barcode file
     let barcode_data: HashMap<String, String> = fs::read_to_string(barcode_path)?
-        .lines()
-        .skip(1)
+        .lines() // split the lines
+        .skip(1) // skip the first line which should be the header
         .map(|line| {
             line.split(",")
-                .take(2)
+                .take(2) // take only the first two values, or columns
                 .map(|value| value.to_string())
                 .collect_tuple()
                 .unwrap_or(("".to_string(), "".to_string()))
-        })
+        }) // comma split the line into a tuple with the first being the key and the last the value
         .collect::<Vec<(String, String)>>()
         .iter()
         .cloned()
-        .collect();
+        .collect(); // collect into a hashmap
     Ok(barcode_data)
 }
