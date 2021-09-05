@@ -14,7 +14,7 @@ pub fn parse(
     finished_clone: Arc<Mutex<bool>>,
     regex_string: String,
     constant_clone: String,
-    results_clone: Arc<Mutex<HashMap<String, u32>>>,
+    results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     samples_clone: Option<HashMap<String, String>>,
     bb_clone: Option<HashMap<String, String>>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
@@ -52,7 +52,7 @@ pub fn parse(
         if let Some(sequence) = seq {
             // get the result string match from the sequence.  This is a String with commas between sample_ID and builbding block sequences.
             // This is a convenience for later writing to a file since it will already be comma separated
-            let result_string_option = match_seq(
+            let result_tuple_option = match_seq(
                 &sequence,
                 &format_search,
                 &samples_clone,
@@ -61,11 +61,23 @@ pub fn parse(
                 &sample_seqs,
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
-            if let Some(result_string) = result_string_option {
+            if let Some((sample_name, bb_string)) = result_tuple_option {
                 let mut results_hashmap = results_clone.lock().unwrap();
 
-                let count = results_hashmap.entry(result_string).or_insert(0);
-                *count += 1;
+                if !results_hashmap.contains_key(&sample_name) {
+                    let mut intermediate_hashmap = HashMap::new();
+                    intermediate_hashmap.insert(bb_string.clone(), 0);
+                    results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                }
+
+                *results_hashmap
+                    .get_mut(&sample_name)
+                    .unwrap()
+                    .entry(bb_string)
+                    .or_insert(0) += 1;
+
+                // let mut sample_results_hash = *results_hashmap.get(&sample_name).unwrap();
+                // *sample_results_hash.entry(bb_string).or_insert(0) += 1;
             } else {
                 // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
                 let errors_allowed =
@@ -93,7 +105,7 @@ pub fn parse(
                 if let Some(new_sequence) = fixed_constant_option {
                     // Flip all barcodes into the constant's 'N's for the fixed sequence
                     let fixed_sequence = fix_constant_region(new_sequence, &constant_clone);
-                    let result_string_option = match_seq(
+                    let result_tuple_option = match_seq(
                         &fixed_sequence,
                         &format_search,
                         &samples_clone,
@@ -101,11 +113,20 @@ pub fn parse(
                         building_block_num,
                         &sample_seqs,
                     )?;
-                    if let Some(result_string) = result_string_option {
+                    if let Some((sample_name, bb_string)) = result_tuple_option {
                         let mut results_hashmap = results_clone.lock().unwrap();
 
-                        let count = results_hashmap.entry(result_string).or_insert(0);
-                        *count += 1;
+                        if !results_hashmap.contains_key(&sample_name) {
+                            let mut intermediate_hashmap = HashMap::new();
+                            intermediate_hashmap.insert(bb_string.clone(), 0);
+                            results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                        }
+
+                        *results_hashmap
+                            .get_mut(&sample_name)
+                            .unwrap()
+                            .entry(bb_string)
+                            .or_insert(0) += 1;
                     }
                 } else {
                     sequence_errors_clone
@@ -128,7 +149,7 @@ fn match_seq(
     sequence_errors_clone: &Arc<Mutex<super::del_info::SequenceErrors>>,
     building_block_num: usize,
     sample_seqs: &Option<Vec<String>>,
-) -> Result<Option<String>, Box<dyn Error>> {
+) -> Result<Option<(String, String)>, Box<dyn Error>> {
     // find the barcodes with the reges search
     let barcode_search = format_search.captures(&sequence);
 
@@ -161,13 +182,14 @@ fn match_seq(
             sample_name_option = Some("Unknown".to_string())
         }
         // If the sample barcode -> ID is found, add the building block suquences to the result string.  Otherwise, return None
-        if let Some(mut result_string) = sample_name_option {
-            for x in 0..building_block_num {
+        if let Some(sample_name) = sample_name_option {
+            let mut bb_string = barcodes["bb1"].to_string();
+            for x in 1..building_block_num {
                 let bb_num = format!("bb{}", x + 1);
-                result_string.push_str(",");
-                result_string.push_str(&barcodes[bb_num.as_str()]);
+                bb_string.push_str(",");
+                bb_string.push_str(&barcodes[bb_num.as_str()]);
             }
-            return Ok(Some(result_string));
+            return Ok(Some((sample_name, bb_string)));
         }
     }
     Ok(None)
