@@ -62,11 +62,10 @@ pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(
 /// Writes counts result to CSV file
 pub fn output_counts(
     output_dir: String,
-    results: Arc<Mutex<HashMap<String, u32>>>,
+    results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     bb_num: usize,
 ) -> Result<(), Box<dyn Error>> {
     let results_hasmap = results.lock().unwrap(); // get the results
-    let mut output = File::create(format!("{}{}", output_dir, "Counts.csv"))?; // Create the output file
 
     // Create a comma separated header.  First column 'Sample_ID', the following columns 'BB_#'.  The last header is 'Count'
     let mut header = "Sample_ID".to_string();
@@ -74,12 +73,17 @@ pub fn output_counts(
         header.push_str(&format!(",BB_{}", num + 1))
     }
     header.push_str(",Count\n");
-    output.write_all(header.as_bytes())?; // Write the header to the file
+    for sample_id in results_hasmap.keys() {
+        let sample_counts_hash = results_hasmap.get(sample_id).unwrap();
+        let mut output = File::create(format!("{}{}{}", output_dir, sample_id, "_counts.csv"))?; // Create the output file
 
-    // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
-    for (code, count) in results_hasmap.iter() {
-        let row = format!("{},{}\n", code, count);
-        output.write_all(row.as_bytes())?;
+        output.write_all(header.as_bytes())?; // Write the header to the file
+
+        // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
+        for (code, count) in sample_counts_hash.iter() {
+            let row = format!("{},{}\n", code, count);
+            output.write_all(row.as_bytes())?;
+        }
     }
     Ok(())
 }

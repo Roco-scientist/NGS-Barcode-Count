@@ -5,15 +5,15 @@ use rayon;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Instant,
 };
-use time::PreciseTime;
 
 fn main() {
     // Start a clock to measure how long the algorithm takes
-    let start = PreciseTime::now();
+    let start = Instant::now();
 
     // get the argument inputs
-    let (fastq, format, samples, output_dir, threads) =
+    let (fastq, format, samples_barcodes, bb_barcodes, output_dir, threads) =
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     // Create the regex string which is based on the sequencing format.  Creates the regex captures
@@ -28,7 +28,20 @@ fn main() {
     let results = Arc::new(Mutex::new(HashMap::new()));
 
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
-    let samples_hashmap = del::del_info::barcode_file_conversion(samples).unwrap();
+    let samples_hashmap;
+    if let Some(samples) = samples_barcodes {
+        samples_hashmap = Some(del::del_info::barcode_file_conversion(samples).unwrap());
+    } else {
+        samples_hashmap = None
+    }
+
+    // Create a hashmap of the building block barcodes in order to convert sequence to building block
+    let bb_hashmap;
+    if let Some(bb) = bb_barcodes {
+        bb_hashmap = Some(del::del_info::barcode_file_conversion(bb).unwrap());
+    } else {
+        bb_hashmap = None
+    }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
     let sequence_errors = Arc::new(Mutex::new(del::del_info::SequenceErrors::new()));
@@ -56,6 +69,7 @@ fn main() {
             let regex_string_clone = regex_string.clone();
             let results_clone = Arc::clone(&results);
             let samples_clone = samples_hashmap.clone();
+            let bb_clone = bb_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
             let constant_clone = constant_region_string.clone();
 
@@ -68,6 +82,7 @@ fn main() {
                     constant_clone,
                     results_clone,
                     samples_clone,
+                    bb_clone,
                     sequence_errors_clone,
                 )
                 .unwrap();
@@ -78,16 +93,25 @@ fn main() {
     // Print sequencing error counts to stdout
     sequence_errors.lock().unwrap().display();
 
-    // Get the end time and print total time for the algorithm
-    let end = PreciseTime::now();
-    let seconds = start.to(end).num_milliseconds() / 1000;
     println!("Writing counts");
     del::output_counts(output_dir, results, bb_num).unwrap();
-    println!("Total time: {} seconds", seconds);
+    // Get the end time and print total time for the algorithm
+    let elapsed_time = start.elapsed();
+    if elapsed_time.as_secs() < 2 {
+        println!("Total time: {} milliseconds", elapsed_time.as_millis());
+    } else {
+        if elapsed_time.as_secs() > 600 {
+            println!("Total time: {} minutes", elapsed_time.as_secs() / 60)
+        } else {
+            println!("Total time: {} seconds", elapsed_time.as_secs())
+        }
+    }
 }
 
 /// Gets the command line arguments
-pub fn arguments() -> Result<(String, String, String, String, u8), Box<dyn std::error::Error>> {
+pub fn arguments(
+) -> Result<(String, String, Option<String>, Option<String>, String, u8), Box<dyn std::error::Error>>
+{
     let total_cpus = num_cpus::get().to_string();
     // parse arguments
     let args = App::new("DEL analysis")
@@ -104,7 +128,7 @@ pub fn arguments() -> Result<(String, String, String, String, u8), Box<dyn std::
         )
         .arg(
             Arg::with_name("sequence_format")
-                .short("s")
+                .short("q")
                 .long("sequence_format")
                 .takes_value(true)
                 .required(true)
@@ -112,11 +136,17 @@ pub fn arguments() -> Result<(String, String, String, String, u8), Box<dyn std::
         )
         .arg(
             Arg::with_name("sample_barcodes")
-                .short("b")
+                .short("s")
                 .long("sample_barcodes")
                 .takes_value(true)
-                .required(true)
                 .help("Sample barcodes file"),
+        )
+        .arg(
+            Arg::with_name("bb_barcodes")
+                .short("b")
+                .long("bb_barcodes")
+                .takes_value(true)
+                .help("Building block barcodes file"),
         )
         .arg(
             Arg::with_name("threads")
@@ -136,10 +166,25 @@ pub fn arguments() -> Result<(String, String, String, String, u8), Box<dyn std::
         )
         .get_matches();
 
+    let sample_barcodes;
+    if let Some(sample) = args.value_of("sample_barcodes") {
+        sample_barcodes = Some(sample.to_string())
+    } else {
+        sample_barcodes = None
+    }
+
+    let bb_barcodes;
+    if let Some(bb) = args.value_of("bb_barcodes") {
+        bb_barcodes = Some(bb.to_string())
+    } else {
+        bb_barcodes = None
+    }
+
     return Ok((
         args.value_of("fastq").unwrap().to_string(),
         args.value_of("sequence_format").unwrap().to_string(),
-        args.value_of("sample_barcodes").unwrap().to_string(),
+        sample_barcodes,
+        bb_barcodes,
         args.value_of("output_dir").unwrap().to_string(),
         args.value_of("threads").unwrap().parse::<u8>().unwrap(),
     ));
