@@ -7,6 +7,7 @@ use std::{
     error::Error,
     fs::File,
     io::{BufRead, BufReader, Write},
+    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -67,15 +68,24 @@ pub fn output_counts(
 ) -> Result<(), Box<dyn Error>> {
     let results_hasmap = results.lock().unwrap(); // get the results
 
-    // Create a comma separated header.  First column 'Sample_ID', the following columns 'BB_#'.  The last header is 'Count'
-    let mut header = "Sample_ID".to_string();
-    for num in 0..bb_num {
+    // Create a comma separated header.  First columns are the building block bumbers, 'BB_#'.  The last header is 'Count'
+    let mut header = "BB_1".to_string();
+    for num in 1..bb_num {
         header.push_str(&format!(",BB_{}", num + 1))
     }
     header.push_str(",Count\n");
+
+    // create the directory variable to join the file to
+    let directory = Path::new(&output_dir);
     for sample_id in results_hasmap.keys() {
+        // get the sample results
         let sample_counts_hash = results_hasmap.get(sample_id).unwrap();
-        let mut output = File::create(format!("{}{}{}", output_dir, sample_id, "_counts.csv"))?; // Create the output file
+
+        // create the filename as the sample_id_counts.csv
+        let file_name = format!("{}{}", sample_id, "_counts.csv");
+        // join the filename with the directory to create the full path
+        let output_path = directory.join(file_name);
+        let mut output = File::create(output_path)?; // Create the output file
 
         output.write_all(header.as_bytes())?; // Write the header to the file
 
