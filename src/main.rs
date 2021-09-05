@@ -5,12 +5,12 @@ use rayon;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Instant,
 };
-use time::PreciseTime;
 
 fn main() {
     // Start a clock to measure how long the algorithm takes
-    let start = PreciseTime::now();
+    let start = Instant::now();
 
     // get the argument inputs
     let (fastq, format, samples_barcodes, bb_barcodes, output_dir, threads) =
@@ -93,12 +93,19 @@ fn main() {
     // Print sequencing error counts to stdout
     sequence_errors.lock().unwrap().display();
 
-    // Get the end time and print total time for the algorithm
-    let end = PreciseTime::now();
-    let seconds = start.to(end).num_milliseconds() / 1000;
     println!("Writing counts");
     del::output_counts(output_dir, results, bb_num).unwrap();
-    println!("Total time: {} seconds", seconds);
+    // Get the end time and print total time for the algorithm
+    let elapsed_time = start.elapsed();
+    if elapsed_time.as_secs() < 2 {
+        println!("Total time: {} milliseconds", elapsed_time.as_millis());
+    } else {
+        if elapsed_time.as_secs() > 600 {
+            println!("Total time: {} minutes", elapsed_time.as_secs() / 60)
+        } else {
+            println!("Total time: {} seconds", elapsed_time.as_secs())
+        }
+    }
 }
 
 /// Gets the command line arguments
