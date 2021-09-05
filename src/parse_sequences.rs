@@ -15,7 +15,8 @@ pub fn parse(
     regex_string: String,
     constant_clone: String,
     results_clone: Arc<Mutex<HashMap<String, u32>>>,
-    samples_clone: HashMap<String, String>,
+    samples_clone: Option<HashMap<String, String>>,
+    bb_clone: Option<HashMap<String, String>>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
 ) -> Result<(), Box<dyn Error>> {
     // Create a new regex search that has captures for each barcode
@@ -25,7 +26,12 @@ pub fn parse(
     let building_block_num = regex_string.matches("bb").count();
 
     // Get a vec of all possible sample barcodes for error correction
-    let sample_seqs: Vec<String> = samples_clone.keys().map(|key| key.to_string()).collect();
+    let sample_seqs: Option<Vec<String>>;
+    if let Some(ref samples) = samples_clone {
+        sample_seqs = Some(samples.keys().map(|key| key.to_string()).collect());
+    } else {
+        sample_seqs = None
+    }
 
     // Loop until there are no sequences left to parse.  These are fed into seq_clone vec by the reader thread
     loop {
@@ -118,10 +124,10 @@ pub fn parse(
 fn match_seq(
     sequence: &String,
     format_search: &Regex,
-    samples_clone: &HashMap<String, String>,
+    samples_clone: &Option<HashMap<String, String>>,
     sequence_errors_clone: &Arc<Mutex<super::del_info::SequenceErrors>>,
     building_block_num: usize,
-    sample_seqs: &Vec<String>,
+    sample_seqs: &Option<Vec<String>>,
 ) -> Result<Option<String>, Box<dyn Error>> {
     // find the barcodes with the reges search
     let barcode_search = format_search.captures(&sequence);
@@ -132,16 +138,27 @@ fn match_seq(
         let sample_seq = barcodes["sample"].to_string();
         // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
         let sample_name_option;
-        if let Some(sample) = samples_clone.get(&sample_seq) {
-            sample_name_option = Some(sample.to_string())
-        } else {
-            let sample_seq_option = fix_error(&sample_seq, &sample_seqs, 3)?;
-            if let Some(sample_seq_new) = sample_seq_option {
-                sample_name_option = Some(samples_clone.get(&sample_seq_new).unwrap().to_string());
+        if sample_seqs.is_some() && samples_clone.is_some() {
+            if let Some(sample) = samples_clone.as_ref().unwrap().get(&sample_seq) {
+                sample_name_option = Some(sample.to_string())
             } else {
-                sequence_errors_clone.lock().unwrap().sample_barcode_error();
-                return Ok(None);
+                let sample_seq_option = fix_error(&sample_seq, &sample_seqs.as_ref().unwrap(), 3)?;
+                if let Some(sample_seq_new) = sample_seq_option {
+                    sample_name_option = Some(
+                        samples_clone
+                            .as_ref()
+                            .unwrap()
+                            .get(&sample_seq_new)
+                            .unwrap()
+                            .to_string(),
+                    );
+                } else {
+                    sequence_errors_clone.lock().unwrap().sample_barcode_error();
+                    return Ok(None);
+                }
             }
+        } else {
+            sample_name_option = Some("Unknown".to_string())
         }
         // If the sample barcode -> ID is found, add the building block suquences to the result string.  Otherwise, return None
         if let Some(mut result_string) = sample_name_option {
