@@ -65,6 +65,7 @@ pub fn output_counts(
     output_dir: String,
     results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     bb_num: usize,
+    bb_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
 ) -> Result<(), Box<dyn Error>> {
     let results_hasmap = results.lock().unwrap(); // get the results
 
@@ -90,9 +91,15 @@ pub fn output_counts(
         output.write_all(header.as_bytes())?; // Write the header to the file
 
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
-        for (code, count) in sample_counts_hash.iter() {
-            let row = format!("{},{}\n", code, count);
-            output.write_all(row.as_bytes())?;
+        if let Some(bb_hashmap) = bb_hashmap_option {
+            for (code, count) in sample_counts_hash.iter(){
+                let converted = code.split(",")
+            }
+        } else {
+            for (code, count) in sample_counts_hash.iter() {
+                let row = format!("{},{}\n", code, count);
+                output.write_all(row.as_bytes())?;
+            }
         }
     }
     Ok(())
