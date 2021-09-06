@@ -88,8 +88,9 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 <td>3</td>
 </tr>
 </table>
-Where the last column is the ID and the first columns are continued for as many building blocks that exist.  The number of building blocks needs to match what
-what is found in the sequence format file
+Where the first column is the DNA barcode, the second column is the building block ID which can be a smile string (without commas),
+and the last column is the building block number as an integer.  These are in the same order as the sequence format file and starting
+at 1.
 
 ## Run
 Enter DEL-Encode directory and compile for the first time<br>
