@@ -11,6 +11,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use itertools::Itertools;
+
 /// Reads in the FASTQ file line by line, then pushes every 2 out of 4 lines, which corresponds to the sequence line, into a Vec that is passed to other threads
 ///
 /// FASTQ format:
@@ -91,9 +93,20 @@ pub fn output_counts(
         output.write_all(header.as_bytes())?; // Write the header to the file
 
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
-        if let Some(bb_hashmap) = bb_hashmap_option {
-            for (code, count) in sample_counts_hash.iter(){
-                let converted = code.split(",")
+        if let Some(ref bb_hashmap) = bb_hashmap_option {
+            for (code, count) in sample_counts_hash.iter() {
+                let converted = code
+                    .split(",")
+                    .enumerate()
+                    .map(|(bb_index, bb_barcode)| {
+                        let actual_bb_num = bb_index as u8 + 1;
+                        let barcode_hash = bb_hashmap.get(&actual_bb_num).unwrap();
+                        return barcode_hash.get(bb_barcode).unwrap().to_string();
+                    })
+                    // .collect::<Vec<String>>()
+                    .join(",");
+                let row = format!("{},{}\n", converted, count);
+                output.write_all(row.as_bytes())?;
             }
         } else {
             for (code, count) in sample_counts_hash.iter() {
