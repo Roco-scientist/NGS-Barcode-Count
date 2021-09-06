@@ -142,9 +142,12 @@ fn match_seq(
     // find the barcodes with the reges search
     let mut barcode_search = format_search.captures(&sequence);
 
+    // If the barcode search results in None, try and fix the constant regions
     let fixed_sequence;
     if barcode_search.is_none() {
         let fixed_sequence_option = fix_constant_region(&sequence, constant_clone)?;
+        // If a suitable fix for the constant region was found, recreate the barcode search,
+        // otherwise record the constant region error and return None
         if fixed_sequence_option.is_some() {
             fixed_sequence = fixed_sequence_option.unwrap();
             barcode_search = format_search.captures(&fixed_sequence);
@@ -157,17 +160,21 @@ fn match_seq(
         }
     }
 
-    // if the barcodes are found continue, else return None
+    // if the barcodes are found continue, else return None and record a constant region error
     if let Some(barcodes) = barcode_search {
         // Look for sample conversion
         let sample_seq = barcodes["sample"].to_string();
         let random_barcode_match_option = barcodes.name("random");
         let random_barcode_option;
+
+        // If there is a random barcode included, save it to the random barcode option variable
+        // Otherwise record None and it will be ignored
         if let Some(random_barcode) = random_barcode_match_option {
             random_barcode_option = Some(random_barcode.as_str().to_string())
         } else {
             random_barcode_option = None
         }
+
         // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
         let sample_name_option;
         if sample_seqs.is_some() && samples_clone.is_some() {
@@ -190,14 +197,19 @@ fn match_seq(
                 }
             }
         } else {
-            sample_name_option = Some("Unknown".to_string())
+            // If there is not a sample barcode, record the sample name as Unknown sample
+            sample_name_option = Some("Unknown_sample_name".to_string())
         }
         // If the sample barcode -> ID is found, add the building block suquences to the result string.  Otherwise, return None
         if let Some(sample_name) = sample_name_option {
+            // if there is a building block conversion file used, convert
             if let Some(bb_seqs) = bb_seqs_option {
                 let mut bb_string = String::new();
+                // fore each building block, convert and add as comma separated to a key text for results hashmap
                 for x in 0..building_block_num {
                     let mut bb_seq = barcodes[format!("bb{}", x + 1).as_str()].to_string();
+                    // If the building block sequence does not exists within the conversion file, try and fix
+                    // If it cannnot fix the sequence, add to bb_barcode_error
                     if !bb_seqs[x].contains(&bb_seq) {
                         let bb_seq_fix_option =
                             fix_error(&bb_seq, &bb_seqs[x], bb_seq.chars().count() / 5)?;
@@ -208,6 +220,9 @@ fn match_seq(
                             return Ok(None);
                         }
                     }
+                    // If it is the start just push the bb DNA barcode, otherwise a comma and the bb DNA barcode
+                    // This is converted while writing to disk in case the memory size of the conversion would be too large
+                    // ie, 6 DNA nucleotides takes up less memory than a long SMIILES string
                     if x == 0 {
                         bb_string.push_str(&bb_seq);
                     } else {
@@ -215,8 +230,10 @@ fn match_seq(
                         bb_string.push_str(&bb_seq);
                     }
                 }
+                // if all goes well with bb_conversion and sample conversion, return Some
                 return Ok(Some((sample_name, bb_string, random_barcode_option)));
             } else {
+                // If there is not a building block conversion file, do not try and fix the barcode errors. Push the raw DNA barcode seqeunces
                 let mut bb_string = barcodes["bb1"].to_string();
                 for x in 1..building_block_num {
                     let bb_num = format!("bb{}", x + 1);
@@ -226,10 +243,12 @@ fn match_seq(
                 return Ok(Some((sample_name, bb_string, random_barcode_option)));
             }
         } else {
+            // If the sample barcode was not found record the error and return None
             sequence_errors_clone.lock().unwrap().sample_barcode_error();
             Ok(None)
         }
     } else {
+        // If the constant region was not found, record the error and return None
         sequence_errors_clone
             .lock()
             .unwrap()
