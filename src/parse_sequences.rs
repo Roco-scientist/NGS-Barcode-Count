@@ -15,6 +15,7 @@ pub fn parse(
     regex_string: String,
     constant_clone: String,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
+    random_barcodes_clone: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
     samples_clone: Option<HashMap<String, String>>,
     bb_clone: Option<HashMap<usize, HashMap<String, String>>>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
@@ -81,20 +82,44 @@ pub fn parse(
                 &bb_seqs_option,
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
-            if let Some((sample_name, bb_string)) = result_tuple_option {
-                let mut results_hashmap = results_clone.lock().unwrap();
+            if let Some((sample_name, bb_string, random_barcode_option)) = result_tuple_option {
+                let mut add_value = true;
+                if let Some(random_barcode) = random_barcode_option {
+                    let mut random_hashmap = random_barcodes_clone.lock().unwrap();
 
-                if !results_hashmap.contains_key(&sample_name) {
-                    let mut intermediate_hashmap = HashMap::new();
-                    intermediate_hashmap.insert(bb_string.clone(), 0);
-                    results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                    if !random_hashmap.contains_key(&sample_name) {
+                        let mut intermediate_hashmap = HashMap::new();
+                        let intermediate_vec = vec![random_barcode];
+                        intermediate_hashmap.insert(bb_string.clone(), intermediate_vec);
+                        random_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                    } else {
+                        let random_vec = random_hashmap
+                            .get_mut(&sample_name)
+                            .unwrap()
+                            .get_mut(&bb_string)
+                            .unwrap();
+                        if random_vec.contains(&random_barcode) {
+                            add_value = false
+                        } else {
+                            random_vec.push(random_barcode)
+                        }
+                    }
                 }
+                if add_value {
+                    let mut results_hashmap = results_clone.lock().unwrap();
 
-                *results_hashmap
-                    .get_mut(&sample_name)
-                    .unwrap()
-                    .entry(bb_string)
-                    .or_insert(0) += 1;
+                    if !results_hashmap.contains_key(&sample_name) {
+                        let mut intermediate_hashmap = HashMap::new();
+                        intermediate_hashmap.insert(bb_string.clone(), 0);
+                        results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                    }
+
+                    *results_hashmap
+                        .get_mut(&sample_name)
+                        .unwrap()
+                        .entry(bb_string)
+                        .or_insert(0) += 1;
+                }
 
                 // let mut sample_results_hash = *results_hashmap.get(&sample_name).unwrap();
                 // *sample_results_hash.entry(bb_string).or_insert(0) += 1;
@@ -134,20 +159,46 @@ pub fn parse(
                         &sample_seqs,
                         &bb_seqs_option,
                     )?;
-                    if let Some((sample_name, bb_string)) = result_tuple_option {
-                        let mut results_hashmap = results_clone.lock().unwrap();
+                    if let Some((sample_name, bb_string, random_barcode_option)) =
+                        result_tuple_option
+                    {
+                        let mut add_value = true;
+                        if let Some(random_barcode) = random_barcode_option {
+                            let mut random_hashmap = random_barcodes_clone.lock().unwrap();
 
-                        if !results_hashmap.contains_key(&sample_name) {
-                            let mut intermediate_hashmap = HashMap::new();
-                            intermediate_hashmap.insert(bb_string.clone(), 0);
-                            results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                            if !random_hashmap.contains_key(&sample_name) {
+                                let mut intermediate_hashmap = HashMap::new();
+                                let intermediate_vec = vec![random_barcode];
+                                intermediate_hashmap.insert(bb_string.clone(), intermediate_vec);
+                                random_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                            } else {
+                                let random_vec = random_hashmap
+                                    .get_mut(&sample_name)
+                                    .unwrap()
+                                    .get_mut(&bb_string)
+                                    .unwrap();
+                                if random_vec.contains(&random_barcode) {
+                                    add_value = false
+                                } else {
+                                    random_vec.push(random_barcode)
+                                }
+                            }
                         }
+                        if add_value {
+                            let mut results_hashmap = results_clone.lock().unwrap();
 
-                        *results_hashmap
-                            .get_mut(&sample_name)
-                            .unwrap()
-                            .entry(bb_string)
-                            .or_insert(0) += 1;
+                            if !results_hashmap.contains_key(&sample_name) {
+                                let mut intermediate_hashmap = HashMap::new();
+                                intermediate_hashmap.insert(bb_string.clone(), 0);
+                                results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                            }
+
+                            *results_hashmap
+                                .get_mut(&sample_name)
+                                .unwrap()
+                                .entry(bb_string)
+                                .or_insert(0) += 1;
+                        }
                     }
                 } else {
                     sequence_errors_clone
@@ -171,7 +222,8 @@ fn match_seq(
     building_block_num: usize,
     sample_seqs: &Option<Vec<String>>,
     bb_seqs_option: &Option<Vec<Vec<String>>>,
-) -> Result<Option<(String, String)>, Box<dyn Error>> {
+) -> Result<Option<(String, String, Option<String>)>, Box<dyn Error>> {
+    // TODO change return so it stops if the error is not a constant region error
     // find the barcodes with the reges search
     let barcode_search = format_search.captures(&sequence);
 
@@ -179,6 +231,13 @@ fn match_seq(
     if let Some(barcodes) = barcode_search {
         // Look for sample conversion
         let sample_seq = barcodes["sample"].to_string();
+        let random_barcode_match_option = barcodes.name("random");
+        let random_barcode_option;
+        if let Some(random_barcode) = random_barcode_match_option {
+            random_barcode_option = Some(random_barcode.as_str().to_string())
+        } else {
+            random_barcode_option = None
+        }
         // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
         let sample_name_option;
         if sample_seqs.is_some() && samples_clone.is_some() {
@@ -226,7 +285,7 @@ fn match_seq(
                         bb_string.push_str(&bb_seq);
                     }
                 }
-                return Ok(Some((sample_name, bb_string)));
+                return Ok(Some((sample_name, bb_string, random_barcode_option)));
             } else {
                 let mut bb_string = barcodes["bb1"].to_string();
                 for x in 1..building_block_num {
@@ -234,7 +293,7 @@ fn match_seq(
                     bb_string.push_str(",");
                     bb_string.push_str(&barcodes[bb_num.as_str()]);
                 }
-                return Ok(Some((sample_name, bb_string)));
+                return Ok(Some((sample_name, bb_string, random_barcode_option)));
             }
         }
     }
