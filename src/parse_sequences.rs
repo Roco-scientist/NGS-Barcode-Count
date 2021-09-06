@@ -288,7 +288,18 @@ fn fix_error(
 
 /// Fixes the constant region of the sequence by flipping the barcodes into the constant region format string within the locations of the 'N's
 /// and returning the resulted string
-fn fix_constant_region(old_sequence: String, sequence_fix: &String) -> String {
+///
+/// # Example
+///
+/// ```
+/// use del::parse_sequences::fix_constant_region;
+///
+/// let sequence = "AGTAGATCTGAGATAGACAGC".to_string();// A 'CG' sequencing error is in the middle when compared to the format
+/// let sequence_format = "AGTAGNNNTGACGTANNNAGC".to_string();
+/// let fixed_sequence = fix_constant_region(sequence, &sequence_format); // flips in the 'CG' sequencing error
+/// assert_eq!(fixed_sequence, "AGTAGATCTGACGTAGACAGC".to_string())
+/// ```
+pub fn fix_constant_region(old_sequence: String, sequence_fix: &String) -> String {
     // Start a new string to push to
     let mut fixed_sequence = String::new();
     // Push the correct constant region nucleotides.  If the constant string has an N, push the nucleotides from the original
