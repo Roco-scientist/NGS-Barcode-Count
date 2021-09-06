@@ -84,37 +84,51 @@ pub fn parse(
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
             if let Some((sample_name, bb_string, random_barcode_option)) = result_tuple_option {
+                // Alwasy add value unless random barcode is included and it has already been found for the sample and building blocks
                 let mut add_value = true;
+                // If there is a random barcode included
                 if let Some(random_barcode) = random_barcode_option {
+                    // Unlock the random_hashmap
                     let mut random_hashmap = random_barcodes_clone.lock().unwrap();
 
+                    // If it does not already have the sample name, insert the sample name -> building_block -> random_barcodes
                     if !random_hashmap.contains_key(&sample_name) {
                         let mut intermediate_hashmap = HashMap::new();
                         let intermediate_vec = vec![random_barcode];
                         intermediate_hashmap.insert(bb_string.clone(), intermediate_vec);
                         random_hashmap.insert(sample_name.clone(), intermediate_hashmap);
                     } else {
-                        let random_vec = random_hashmap
-                            .get_mut(&sample_name)
-                            .unwrap()
-                            .get_mut(&bb_string)
-                            .unwrap();
-                        if random_vec.contains(&random_barcode) {
-                            add_value = false
+                        let bb_hashmap = random_hashmap.get_mut(&sample_name).unwrap();
+                        // If the random hashmap does not have the building blocks yet, insert building_block -> random_barcodes
+                        if !bb_hashmap.contains_key(&bb_string) {
+                            let intermediate_vec = vec![random_barcode];
+                            bb_hashmap.insert(bb_string.clone(), intermediate_vec);
                         } else {
-                            random_vec.push(random_barcode)
+                            let random_vec = bb_hashmap.get_mut(&bb_string).unwrap();
+                            // else check if the random barcode already used for the sample_name and building_blocks
+                            // if the random barcode is already in the vector, change add_value to false
+                            // otherqise add the random barcode to the random_barcodes vector
+                            if random_vec.contains(&random_barcode) {
+                                add_value = false
+                            } else {
+                                random_vec.push(random_barcode)
+                            }
                         }
                     }
                 }
+                // Add 1 count to the results hashmap
                 if add_value {
                     let mut results_hashmap = results_clone.lock().unwrap();
 
+                    // If results hashmap does not already contain the sample_name, insert the sanmle_name -> barcodes -> 0
                     if !results_hashmap.contains_key(&sample_name) {
                         let mut intermediate_hashmap = HashMap::new();
                         intermediate_hashmap.insert(bb_string.clone(), 0);
                         results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
                     }
 
+                    // Insert 0 if the barcodes is not within the sample_name -> barcodes
+                    // Then add one regardless
                     *results_hashmap
                         .get_mut(&sample_name)
                         .unwrap()
