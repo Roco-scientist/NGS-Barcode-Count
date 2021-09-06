@@ -16,7 +16,7 @@ pub fn parse(
     constant_clone: String,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     samples_clone: Option<HashMap<String, String>>,
-    bb_clone: Option<HashMap<u8, HashMap<String, String>>>,
+    bb_clone: Option<HashMap<usize, HashMap<String, String>>>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
 ) -> Result<(), Box<dyn Error>> {
     // Create a new regex search that has captures for each barcode
@@ -37,7 +37,7 @@ pub fn parse(
     let bb_seqs_option: Option<Vec<Vec<String>>>;
     if let Some(ref bb) = bb_clone {
         let mut bb_vec = Vec::new();
-        let mut bb_keys = bb.keys().collect::<Vec<&u8>>();
+        let mut bb_keys = bb.keys().collect::<Vec<&usize>>();
         bb_keys.sort();
         for key in bb_keys {
             let bb_data = bb.get(key).unwrap();
@@ -119,7 +119,7 @@ pub fn parse(
                 }
                 // Find the closest match within what was sequenced to the constant region
                 let fixed_constant_option =
-                    fix_error(&constant_clone, &possible_seqs, errors_allowed as u8)?;
+                    fix_error(&constant_clone, &possible_seqs, errors_allowed)?;
 
                 // If there is a match proceed and count, otherwise record that there was a constant region mismatch
                 if let Some(new_sequence) = fixed_constant_option {
@@ -211,7 +211,7 @@ fn match_seq(
                     let mut bb_seq = barcodes[format!("bb{}", x + 1).as_str()].to_string();
                     if !bb_seqs[x].contains(&bb_seq) {
                         let bb_seq_fix_option =
-                            fix_error(&bb_seq, &bb_seqs[x], bb_seq.chars().count() as u8 / 5)?;
+                            fix_error(&bb_seq, &bb_seqs[x], bb_seq.chars().count() / 5)?;
                         if let Some(bb_seq_fix) = bb_seq_fix_option {
                             bb_seq = bb_seq_fix
                         } else {
@@ -246,7 +246,7 @@ fn match_seq(
 fn fix_error(
     mismatch_seq: &String,
     possible_seqs: &Vec<String>,
-    mismatches: u8,
+    mismatches: usize,
 ) -> Result<Option<String>, Box<dyn Error>> {
     let mut best_match = None; // start the best match with None
     let mut best_mismatch_count = mismatches + 1; // Add 1 and start the best.  This allows a match with the same mismatches as required

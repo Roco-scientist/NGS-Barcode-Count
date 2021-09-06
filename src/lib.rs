@@ -67,7 +67,7 @@ pub fn output_counts(
     output_dir: String,
     results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     bb_num: usize,
-    bb_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
+    bb_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
 ) -> Result<(), Box<dyn Error>> {
     let results_hasmap = results.lock().unwrap(); // get the results
 
@@ -99,7 +99,7 @@ pub fn output_counts(
                     .split(",")
                     .enumerate()
                     .map(|(bb_index, bb_barcode)| {
-                        let actual_bb_num = bb_index as u8 + 1;
+                        let actual_bb_num = bb_index + 1;
                         let barcode_hash = bb_hashmap.get(&actual_bb_num).unwrap();
                         return barcode_hash.get(bb_barcode).unwrap().to_string();
                     })

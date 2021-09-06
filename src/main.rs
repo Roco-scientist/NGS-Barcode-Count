@@ -38,7 +38,7 @@ fn main() {
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
     let bb_hashmap;
     if let Some(bb) = bb_barcodes {
-        bb_hashmap = Some(del::del_info::bb_barcode_file_conversion(bb).unwrap());
+        bb_hashmap = Some(del::del_info::bb_barcode_file_conversion(bb, bb_num).unwrap());
     } else {
         bb_hashmap = None
     }
