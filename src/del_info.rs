@@ -89,14 +89,29 @@ impl SequenceErrors {
 
 /// Reads in the sequencing format file and outputs a regex string with captures
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
-    let digit_search = Regex::new(r"\d+")?;
-    let barcode_search = Regex::new(r"(?i)([\{\[\(]\d+[\)\]\}])|N+|[ATGC]+")?;
     // Read sequenc format file to string
     let format_data = fs::read_to_string(format)?
         .lines() // split into lines
         .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
         .collect::<String>(); // collect into a String
 
+    let final_format = build_regex_captures(format_data)?;
+    Ok(final_format)
+}
+
+/// Builds the catpure groups from the file format
+///
+/// # Example
+///
+/// ```
+/// use del::del_info::build_regex_captures;
+/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
+///
+/// assert_eq!(build_regex_captures(format_data).unwrap(),  "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6}).{4}AT".to_string())
+/// ```
+pub fn build_regex_captures(format_data: String) -> Result<String, Box<dyn Error>> {
+    let digit_search = Regex::new(r"\d+")?;
+    let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     // the previous does not bumber each barcode but names each caputre with bb#
     // The '#' needs to bre replaced with teh sequential number
     let mut final_format = String::new();
@@ -118,21 +133,19 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
             }
         }
         if let Some(group_name) = group_name_option {
-            if group_str.contains("[") {
-                let digits = digit_search
-                    .captures(&group_str)
-                    .unwrap()
-                    .get(0)
-                    .unwrap()
-                    .as_str()
-                    .parse::<usize>()
-                    .unwrap();
-                let mut capture_group = format!("(?P<{}>.", group_name);
-                capture_group.push('{');
-                capture_group.push_str(&digits.to_string());
-                capture_group.push_str("})");
-                final_format.push_str(&capture_group);
-            }
+            let digits = digit_search
+                .captures(&group_str)
+                .unwrap()
+                .get(0)
+                .unwrap()
+                .as_str()
+                .parse::<usize>()
+                .unwrap();
+            let mut capture_group = format!("(?P<{}>.", group_name);
+            capture_group.push('{');
+            capture_group.push_str(&digits.to_string());
+            capture_group.push_str("})");
+            final_format.push_str(&capture_group);
         } else {
             if group_str.contains("N") {
                 let num_of_ns = group_str.matches("N").count();
@@ -145,7 +158,7 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
             }
         }
     }
-    Ok(final_format)
+    return Ok(final_format);
 }
 
 /// Replaces the capture groups in the regex string with 'N's hte lenght of the barcode
