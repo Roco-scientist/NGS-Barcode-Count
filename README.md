@@ -108,10 +108,20 @@ $ ./target/release/del \
 		--threads <num_of_threads>
 ```
 <br>
+<ul>
+<li>
 --bb_barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.<br>
+</li>
+<li>
 --sample_barcodes is optional.  If it is not used, all samples are marked as unknown.<br>
+</li>
+<li>
 --output_dir defaults to the current directory if not used. <br>
+</li>
+<li>
 --threads defaults to the number of threads on the machine if not used. <br>
+</li>
+</ul>
 
 
 ## Tests results
