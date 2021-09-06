@@ -16,7 +16,7 @@ pub fn parse(
     constant_clone: String,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     samples_clone: Option<HashMap<String, String>>,
-    _bb_clone: Option<HashMap<String, String>>,
+    bb_clone: Option<HashMap<u8, HashMap<String, String>>>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
 ) -> Result<(), Box<dyn Error>> {
     // Create a new regex search that has captures for each barcode
@@ -31,6 +31,25 @@ pub fn parse(
         sample_seqs = Some(samples.keys().map(|key| key.to_string()).collect());
     } else {
         sample_seqs = None
+    }
+
+    // Get a vec of all possible sample barcodes for error correction
+    let bb_seqs_option: Option<Vec<Vec<String>>>;
+    if let Some(ref bb) = bb_clone {
+        let mut bb_vec = Vec::new();
+        let mut bb_keys = bb.keys().collect::<Vec<&u8>>();
+        bb_keys.sort();
+        for key in bb_keys {
+            let bb_data = bb.get(key).unwrap();
+            let bb_barcodes = bb_data
+                .keys()
+                .map(|key| key.to_string())
+                .collect::<Vec<String>>();
+            bb_vec.push(bb_barcodes);
+        }
+        bb_seqs_option = Some(bb_vec);
+    } else {
+        bb_seqs_option = None
     }
 
     // Loop until there are no sequences left to parse.  These are fed into seq_clone vec by the reader thread
@@ -59,6 +78,7 @@ pub fn parse(
                 &sequence_errors_clone,
                 building_block_num,
                 &sample_seqs,
+                &bb_seqs_option,
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
             if let Some((sample_name, bb_string)) = result_tuple_option {
@@ -112,6 +132,7 @@ pub fn parse(
                         &sequence_errors_clone,
                         building_block_num,
                         &sample_seqs,
+                        &bb_seqs_option,
                     )?;
                     if let Some((sample_name, bb_string)) = result_tuple_option {
                         let mut results_hashmap = results_clone.lock().unwrap();
@@ -149,6 +170,7 @@ fn match_seq(
     sequence_errors_clone: &Arc<Mutex<super::del_info::SequenceErrors>>,
     building_block_num: usize,
     sample_seqs: &Option<Vec<String>>,
+    bb_seqs_option: &Option<Vec<Vec<String>>>,
 ) -> Result<Option<(String, String)>, Box<dyn Error>> {
     // find the barcodes with the reges search
     let barcode_search = format_search.captures(&sequence);
@@ -183,13 +205,37 @@ fn match_seq(
         }
         // If the sample barcode -> ID is found, add the building block suquences to the result string.  Otherwise, return None
         if let Some(sample_name) = sample_name_option {
-            let mut bb_string = barcodes["bb1"].to_string();
-            for x in 1..building_block_num {
-                let bb_num = format!("bb{}", x + 1);
-                bb_string.push_str(",");
-                bb_string.push_str(&barcodes[bb_num.as_str()]);
+            if let Some(bb_seqs) = bb_seqs_option {
+                let mut bb_string = String::new();
+                for x in 0..building_block_num {
+                    let mut bb_seq = barcodes[format!("bb{}", x + 1).as_str()].to_string();
+                    if !bb_seqs[x].contains(&bb_seq) {
+                        let bb_seq_fix_option =
+                            fix_error(&bb_seq, &bb_seqs[x], bb_seq.chars().count() as u8 / 5)?;
+                        if let Some(bb_seq_fix) = bb_seq_fix_option {
+                            bb_seq = bb_seq_fix
+                        } else {
+                            sequence_errors_clone.lock().unwrap().bb_barcode_error();
+                            return Ok(None);
+                        }
+                    }
+                    if x == 0 {
+                        bb_string.push_str(&bb_seq);
+                    } else {
+                        bb_string.push_str(",");
+                        bb_string.push_str(&bb_seq);
+                    }
+                }
+                return Ok(Some((sample_name, bb_string)));
+            } else {
+                let mut bb_string = barcodes["bb1"].to_string();
+                for x in 1..building_block_num {
+                    let bb_num = format!("bb{}", x + 1);
+                    bb_string.push_str(",");
+                    bb_string.push_str(&barcodes[bb_num.as_str()]);
+                }
+                return Ok(Some((sample_name, bb_string)));
             }
-            return Ok(Some((sample_name, bb_string)));
         }
     }
     Ok(None)

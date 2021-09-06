@@ -30,7 +30,7 @@ fn main() {
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     let samples_hashmap;
     if let Some(samples) = samples_barcodes {
-        samples_hashmap = Some(del::del_info::barcode_file_conversion(samples).unwrap());
+        samples_hashmap = Some(del::del_info::sample_barcode_file_conversion(samples).unwrap());
     } else {
         samples_hashmap = None
     }
@@ -38,7 +38,7 @@ fn main() {
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
     let bb_hashmap;
     if let Some(bb) = bb_barcodes {
-        bb_hashmap = Some(del::del_info::barcode_file_conversion(bb).unwrap());
+        bb_hashmap = Some(del::del_info::bb_barcode_file_conversion(bb).unwrap());
     } else {
         bb_hashmap = None
     }
@@ -94,7 +94,7 @@ fn main() {
     sequence_errors.lock().unwrap().display();
 
     println!("Writing counts");
-    del::output_counts(output_dir, results, bb_num).unwrap();
+    del::output_counts(output_dir, results, bb_num, bb_hashmap).unwrap();
     // Get the end time and print total time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 2 {
