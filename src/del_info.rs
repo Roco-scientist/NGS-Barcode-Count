@@ -194,7 +194,10 @@ pub fn sample_barcode_file_conversion(
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
 /// the second needs to be the ID, and the third needs to be the building block number
 ///
-/// # Panic
+/// # Panics
+///
+/// This panics if the third column of the barcode conversion file does not contain integers.  Also
+/// panics if not all integers for barcode numbers is within this columns
 pub fn bb_barcode_file_conversion(
     barcode_path: String,
     bb_num: usize,
