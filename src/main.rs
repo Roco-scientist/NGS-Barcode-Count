@@ -94,7 +94,7 @@ fn main() {
     sequence_errors.lock().unwrap().display();
 
     println!("Writing counts");
-    del::output_counts(output_dir, results, bb_num).unwrap();
+    del::output_counts(output_dir, results, bb_num, bb_hashmap).unwrap();
     // Get the end time and print total time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 2 {
