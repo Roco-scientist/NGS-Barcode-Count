@@ -163,7 +163,17 @@ fn match_seq(
     // if the barcodes are found continue, else return None and record a constant region error
     if let Some(barcodes) = barcode_search {
         // Look for sample conversion
-        let sample_seq = barcodes["sample"].to_string();
+        let sample_barcode_match_option = barcodes.name("sample");
+        let sample_barcode_option;
+        // If there is a sample barcode included, save it to the sample barcode option variable
+        // Otherwise record None and it will be ignored
+        if let Some(sample_barcode) = sample_barcode_match_option {
+            sample_barcode_option = Some(sample_barcode.as_str().to_string())
+        } else {
+            sample_barcode_option = None
+        }
+
+        // look for random barcode
         let random_barcode_match_option = barcodes.name("random");
         let random_barcode_option;
 
@@ -177,11 +187,12 @@ fn match_seq(
 
         // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
         let sample_name_option;
-        if sample_seqs.is_some() && samples_clone.is_some() {
-            if let Some(sample) = samples_clone.as_ref().unwrap().get(&sample_seq) {
+        if let Some(sample_barcode) = sample_barcode_option {
+            if let Some(sample) = samples_clone.as_ref().unwrap().get(&sample_barcode) {
                 sample_name_option = Some(sample.to_string())
             } else {
-                let sample_seq_option = fix_error(&sample_seq, &sample_seqs.as_ref().unwrap(), 3)?;
+                let sample_seq_option =
+                    fix_error(&sample_barcode, &sample_seqs.as_ref().unwrap(), 3)?;
                 if let Some(sample_seq_new) = sample_seq_option {
                     sample_name_option = Some(
                         samples_clone
@@ -192,6 +203,7 @@ fn match_seq(
                             .to_string(),
                     );
                 } else {
+                    // if sample barcode cannot be fixed, record the error
                     sequence_errors_clone.lock().unwrap().sample_barcode_error();
                     return Ok(None);
                 }

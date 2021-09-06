@@ -18,6 +18,7 @@ fn main() {
 
     // Create the regex string which is based on the sequencing format.  Creates the regex captures
     let regex_string = del::del_info::regex_search(format).unwrap();
+    println!("Regex format: {}", regex_string);
     // Create a string for fixing constant region errors.  This is also displayed in stdout as the format
     let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
     println!("Format: {}", constant_region_string);
