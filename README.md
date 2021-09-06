@@ -98,7 +98,15 @@ Enter DEL-Encode directory and compile for the first time<br>
 `$ cargo build --release`<br>
 <br>
 Run DEL-Decode<br>
-`$ ./target/release/del --fastq <fastq_file> --sample_barcodes <sample_barcode_file> --sequence_format <sequence_format_file>`<br>
+```
+$ ./target/release/del \
+		--fastq <fastq_file> \
+		--sample_barcodes <sample_barcode_file> \
+		--sequence_format <sequence_format_file> \
+		--bb_barcodes <building_block_barcode_file> \
+		--output_dir <output_dir> \
+		--threads <thread_num
+```
 
 ## Tests results
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in just under 1 hour and 20 minutes.
