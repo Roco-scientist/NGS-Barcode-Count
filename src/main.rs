@@ -38,7 +38,7 @@ fn main() {
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
     let bb_hashmap;
     if let Some(bb) = bb_barcodes {
-        bb_hashmap = Some(del::del_info::bb_barcode_file_conversion(bb).unwrap());
+        bb_hashmap = Some(del::del_info::bb_barcode_file_conversion(bb, bb_num).unwrap());
     } else {
         bb_hashmap = None
     }
@@ -115,7 +115,7 @@ pub fn arguments(
     let total_cpus = num_cpus::get().to_string();
     // parse arguments
     let args = App::new("DEL analysis")
-        .version("0.2")
+        .version("0.2.1")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
         .arg(
