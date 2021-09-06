@@ -115,9 +115,9 @@ pub fn arguments(
     let total_cpus = num_cpus::get().to_string();
     // parse arguments
     let args = App::new("DEL analysis")
-        .version("0.1")
+        .version("0.2")
         .author("Rory Coffey <coffeyrt@gmail.com>")
-        .about("Counts DEL hits from fastq files")
+        .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
         .arg(
             Arg::with_name("fastq")
                 .short("f")
