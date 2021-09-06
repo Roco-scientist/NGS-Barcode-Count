@@ -80,6 +80,7 @@ pub fn parse(
                 building_block_num,
                 &sample_seqs,
                 &bb_seqs_option,
+                &constant_clone,
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
             if let Some((sample_name, bb_string, random_barcode_option)) = result_tuple_option {
@@ -120,92 +121,6 @@ pub fn parse(
                         .entry(bb_string)
                         .or_insert(0) += 1;
                 }
-
-                // let mut sample_results_hash = *results_hashmap.get(&sample_name).unwrap();
-                // *sample_results_hash.entry(bb_string).or_insert(0) += 1;
-            } else {
-                // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
-                let errors_allowed =
-                    (constant_clone.len() - constant_clone.matches("N").count()) / 5; // errors allowed is the length of the constant region - the Ns / 5 or 20%
-                                                                                      // Get the length difference between what was sequenced and the barcode region with constant regions
-                                                                                      // This is to stop the iteration in the next step
-                let length_diff = sequence.len() - constant_clone.len();
-
-                // Create a vector of sequences the length of the constant region + barcodes to check for where the best match is located
-                let mut possible_seqs = Vec::new();
-                for index in 0..length_diff {
-                    let possible_seq = sequence
-                        .chars()
-                        .skip(index) // skip to where the current index is and take the next amount equal to the length of the constant region + barcodes
-                        .take(constant_clone.len())
-                        .collect::<String>();
-                    // Add the new sequence to the vector of all possible matches
-                    possible_seqs.push(possible_seq);
-                }
-                // Find the closest match within what was sequenced to the constant region
-                let fixed_constant_option =
-                    fix_error(&constant_clone, &possible_seqs, errors_allowed)?;
-
-                // If there is a match proceed and count, otherwise record that there was a constant region mismatch
-                if let Some(new_sequence) = fixed_constant_option {
-                    // Flip all barcodes into the constant's 'N's for the fixed sequence
-                    let fixed_sequence = fix_constant_region(new_sequence, &constant_clone);
-                    let result_tuple_option = match_seq(
-                        &fixed_sequence,
-                        &format_search,
-                        &samples_clone,
-                        &sequence_errors_clone,
-                        building_block_num,
-                        &sample_seqs,
-                        &bb_seqs_option,
-                    )?;
-                    if let Some((sample_name, bb_string, random_barcode_option)) =
-                        result_tuple_option
-                    {
-                        let mut add_value = true;
-                        if let Some(random_barcode) = random_barcode_option {
-                            let mut random_hashmap = random_barcodes_clone.lock().unwrap();
-
-                            if !random_hashmap.contains_key(&sample_name) {
-                                let mut intermediate_hashmap = HashMap::new();
-                                let intermediate_vec = vec![random_barcode];
-                                intermediate_hashmap.insert(bb_string.clone(), intermediate_vec);
-                                random_hashmap.insert(sample_name.clone(), intermediate_hashmap);
-                            } else {
-                                let random_vec = random_hashmap
-                                    .get_mut(&sample_name)
-                                    .unwrap()
-                                    .get_mut(&bb_string)
-                                    .unwrap();
-                                if random_vec.contains(&random_barcode) {
-                                    add_value = false
-                                } else {
-                                    random_vec.push(random_barcode)
-                                }
-                            }
-                        }
-                        if add_value {
-                            let mut results_hashmap = results_clone.lock().unwrap();
-
-                            if !results_hashmap.contains_key(&sample_name) {
-                                let mut intermediate_hashmap = HashMap::new();
-                                intermediate_hashmap.insert(bb_string.clone(), 0);
-                                results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
-                            }
-
-                            *results_hashmap
-                                .get_mut(&sample_name)
-                                .unwrap()
-                                .entry(bb_string)
-                                .or_insert(0) += 1;
-                        }
-                    }
-                } else {
-                    sequence_errors_clone
-                        .lock()
-                        .unwrap()
-                        .constant_region_error();
-                }
             }
         }
     }
@@ -222,10 +137,25 @@ fn match_seq(
     building_block_num: usize,
     sample_seqs: &Option<Vec<String>>,
     bb_seqs_option: &Option<Vec<Vec<String>>>,
+    constant_clone: &String,
 ) -> Result<Option<(String, String, Option<String>)>, Box<dyn Error>> {
-    // TODO change return so it stops if the error is not a constant region error
     // find the barcodes with the reges search
-    let barcode_search = format_search.captures(&sequence);
+    let mut barcode_search = format_search.captures(&sequence);
+
+    let fixed_sequence;
+    if barcode_search.is_none() {
+        let fixed_sequence_option = fix_constant_region(&sequence, constant_clone)?;
+        if fixed_sequence_option.is_some() {
+            fixed_sequence = fixed_sequence_option.unwrap();
+            barcode_search = format_search.captures(&fixed_sequence);
+        } else {
+            sequence_errors_clone
+                .lock()
+                .unwrap()
+                .constant_region_error();
+            return Ok(None);
+        }
+    }
 
     // if the barcodes are found continue, else return None
     if let Some(barcodes) = barcode_search {
@@ -295,9 +225,17 @@ fn match_seq(
                 }
                 return Ok(Some((sample_name, bb_string, random_barcode_option)));
             }
+        } else {
+            sequence_errors_clone.lock().unwrap().sample_barcode_error();
+            Ok(None)
         }
+    } else {
+        sequence_errors_clone
+            .lock()
+            .unwrap()
+            .constant_region_error();
+        Ok(None)
     }
-    Ok(None)
 }
 
 /// Fix an error in a sequence by comparing it to all possible sequences.  If no sequence matches with fewer or equal to the number of mismatches 'None' is returned.
@@ -364,20 +302,45 @@ pub fn fix_error(
     }
 }
 
+fn fix_constant_region(
+    sequence: &String,
+    constant_clone: &String,
+) -> Result<Option<String>, Box<dyn Error>> {
+    // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
+    let errors_allowed = (constant_clone.len() - constant_clone.matches("N").count()) / 5; // errors allowed is the length of the constant region - the Ns / 5 or 20%
+                                                                                           // Get the length difference between what was sequenced and the barcode region with constant regions
+                                                                                           // This is to stop the iteration in the next step
+    let length_diff = sequence.len() - constant_clone.len();
+
+    // Create a vector of sequences the length of the constant region + barcodes to check for where the best match is located
+    let mut possible_seqs = Vec::new();
+    for index in 0..length_diff {
+        let possible_seq = sequence
+            .chars()
+            .skip(index) // skip to where the current index is and take the next amount equal to the length of the constant region + barcodes
+            .take(constant_clone.len())
+            .collect::<String>();
+        // Add the new sequence to the vector of all possible matches
+        possible_seqs.push(possible_seq);
+    }
+    // Find the closest match within what was sequenced to the constant region
+    fix_error(&constant_clone, &possible_seqs, errors_allowed)
+}
+
 /// Fixes the constant region of the sequence by flipping the barcodes into the constant region format string within the locations of the 'N's
 /// and returning the resulted string
 ///
 /// # Example
 ///
 /// ```
-/// use del::parse_sequences::fix_constant_region;
+/// use del::parse_sequences::insert_barcodes_constant_region;
 ///
 /// let sequence = "AGTAGATCTGAGATAGACAGC".to_string();// A 'CG' sequencing error is in the middle when compared to the format
 /// let sequence_format = "AGTAGNNNTGACGTANNNAGC".to_string();
-/// let fixed_sequence = fix_constant_region(sequence, &sequence_format); // flips in the 'CG' sequencing error
+/// let fixed_sequence = insert_barcodes_constant_region(sequence, &sequence_format); // flips in the 'CG' sequencing error
 /// assert_eq!(fixed_sequence, "AGTAGATCTGACGTAGACAGC".to_string())
 /// ```
-pub fn fix_constant_region(old_sequence: String, sequence_fix: &String) -> String {
+pub fn insert_barcodes_constant_region(old_sequence: String, sequence_fix: &String) -> String {
     // Start a new string to push to
     let mut fixed_sequence = String::new();
     // Push the correct constant region nucleotides.  If the constant string has an N, push the nucleotides from the original
