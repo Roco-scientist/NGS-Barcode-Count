@@ -26,7 +26,8 @@ fn main() {
 
     // Create a results hashmap that will contain the counts.  This is passed between threads
     let results = Arc::new(Mutex::new(HashMap::new()));
-    // Create a random_barcodes has to keep track of what random barcodes that already appears to prevent overcounting
+    // Create a random_barcodes hashmap to keep track of the random barcodes.  This way if it already was found for the same sample and building blocks
+    // it will not be counted
     let random_barcodes = Arc::new(Mutex::new(HashMap::new()));
 
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
