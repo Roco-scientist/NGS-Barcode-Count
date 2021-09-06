@@ -26,6 +26,8 @@ fn main() {
 
     // Create a results hashmap that will contain the counts.  This is passed between threads
     let results = Arc::new(Mutex::new(HashMap::new()));
+    // Create a random_barcodes has to keep track of what random barcodes that already appears to prevent overcounting
+    let random_barcodes = Arc::new(Mutex::new(HashMap::new()));
 
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     let samples_hashmap;
@@ -68,6 +70,7 @@ fn main() {
             let finished_clone = Arc::clone(&finished);
             let regex_string_clone = regex_string.clone();
             let results_clone = Arc::clone(&results);
+            let random_barcodes_clone = Arc::clone(&random_barcodes);
             let samples_clone = samples_hashmap.clone();
             let bb_clone = bb_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
@@ -81,6 +84,7 @@ fn main() {
                     regex_string_clone,
                     constant_clone,
                     results_clone,
+                    random_barcodes_clone,
                     samples_clone,
                     bb_clone,
                     sequence_errors_clone,
@@ -115,7 +119,7 @@ pub fn arguments(
     let total_cpus = num_cpus::get().to_string();
     // parse arguments
     let args = App::new("DEL analysis")
-        .version("0.2.1")
+        .version("0.3.0")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
         .arg(
