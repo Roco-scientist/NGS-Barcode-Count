@@ -279,7 +279,7 @@ pub fn fix_error(
         // Iterate through the nucleotides of the possible match and the sequence to be fixed finding how many mismatches
         // If the mismatches exceed the current best mismatched, end this early
         for (possible_char, current_char) in true_seq.chars().zip(mismatch_seq.chars()) {
-            if possible_char != current_char && current_char != 'N' {
+            if possible_char != current_char && current_char != 'N' && possible_char != 'N' {
                 mismatches += 1;
             }
             if mismatches > best_mismatch_count {
