@@ -243,7 +243,26 @@ fn match_seq(
 
 /// Fix an error in a sequence by comparing it to all possible sequences.  If no sequence matches with fewer or equal to the number of mismatches 'None' is returned.
 /// 'None' is also returned if two or more sequences are best matches,
-fn fix_error(
+///
+/// # Example
+///
+/// ```
+/// use del::parse_sequences::fix_error;
+///
+/// let barcode = "AGTAG".to_string();
+///
+/// let possible_barcodes_one_match = vec!["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()]; // only the first has a single mismatch
+/// let possible_barcodes_two_match = vec!["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()]; // first and second have a single mismatch
+///
+/// let max_mismatches = barcode.chars().count() / 5; // allow up to 20% mismatches
+///
+/// let fixed_error_one = fix_error(&barcode, &possible_barcodes_one_match, max_mismatches).unwrap();
+/// let fixed_error_two = fix_error(&barcode, &possible_barcodes_two_match, max_mismatches).unwrap();
+///
+/// assert_eq!(fixed_error_one, Some("AGCAG".to_string()));
+/// assert_eq!(fixed_error_two, None);
+/// ```
+pub fn fix_error(
     mismatch_seq: &String,
     possible_seqs: &Vec<String>,
     mismatches: usize,
