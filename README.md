@@ -8,6 +8,7 @@ With very large DEL libraries, there may be some memory creep because it needs t
 <li><a href=#Requirements>Requirements</a></li>
 <li><a href=#files-needed>Files Needed</a></li>
 <li><a href=#run>Run</a></li>
+<li><a href=#test-results>Test Results</a></li>
 </ul>
 
 ## Requirements
@@ -98,3 +99,15 @@ Enter DEL-Encode directory and compile for the first time<br>
 <br>
 Run DEL-Decode<br>
 `$ ./target/release/del --fastq <fastq_file> --sample_barcodes <sample_barcode_file> --sequence_format <sequence_format_file>`<br>
+
+## Tests results
+On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in just under 1 hour and 20 minutes.
+Results below:
+```
+Total sequences: 418770000
+Constant Region Mismatches: 151961139
+Sample Barcode Mismatches: 4652012
+Building Block Mismatches: 10180558
+Writing counts
+Total time: 78 minutes
+```
