@@ -195,9 +195,9 @@ pub fn sample_barcode_file_conversion(
 /// the second needs to be the ID, and the third needs to be the building block number
 pub fn bb_barcode_file_conversion(
     barcode_path: String,
-) -> Result<HashMap<String, HashMap<String, String>>, Box<dyn Error>> {
+) -> Result<HashMap<u8, HashMap<String, String>>, Box<dyn Error>> {
     // read in the sample barcode file
-    let barcode_data = fs::read_to_string(barcode_path)?
+    let barcode_vecs = fs::read_to_string(barcode_path)?
         .lines() // split the lines
         .skip(1) // skip the first line which should be the header
         .map(|line| {
@@ -205,8 +205,22 @@ pub fn bb_barcode_file_conversion(
                 .take(3) // take only the first three values, or columns
                 .map(|value| value.to_string())
                 .collect_tuple()
-                .unwrap_or(("".to_string(), "".to_string()))
+                .unwrap_or(("".to_string(), "".to_string(), "".to_string()))
         }) // comma split the line into a tuple with the first being the key and the last the value
-        .collect::<Vec<(String, String, String)>>()
+        .collect::<Vec<(String, String, String)>>();
+    let mut barcode_data = HashMap::new();
+    for (barcode, id, bb_num) in barcode_vecs {
+        let bb_num_u8 = bb_num.parse::<u8>().unwrap();
+        if !barcode_data.contains_key(&bb_num_u8) {
+            let mut intermediate_hash = HashMap::new();
+            intermediate_hash.insert(barcode, id);
+            barcode_data.insert(bb_num_u8, intermediate_hash);
+        } else {
+            barcode_data
+                .get_mut(&bb_num_u8)
+                .unwrap()
+                .insert(barcode, id);
+        }
+    }
     Ok(barcode_data)
 }

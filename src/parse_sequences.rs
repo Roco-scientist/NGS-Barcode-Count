@@ -16,7 +16,7 @@ pub fn parse(
     constant_clone: String,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     samples_clone: Option<HashMap<String, String>>,
-    bb_clone: Option<HashMap<String, HashMap<String, String>>>,
+    bb_clone: Option<HashMap<u8, HashMap<String, String>>>,
     sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
 ) -> Result<(), Box<dyn Error>> {
     // Create a new regex search that has captures for each barcode
@@ -37,13 +37,10 @@ pub fn parse(
     let bb_seqs_option: Option<Vec<Vec<String>>>;
     if let Some(ref bb) = bb_clone {
         let mut bb_vec = Vec::new();
-        let mut bb_keys = bb
-            .keys()
-            .map(|key| key.to_string())
-            .collect::<Vec<String>>();
+        let mut bb_keys = bb.keys().collect::<Vec<&u8>>();
         bb_keys.sort();
         for key in bb_keys {
-            let bb_data = bb.get(&key).unwrap();
+            let bb_data = bb.get(key).unwrap();
             let bb_barcodes = bb_data
                 .keys()
                 .map(|key| key.to_string())
