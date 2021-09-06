@@ -89,14 +89,12 @@ impl SequenceErrors {
 
 /// Reads in the sequencing format file and outputs a regex string with captures
 pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
+    let digit_search = Regex::new(r"\d+")?;
+    let barcode_search = Regex::new(r"(?i)([\{\[\(]\d+[\)\]\}])|N+|[ATGC]+")?;
     // Read sequenc format file to string
     let format_data = fs::read_to_string(format)?
         .lines() // split into lines
         .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
-        .map(|line| {
-            let new_line = reformat_line(line.to_string());
-            new_line
-        }) // reformat any indication of barcode into a regex capture
         .collect::<String>(); // collect into a String
 
     // the previous does not bumber each barcode but names each caputre with bb#
@@ -104,29 +102,50 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
     let mut final_format = String::new();
     let mut bb_num = 0;
     // Fore each character, if the character is #, replace with the sequential building block number
-    for letter in format_data.chars() {
-        if letter == '#' {
-            bb_num += 1;
-            for bb_char in bb_num.to_string().chars() {
-                final_format.push(bb_char);
+    for group in barcode_search.find_iter(&format_data) {
+        let group_str = group.as_str();
+        let mut group_name_option = None;
+        if group_str.contains("[") {
+            group_name_option = Some("sample".to_string())
+        } else {
+            if group_str.contains("{") {
+                bb_num += 1;
+                group_name_option = Some(format!("bb{}", bb_num));
+            } else {
+                if group_str.contains("(") {
+                    group_name_option = Some("random".to_string());
+                }
+            }
+        }
+        if let Some(group_name) = group_name_option {
+            if group_str.contains("[") {
+                let digits = digit_search
+                    .captures(&group_str)
+                    .unwrap()
+                    .get(0)
+                    .unwrap()
+                    .as_str()
+                    .parse::<usize>()
+                    .unwrap();
+                let mut capture_group = format!("(?P<{}>.", group_name);
+                capture_group.push('{');
+                capture_group.push_str(&digits.to_string());
+                capture_group.push_str("})");
+                final_format.push_str(&capture_group);
             }
         } else {
-            final_format.push(letter);
+            if group_str.contains("N") {
+                let num_of_ns = group_str.matches("N").count();
+                let mut n_group = ".{".to_string();
+                n_group.push_str(&num_of_ns.to_string());
+                n_group.push('}');
+                final_format.push_str(&n_group);
+            } else {
+                final_format.push_str(group_str)
+            }
         }
     }
     Ok(final_format)
-}
-
-fn reformat_line(mut line: String) -> String {
-    // if the line contains '{#}' replace with a capture with bb# group
-    if line.contains("{") {
-        line = line.replace("{", "(?P<bb#>.{").replace("}", "})");
-    }
-    // if the line contains '[#]' replace with a capture with sample group
-    if line.contains("[") {
-        line = line.replace("[", "(?P<sample>.{").replace("]", "})");
-    }
-    line
 }
 
 /// Replaces the capture groups in the regex string with 'N's hte lenght of the barcode
@@ -135,13 +154,13 @@ fn reformat_line(mut line: String) -> String {
 /// # Example
 /// ```
 /// use del::del_info;
-/// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC";
+/// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})";
 /// let sequence_format = del_info::replace_group(regex_string);
-/// assert_eq!(sequence_format.unwrap(), "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGC")
+/// assert_eq!(sequence_format.unwrap(), "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN")
 /// ```
 pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
     // Create a search for all of the captures in order to remove
-    let remove_search = Regex::new(r"(\(\?P<sample>.)|(\(\?P<bb\d+>.)|(\}\))|\{")?;
+    let remove_search = Regex::new(r"(\(\?P<sample>.)|(\(\?P<random>.)|(\(\?P<bb\d+>.)|(\}\))|\{")?;
     // Create a capture for digits or sequences
     let captures_search = Regex::new(r"(\d+)|([ATGC]+)")?;
 
