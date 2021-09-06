@@ -38,7 +38,7 @@ The sequence format file should be a text file that is line separated by the typ
 <th>File Code</th>
 </tr>
 <td>Constant</td>
-<td>ATGC</td>
+<td>ATGCN</td>
 <tr>
 <td>Sample Barcode</td>
 <td>[#]</td>
@@ -46,6 +46,10 @@ The sequence format file should be a text file that is line separated by the typ
 <tr>
 <td>Building Block Barcode</td>
 <td>{#}</td>
+</tr>
+<tr>
+<td>Random Barcode</td>
+<td>(#)</td>
 </tr>
 </table>
 
