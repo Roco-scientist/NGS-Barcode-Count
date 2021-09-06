@@ -193,9 +193,12 @@ pub fn sample_barcode_file_conversion(
 
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
 /// the second needs to be the ID, and the third needs to be the building block number
+///
+/// # Panic
 pub fn bb_barcode_file_conversion(
     barcode_path: String,
-) -> Result<HashMap<u8, HashMap<String, String>>, Box<dyn Error>> {
+    bb_num: usize,
+) -> Result<HashMap<usize, HashMap<String, String>>, Box<dyn Error>> {
     // read in the sample barcode file
     let barcode_vecs = fs::read_to_string(barcode_path)?
         .lines() // split the lines
@@ -209,18 +212,34 @@ pub fn bb_barcode_file_conversion(
         }) // comma split the line into a tuple with the first being the key and the last the value
         .collect::<Vec<(String, String, String)>>();
     let mut barcode_data = HashMap::new();
+    let mut barcode_num_contained = Vec::new();
     for (barcode, id, bb_num) in barcode_vecs {
-        let bb_num_u8 = bb_num.parse::<u8>().unwrap();
-        if !barcode_data.contains_key(&bb_num_u8) {
+        let bb_num_usize = bb_num.parse::<usize>().unwrap_or_else(|err| {
+            panic!("Third column of building block barcode file contains something other than an integer: {}\nError: {}", bb_num, err)
+        });
+        if !barcode_num_contained.contains(&bb_num_usize) {
+            barcode_num_contained.push(bb_num_usize)
+        };
+        if !barcode_data.contains_key(&bb_num_usize) {
             let mut intermediate_hash = HashMap::new();
             intermediate_hash.insert(barcode, id);
-            barcode_data.insert(bb_num_u8, intermediate_hash);
+            barcode_data.insert(bb_num_usize, intermediate_hash);
         } else {
             barcode_data
-                .get_mut(&bb_num_u8)
+                .get_mut(&bb_num_usize)
                 .unwrap()
                 .insert(barcode, id);
         }
+    }
+    let mut missing_barcode_num = Vec::new();
+    for x in 0..bb_num {
+        let actual_num = x + 1;
+        if !barcode_num_contained.contains(&actual_num) {
+            missing_barcode_num.push(actual_num)
+        }
+    }
+    if !missing_barcode_num.is_empty() {
+        panic!("Building block barcode conversion file missing barcode numers {:?} in the third column", missing_barcode_num)
     }
     Ok(barcode_data)
 }
