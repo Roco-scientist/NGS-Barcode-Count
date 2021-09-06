@@ -1,6 +1,7 @@
-# [#] indicates sample barcode and length.  Only a single can be used
+# [#] indicates sample barcode and length.  Only a single occurance is handled
 # {#} indicates building block barcode and length.  Can contain multiple
-# AGC, or T for constant regions
+# (#) indicates random barcode and length.  Only a single occurance is handled
+# AGC, or T for constant regions.  Can contain Ns for any nucleotide, but this is less tested
 # below is for a sample barcode of 10 nucleotides followed by a constant region, then 6 nucletide building block barcode, constant etc.
 [10]
 AGCTACGAATCG
@@ -10,3 +11,5 @@ TGGA
 TGGA
 {6}
 ACTAGAT
+(8)
+TAGA
