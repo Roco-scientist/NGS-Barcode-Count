@@ -103,14 +103,18 @@ at 1.
 
 ## Run
 Enter DEL-Dencode directory and compile for the first time<br>
-`$ cargo build --release`<br>
+```
+git clone https://github.com/Roco-scientist/DEL-Decode.git
+cd Del-Decode
+cargo build --release
+```
 <br>
 After compilation, the `del` binary can be moved anywhere.  It is located in `./DEL-Decode/release/` directory.  For ease of use, it is shown below within its original directory.
 <br>
 <br>
 Run DEL-Decode<br>
 ```
-$ ./target/release/del \
+./target/release/del \
 		--fastq <fastq_file> \
 		--sample_barcodes <sample_barcode_file> \
 		--sequence_format <sequence_format_file> \
