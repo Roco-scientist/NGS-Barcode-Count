@@ -133,9 +133,9 @@ On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able t
 Results below:
 ```
 Total sequences: 418770000
-Constant Region Mismatches: 151961139
-Sample Barcode Mismatches: 4652012
-Building Block Mismatches: 10180558
+Constant Region Mismatches: 173770206
+Sample Barcode Mismatches: 1597170
+Building Block Mismatches: 4520082
 Writing counts
 Total time: 78 minutes
 ```
