@@ -108,6 +108,7 @@ git clone https://github.com/Roco-scientist/DEL-Decode.git
 cd Del-Decode
 cargo build --release
 ```
+
 <br>
 After compilation, the `del` binary can be moved anywhere.  It is located in `./DEL-Decode/release/` directory.  For ease of use, it is shown below within its original directory.
 <br>
@@ -122,6 +123,7 @@ Run DEL-Decode<br>
 		--output_dir <output_dir> \
 		--threads <num_of_threads>
 ```
+
 <br>
 <ul>
 <li>
