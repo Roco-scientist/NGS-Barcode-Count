@@ -105,6 +105,9 @@ at 1.
 Enter DEL-Encode directory and compile for the first time<br>
 `$ cargo build --release`<br>
 <br>
+After compilation, the `del` binary can be moved anywhere.  It is located in `./DEL-decode/release/` directory.  For ease of use, it is shown below within its original directory.
+<br>
+<br>
 Run DEL-Decode<br>
 ```
 $ ./target/release/del \
