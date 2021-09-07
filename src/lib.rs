@@ -93,8 +93,10 @@ pub fn output_counts(
         output.write_all(header.as_bytes())?; // Write the header to the file
 
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
+        // If there is an included building block barcode file, it is converted here
         if let Some(ref bb_hashmap) = bb_hashmap_option {
             for (code, count) in sample_counts_hash.iter() {
+                // Convert the building block DNA barcodes and join them back to comma separated
                 let converted = code
                     .split(",")
                     .enumerate()
@@ -103,7 +105,6 @@ pub fn output_counts(
                         let barcode_hash = bb_hashmap.get(&actual_bb_num).unwrap();
                         return barcode_hash.get(bb_barcode).unwrap().to_string();
                     })
-                    // .collect::<Vec<String>>()
                     .join(",");
                 let row = format!("{},{}\n", converted, count);
                 output.write_all(row.as_bytes())?;
