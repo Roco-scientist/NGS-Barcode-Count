@@ -38,7 +38,7 @@ The sequence format file should be a text file that is line separated by the typ
 <th>File Code</th>
 </tr>
 <td>Constant</td>
-<td>ATGC</td>
+<td>ATGCN</td>
 <tr>
 <td>Sample Barcode</td>
 <td>[#]</td>
@@ -46,6 +46,10 @@ The sequence format file should be a text file that is line separated by the typ
 <tr>
 <td>Building Block Barcode</td>
 <td>{#}</td>
+</tr>
+<tr>
+<td>Random Barcode</td>
+<td>(#)</td>
 </tr>
 </table>
 
@@ -110,16 +114,16 @@ $ ./target/release/del \
 <br>
 <ul>
 <li>
---bb_barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.<br>
+--bb_barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
 </li>
 <li>
---sample_barcodes is optional.  If it is not used, all samples are marked as unknown.<br>
+--sample_barcodes is optional.  If it is not used, all samples are marked as unknown.
 </li>
 <li>
---output_dir defaults to the current directory if not used. <br>
+--output_dir defaults to the current directory if not used.
 </li>
 <li>
---threads defaults to the number of threads on the machine if not used. <br>
+--threads defaults to the number of threads on the machine if not used.
 </li>
 </ul>
 
@@ -129,9 +133,9 @@ On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able t
 Results below:
 ```
 Total sequences: 418770000
-Constant Region Mismatches: 151961139
-Sample Barcode Mismatches: 4652012
-Building Block Mismatches: 10180558
+Constant Region Mismatches: 173770206
+Sample Barcode Mismatches: 1597170
+Building Block Mismatches: 4520082
 Writing counts
 Total time: 78 minutes
 ```
