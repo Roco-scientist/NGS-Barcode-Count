@@ -103,6 +103,7 @@ at 1.
 
 ## Run
 Enter DEL-Dencode directory and compile for the first time<br>
+
 ```
 git clone https://github.com/Roco-scientist/DEL-Decode.git
 cd Del-Decode
@@ -114,6 +115,7 @@ After compilation, the `del` binary can be moved anywhere.  It is located in `./
 <br>
 <br>
 Run DEL-Decode<br>
+
 ```
 ./target/release/del \
 		--fastq <fastq_file> \
