@@ -154,7 +154,7 @@ pub fn build_regex_captures(format_data: String) -> Result<String, Box<dyn Error
                 n_group.push('}');
                 final_format.push_str(&n_group);
             } else {
-                final_format.push_str(group_str)
+                final_format.push_str(&group_str.to_uppercase())
             }
         }
     }
