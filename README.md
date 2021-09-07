@@ -16,12 +16,20 @@ it is not counted.
 </ul>
 
 ## Requirements
-<ul>
-<li>Rust install: <a href=https://www.rust-lang.org/tools/install>instructions here</a></li>
-</ul>
+
+### Rust installed locally: <a href=https://www.rust-lang.org/tools/install>instructions here</a>
 
 ```
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### Del-Decode downoaded and compiled
+
+```
+git clone https://github.com/Roco-scientist/DEL-Decode.git
+cd Del-Decode
+cargo build --release
+mv ./target/release/del ./
 ```
 
 ## Files Needed
@@ -106,28 +114,18 @@ and the last column is the building block number as an integer.  These are in th
 at 1.
 
 ## Run
-Enter DEL-Dencode directory and compile for the first time<br>
-
-```
-git clone https://github.com/Roco-scientist/DEL-Decode.git
-cd Del-Decode
-cargo build --release
-```
-
-<br>
-After compilation, the `del` binary can be moved anywhere.  It is located in `./DEL-Decode/release/` directory.  For ease of use, it is shown below within its original directory.
+After compilation, the `del` binary can be moved anywhere.
 <br>
 <br>
 Run DEL-Decode<br>
 
 ```
-./target/release/del \
-		--fastq <fastq_file> \
-		--sample_barcodes <sample_barcode_file> \
-		--sequence_format <sequence_format_file> \
-		--bb_barcodes <building_block_barcode_file> \
-		--output_dir <output_dir> \
-		--threads <num_of_threads>
+del --fastq <fastq_file> \
+	--sample_barcodes <sample_barcode_file> \
+	--sequence_format <sequence_format_file> \
+	--bb_barcodes <building_block_barcode_file> \
+	--output_dir <output_dir> \
+	--threads <num_of_threads>
 ```
 
 <br>
