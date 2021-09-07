@@ -102,10 +102,10 @@ and the last column is the building block number as an integer.  These are in th
 at 1.
 
 ## Run
-Enter DEL-Encode directory and compile for the first time<br>
+Enter DEL-Dncode directory and compile for the first time<br>
 `$ cargo build --release`<br>
 <br>
-After compilation, the `del` binary can be moved anywhere.  It is located in `./DEL-decode/release/` directory.  For ease of use, it is shown below within its original directory.
+After compilation, the `del` binary can be moved anywhere.  It is located in `./DEL-Decode/release/` directory.  For ease of use, it is shown below within its original directory.
 <br>
 <br>
 Run DEL-Decode<br>
