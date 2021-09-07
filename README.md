@@ -2,6 +2,9 @@
 DNA encoded library decoding.  Multithreaded and low resource use.  Uses one thread to read and the rest to process the data, so at least a 2 threaded machine is essential.
 This program does not store all data within RAM but instead sequentially processes the sequencing data in order to remain memory efficient.  
 With very large DEL libraries, there may be some memory creep because it needs to count all occurances of building block barcodes and therefore needs to store any that are found.
+<br>
+<br>
+Error handling is set at 20% maximum sequence error.  The algorithm fixes with the best match and will not accept a fix if there are two sequences that have similar matches.
 
 ## Table of Contents
 <ul>
