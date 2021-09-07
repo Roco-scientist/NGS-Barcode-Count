@@ -17,7 +17,7 @@ With very large DEL libraries, there may be some memory creep because it needs t
 </ul>
 
 ## Files Needed
-Currently supports FASTQ, Sample Barcode, and Sequence Format.  Building block barcode and random barcode are still a work in progress.
+Currently supports FASTQ, sequence format, sample barcode conversion, and building block barcode conversion.
 <ul>
 <li><a href=#fastq-file>FASTQ</a></li>
 <li><a href=#sequence-format-file>Sequence format file</a></li>
