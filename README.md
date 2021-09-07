@@ -20,6 +20,10 @@ it is not counted.
 <li>Rust install: <a href=https://www.rust-lang.org/tools/install>instructions here</a></li>
 </ul>
 
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
 ## Files Needed
 Currently supports FASTQ, sequence format, sample barcode conversion, and building block barcode conversion.
 <ul>
