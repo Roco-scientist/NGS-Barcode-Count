@@ -44,7 +44,7 @@ Currently supports FASTQ, sequence format, sample barcode conversion, and buildi
 
 ### Fastq File
 Currently only accepts unzipped FASTQ files due to this program reading line by line.<br>
-Currently tryiing to implement a gzip inflate stream so that the whole file is not placed in RAM.
+Currently tryiing to implement a gzip inflate stream so that the whole gzipped file is not placed in RAM.
 
 ### Sequence Format File
 The sequence format file should be a text file that is line separated by the type of format.  The following is supported where the '#' should be replaced by the number of nucleotides corresponding to the barcode:<br>
@@ -91,7 +91,7 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 
 ### Building Block Barcode File
 <b>Optional</b><br>
-The sample_barcode_file is a comma separate file with the following format:<br>
+The building_block_barcode_file is a comma separate file with the following format:<br>
 <table>
 <tr>
 <th>Barcode</th>
@@ -110,7 +110,7 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 </tr>
 </table>
 Where the first column is the DNA barcode, the second column is the building block ID which can be a smile string (without commas),
-and the last column is the building block number as an integer.  These are in the same order as the sequence format file and starting
+and the last column is the building block number as an integer.  The building block numbers are in the same order as the sequence format file and starting
 at 1.
 
 ## Run
