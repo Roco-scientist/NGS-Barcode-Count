@@ -20,7 +20,11 @@ use itertools::Itertools;
 /// Line 2: DNA sequence
 /// Line 3: +
 /// Line 4: Quality score
-pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(), Box<dyn Error>> {
+pub fn read_fastq(
+    fastq: String,
+    seq_clone: Arc<Mutex<Vec<String>>>,
+    exit_clone: Arc<Mutex<bool>>,
+) -> Result<(), Box<dyn Error>> {
     let fastq_file = File::open(fastq.clone())?; // open file
 
     let mut line_num = 1; // start line to know that each 2nd of 4 lines is pulled
@@ -34,7 +38,12 @@ pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(
             if line_num == 2 {
                 if let Ok(sequence_data) = line {
                     // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-                    while seq_clone.lock().unwrap().len() >= 10000 {}
+                    while seq_clone.lock().unwrap().len() >= 10000 {
+                        // if threads have failed exit out of this thread
+                        if *exit_clone.lock().unwrap() {
+                            break;
+                        }
+                    }
                     // Insert the sequence into the vec.  This will be popped out by other threads
                     seq_clone.lock().unwrap().insert(0, sequence_data);
                 }
@@ -49,6 +58,11 @@ pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(
             line_num += 1;
             if line_num == 5 {
                 line_num = 1
+            }
+
+            // if threads have failed exit out of this thread
+            if *exit_clone.lock().unwrap() {
+                break;
             }
         }
     } else {
