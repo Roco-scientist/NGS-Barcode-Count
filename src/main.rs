@@ -50,6 +50,9 @@ fn main() {
     // Create a sequencing errors Struct to track errors.  This is passed between threads
     let sequence_errors = Arc::new(Mutex::new(del::del_info::SequenceErrors::new()));
 
+    // Create a passed exit passed variable to stop reading when a thread has panicked
+    let exit = Arc::new(Mutex::new(false));
+
     // Start the multithreading scope
     rayon::scope(|s| {
         // Create a sequence vec which will have sequences entered by the reading thread, and sequences removed by the processing threads
@@ -60,8 +63,9 @@ fn main() {
         // Clone variables that are needed to be passed into the reading thread and create the reading thread
         let seq_clone = Arc::clone(&seq);
         let finished_clone = Arc::clone(&finished);
+        let exit_clone = Arc::clone(&exit);
         s.spawn(move |_| {
-            del::read_fastq(fastq, seq_clone).unwrap();
+            del::read_fastq(fastq, seq_clone, exit_clone).unwrap();
             *finished_clone.lock().unwrap() = true;
         });
 
@@ -77,6 +81,7 @@ fn main() {
             let bb_clone = bb_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
             let constant_clone = constant_region_string.clone();
+            let exit_clone = Arc::clone(&exit);
 
             // Create a processing thread
             s.spawn(move |_| {
@@ -91,7 +96,10 @@ fn main() {
                     bb_clone,
                     sequence_errors_clone,
                 )
-                .unwrap();
+                .unwrap_or_else(|err| {
+                    *exit_clone.lock().unwrap() = true;
+                    panic!("Compute thread panic error: {}", err)
+                });
             })
         }
     });
