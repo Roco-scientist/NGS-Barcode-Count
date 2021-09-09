@@ -99,8 +99,14 @@ pub fn output_counts(
         // get the sample results
         let sample_counts_hash = results_hasmap.get(sample_id).unwrap();
 
-        // create the filename as the sample_id_counts.csv
-        let file_name = format!("{}_{}{}", prefix, sample_id, "_counts.csv");
+        let file_name;
+        // If no sample names are supplied, save as all counts, otherwise as sample name counts
+        if results_hasmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
+            file_name = format!("{}{}", prefix, "_all_counts.csv");
+        } else {
+            // create the filename as the sample_id_counts.csv
+            file_name = format!("{}_{}{}", prefix, sample_id, "_counts.csv");
+        }
         // join the filename with the directory to create the full path
         let output_path = directory.join(file_name);
         let mut output = File::create(output_path)?; // Create the output file
