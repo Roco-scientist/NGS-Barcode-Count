@@ -145,7 +145,7 @@ del --fastq <fastq_file> \
 --output_dir defaults to the current directory if not used.
 </li>
 <li>
---prefix defaults to the current date.  All files end with `_<sample_name>_counts.csv`
+--prefix defaults to the current date.  All files end with `_sample_name_counts.csv`
 </li>
 <li>
 --threads defaults to the number of threads on the machine if not used.
