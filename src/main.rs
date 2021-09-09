@@ -149,7 +149,7 @@ pub fn arguments() -> Result<
     let today = Local::today().format("%Y-%m-%d").to_string();
     // parse arguments
     let args = App::new("DEL analysis")
-        .version("0.3.0")
+        .version("0.3.1")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
         .arg(
