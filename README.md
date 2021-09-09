@@ -6,6 +6,9 @@ With very large DEL libraries, there may be some memory creep.  This is because 
 <br>
 Error handling is set at 20% maximum sequence error.  The algorithm fixes any sequenced constant region or barcode with the best match possible.  If there are two or more best matches,
 it is not counted.
+<br>
+<br>
+Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/decode>decode</a>
 
 ## Table of Contents
 <ul>
