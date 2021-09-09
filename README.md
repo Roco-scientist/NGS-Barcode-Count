@@ -130,7 +130,8 @@ del --fastq <fastq_file> \
 	--bb_barcodes <building_block_barcode_file> \
 	--output_dir <output_dir> \
 	--prefix <file_prefix> \
-	--threads <num_of_threads>
+	--threads <num_of_threads> \
+	--merge_output
 ```
 
 <br>
@@ -149,6 +150,9 @@ del --fastq <fastq_file> \
 </li>
 <li>
 --threads defaults to the number of threads on the machine if not used.
+</li>
+<li>
+--merge_output flag that merges the output csv file so that each sample has one column
 </li>
 </ul>
 
