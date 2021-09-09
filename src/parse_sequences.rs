@@ -34,7 +34,7 @@ pub fn parse(
         sample_seqs = None
     }
 
-    // Get a vec of all possible sample barcodes for error correction
+    // Get a vec of all possible building block barcodes for error correction
     let bb_seqs_option: Option<Vec<Vec<String>>>;
     if let Some(ref bb) = bb_clone {
         let mut bb_vec = Vec::new();
