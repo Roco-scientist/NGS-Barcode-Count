@@ -82,6 +82,7 @@ pub fn output_counts(
     results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     bb_num: usize,
     bb_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
+    prefix: String,
 ) -> Result<(), Box<dyn Error>> {
     let results_hasmap = results.lock().unwrap(); // get the results
 
@@ -99,7 +100,7 @@ pub fn output_counts(
         let sample_counts_hash = results_hasmap.get(sample_id).unwrap();
 
         // create the filename as the sample_id_counts.csv
-        let file_name = format!("{}{}", sample_id, "_counts.csv");
+        let file_name = format!("{}_{}{}", prefix, sample_id, "_counts.csv");
         // join the filename with the directory to create the full path
         let output_path = directory.join(file_name);
         let mut output = File::create(output_path)?; // Create the output file
