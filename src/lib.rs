@@ -85,9 +85,6 @@ pub fn output_counts(
     prefix: String,
     merge_output: bool,
 ) -> Result<(), Box<dyn Error>> {
-    // create the directory variable to join the file to
-    let directory = Path::new(&output_dir);
-
     let results_hashmap = results.lock().unwrap(); // get the results
 
     let mut sample_ids = results_hashmap.keys().cloned().collect::<Vec<String>>();
@@ -98,11 +95,14 @@ pub fn output_counts(
     for num in 1..bb_num {
         header.push_str(&format!(",BB_{}", num + 1))
     }
-    // Create a HashSet for if there is merging
-    let mut compounds_written = HashSet::new();
+    // create the directory variable to join the file to
+    let directory = Path::new(&output_dir);
+
+    // Create the merge file and push the header, if merged called within arguments
     let merged_file_name = format!("{}{}", prefix, "_counts.all.csv");
     let merged_output_path = directory.join(merged_file_name);
     let mut merged_output_file = File::create(merged_output_path)?;
+    // If merged called, create the header with the sample names as columns and write
     if merge_output {
         let mut merged_header = header.clone();
         for sample_id in &sample_ids {
@@ -112,8 +112,12 @@ pub fn output_counts(
         merged_header.push_str("\n");
         merged_output_file.write_all(merged_header.as_bytes())?;
     }
+
+    // Crate the header to be used with each sample file.  This is just BB_1..BB_n and Count
     header.push_str(",Count\n");
 
+    // Create a HashSet for if there is merging to check what compounds have been written to the merged file
+    let mut compounds_written = HashSet::new();
     for sample_id in &sample_ids {
         // get the sample results
         let sample_counts_hash = results_hashmap.get(sample_id).unwrap();
@@ -146,10 +150,16 @@ pub fn output_counts(
                         return barcode_hash.get(bb_barcode).unwrap().to_string();
                     })
                     .join(",");
+
+                // If merge output argument is called, pull data for the compound and write to merged file
                 if merge_output {
+                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                     if !compounds_written.contains(code) {
+                        // Add the compound to the hashset so that it is not repeated later
                         compounds_written.insert(code);
+                        // Start a new row with the converted building block barcodes
                         let mut merged_row = converted.clone();
+                        // For every sample, retrieve the count and add to the row with a comma
                         for sample_id in &sample_ids {
                             merged_row.push_str(",");
                             merged_row.push_str(
@@ -162,20 +172,29 @@ pub fn output_counts(
                             )
                         }
                         merged_row.push_str("\n");
+                        // write to the merged file
                         merged_output_file.write_all(merged_row.as_bytes())?;
                     }
                 }
+                // Create the row for the sample file and write
                 let row = format!("{},{}\n", converted, count);
                 output.write_all(row.as_bytes())?;
             }
         } else {
+            // If there is no building block barcode conversion, write row with the DNA barcode instead
             for (code, count) in sample_counts_hash.iter() {
                 let row = format!("{},{}\n", code, count);
                 output.write_all(row.as_bytes())?;
+
+                // If merge output argument is called, pull data for the compound and write to merged file
                 if merge_output {
+                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                     if !compounds_written.contains(code) {
+                        // Add the compound to the hashset so that it is not repeated later
                         compounds_written.insert(code);
+                        // Start a new row
                         let mut merged_row = code.clone();
+                        // For every sample, retrieve the count and add to the row with a comma
                         for sample_id in &sample_ids {
                             merged_row.push_str(",");
                             merged_row.push_str(
@@ -188,6 +207,7 @@ pub fn output_counts(
                             )
                         }
                         merged_row.push_str("\n");
+                        // write to the merged file
                         merged_output_file.write_all(merged_row.as_bytes())?;
                     }
                 }
