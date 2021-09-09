@@ -14,7 +14,7 @@ fn main() {
     let start = Instant::now();
 
     // get the argument inputs
-    let (fastq, format, samples_barcodes, bb_barcodes, output_dir, threads, prefix) =
+    let (fastq, format, samples_barcodes, bb_barcodes, output_dir, threads, prefix, merge_output) =
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     // Create the regex string which is based on the sequencing format.  Creates the regex captures
@@ -109,7 +109,15 @@ fn main() {
     sequence_errors.lock().unwrap().display();
 
     println!("Writing counts");
-    del::output_counts(output_dir, results, bb_num, bb_hashmap, prefix).unwrap();
+    del::output_counts(
+        output_dir,
+        results,
+        bb_num,
+        bb_hashmap,
+        prefix,
+        merge_output,
+    )
+    .unwrap();
     // Get the end time and print total time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 2 {
@@ -133,6 +141,7 @@ pub fn arguments() -> Result<
         String,
         u8,
         String,
+        bool,
     ),
     Box<dyn std::error::Error>,
 > {
@@ -197,6 +206,13 @@ pub fn arguments() -> Result<
                 .default_value(&today)
                 .help("File prefix name.  THe output will end with '_<sample_name>_counts.csv'"),
         )
+        .arg(
+            Arg::with_name("merge_output")
+                .short("m")
+                .long("merge_output")
+                .takes_value(false)
+                .help("Merge sample output counts into a single file.  Not necessary when there is only one sample"),
+        )
         .get_matches();
 
     let sample_barcodes;
@@ -213,6 +229,13 @@ pub fn arguments() -> Result<
         bb_barcodes = None
     }
 
+    let merge_output;
+    if args.is_present("merge_output") {
+        merge_output = true
+    } else {
+        merge_output = false
+    }
+
     return Ok((
         args.value_of("fastq").unwrap().to_string(),
         args.value_of("sequence_format").unwrap().to_string(),
@@ -221,5 +244,6 @@ pub fn arguments() -> Result<
         args.value_of("output_dir").unwrap().to_string(),
         args.value_of("threads").unwrap().parse::<u8>().unwrap(),
         args.value_of("prefix").unwrap().to_string(),
+        merge_output,
     ));
 }

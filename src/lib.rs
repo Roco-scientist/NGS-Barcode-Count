@@ -3,7 +3,7 @@ pub mod parse_sequences;
 
 // use flate2::read::GzDecoder;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error,
     fs::File,
     io::{BufRead, BufReader, Write},
@@ -83,25 +83,44 @@ pub fn output_counts(
     bb_num: usize,
     bb_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
     prefix: String,
+    merge_output: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let results_hasmap = results.lock().unwrap(); // get the results
+    // create the directory variable to join the file to
+    let directory = Path::new(&output_dir);
+
+    let results_hashmap = results.lock().unwrap(); // get the results
+
+    let mut sample_ids = results_hashmap.keys().cloned().collect::<Vec<String>>();
+    sample_ids.sort();
 
     // Create a comma separated header.  First columns are the building block bumbers, 'BB_#'.  The last header is 'Count'
     let mut header = "BB_1".to_string();
     for num in 1..bb_num {
         header.push_str(&format!(",BB_{}", num + 1))
     }
+    // Create a HashSet for if there is merging
+    let mut compounds_written = HashSet::new();
+    let merged_file_name = format!("{}{}", prefix, "_counts.all.csv");
+    let merged_output_path = directory.join(merged_file_name);
+    let mut merged_output_file = File::create(merged_output_path)?;
+    if merge_output {
+        let mut merged_header = header.clone();
+        for sample_id in &sample_ids {
+            merged_header.push_str(",");
+            merged_header.push_str(&sample_id);
+        }
+        merged_header.push_str("\n");
+        merged_output_file.write_all(merged_header.as_bytes())?;
+    }
     header.push_str(",Count\n");
 
-    // create the directory variable to join the file to
-    let directory = Path::new(&output_dir);
-    for sample_id in results_hasmap.keys() {
+    for sample_id in &sample_ids {
         // get the sample results
-        let sample_counts_hash = results_hasmap.get(sample_id).unwrap();
+        let sample_counts_hash = results_hashmap.get(sample_id).unwrap();
 
         let file_name;
         // If no sample names are supplied, save as all counts, otherwise as sample name counts
-        if results_hasmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
+        if results_hashmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
             file_name = format!("{}{}", prefix, "_all_counts.csv");
         } else {
             // create the filename as the sample_id_counts.csv
@@ -127,6 +146,25 @@ pub fn output_counts(
                         return barcode_hash.get(bb_barcode).unwrap().to_string();
                     })
                     .join(",");
+                if merge_output {
+                    if !compounds_written.contains(code) {
+                        compounds_written.insert(code);
+                        let mut merged_row = converted.clone();
+                        for sample_id in &sample_ids {
+                            merged_row.push_str(",");
+                            merged_row.push_str(
+                                &results_hashmap
+                                    .get(sample_id)
+                                    .unwrap()
+                                    .get(code)
+                                    .unwrap_or(&0)
+                                    .to_string(),
+                            )
+                        }
+                        merged_row.push_str("\n");
+                        merged_output_file.write_all(merged_row.as_bytes())?;
+                    }
+                }
                 let row = format!("{},{}\n", converted, count);
                 output.write_all(row.as_bytes())?;
             }
@@ -134,6 +172,25 @@ pub fn output_counts(
             for (code, count) in sample_counts_hash.iter() {
                 let row = format!("{},{}\n", code, count);
                 output.write_all(row.as_bytes())?;
+                if merge_output {
+                    if !compounds_written.contains(code) {
+                        compounds_written.insert(code);
+                        let mut merged_row = code.clone();
+                        for sample_id in &sample_ids {
+                            merged_row.push_str(",");
+                            merged_row.push_str(
+                                &results_hashmap
+                                    .get(sample_id)
+                                    .unwrap()
+                                    .get(code)
+                                    .unwrap_or(&0)
+                                    .to_string(),
+                            )
+                        }
+                        merged_row.push_str("\n");
+                        merged_output_file.write_all(merged_row.as_bytes())?;
+                    }
+                }
             }
         }
     }
