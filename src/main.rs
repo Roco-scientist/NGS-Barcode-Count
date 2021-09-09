@@ -1,3 +1,4 @@
+use chrono::Local;
 use clap::{App, Arg};
 use num_cpus;
 use rayon;
@@ -13,7 +14,7 @@ fn main() {
     let start = Instant::now();
 
     // get the argument inputs
-    let (fastq, format, samples_barcodes, bb_barcodes, output_dir, threads) =
+    let (fastq, format, samples_barcodes, bb_barcodes, output_dir, threads, prefix) =
         arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     // Create the regex string which is based on the sequencing format.  Creates the regex captures
@@ -108,7 +109,7 @@ fn main() {
     sequence_errors.lock().unwrap().display();
 
     println!("Writing counts");
-    del::output_counts(output_dir, results, bb_num, bb_hashmap).unwrap();
+    del::output_counts(output_dir, results, bb_num, bb_hashmap, prefix).unwrap();
     // Get the end time and print total time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 2 {
@@ -123,10 +124,20 @@ fn main() {
 }
 
 /// Gets the command line arguments
-pub fn arguments(
-) -> Result<(String, String, Option<String>, Option<String>, String, u8), Box<dyn std::error::Error>>
-{
+pub fn arguments() -> Result<
+    (
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        String,
+        u8,
+        String,
+    ),
+    Box<dyn std::error::Error>,
+> {
     let total_cpus = num_cpus::get().to_string();
+    let today = Local::today().format("%Y-%m-%d").to_string();
     // parse arguments
     let args = App::new("DEL analysis")
         .version("0.3.0")
@@ -178,6 +189,14 @@ pub fn arguments(
                 .default_value("./")
                 .help("Directory to output the counts to"),
         )
+        .arg(
+            Arg::with_name("prefix")
+                .short("p")
+                .long("prefix")
+                .takes_value(true)
+                .default_value(&today)
+                .help("File prefix name.  THe output will end with '_<sample_name>_counts.csv'"),
+        )
         .get_matches();
 
     let sample_barcodes;
@@ -201,5 +220,6 @@ pub fn arguments(
         bb_barcodes,
         args.value_of("output_dir").unwrap().to_string(),
         args.value_of("threads").unwrap().parse::<u8>().unwrap(),
+        args.value_of("prefix").unwrap().to_string(),
     ));
 }

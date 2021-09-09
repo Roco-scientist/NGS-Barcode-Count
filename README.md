@@ -129,6 +129,7 @@ del --fastq <fastq_file> \
 	--sequence_format <sequence_format_file> \
 	--bb_barcodes <building_block_barcode_file> \
 	--output_dir <output_dir> \
+	--prefix <file_prefix> \
 	--threads <num_of_threads>
 ```
 
@@ -142,6 +143,9 @@ del --fastq <fastq_file> \
 </li>
 <li>
 --output_dir defaults to the current directory if not used.
+</li>
+<li>
+--prefix defaults to the current date.  All files end with `_<sample_name>_counts.csv`
 </li>
 <li>
 --threads defaults to the number of threads on the machine if not used.
