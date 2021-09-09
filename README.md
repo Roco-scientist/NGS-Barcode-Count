@@ -4,7 +4,7 @@ This program does not store all data within RAM but instead sequentially process
 With very large DEL libraries, there may be some memory creep.  This is because the more barcodes that exist within the sequencing reads, the more barcodes that need to remain in memory.
 <br>
 <br>
-Error handling is set at 20% maximum sequence error.  The algorithm fixes any sequenced constant region or barcode with the best match possoble.  If there are two or more best matches,
+Error handling is set at 20% maximum sequence error.  The algorithm fixes any sequenced constant region or barcode with the best match possible.  If there are two or more best matches,
 it is not counted.
 
 ## Table of Contents
