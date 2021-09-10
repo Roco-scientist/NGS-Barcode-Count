@@ -30,7 +30,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 ```
 git clone https://github.com/Roco-scientist/DEL-Decode.git
-cd Del-Decode
+cd DEL-Decode
 cargo build --release
 mv ./target/release/del ./
 ```
@@ -179,7 +179,7 @@ Each sample name will get a file in the default format of year-month-day_<sample
 </tr>
 </table>
 
-Where BB_ID is used if there is a building block convernsion file, otherwise the DNA code is used. `#` represents the count number<br><br>
+Where BB_ID is used if there is a building block conversion file, otherwise the DNA code is used. `#` represents the count number<br><br>
 If `--merge_output` is called, an additional file is created with the format (for 3 samples):
 
 <table>
