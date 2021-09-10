@@ -14,8 +14,19 @@ fn main() {
     let start = Instant::now();
 
     // get the argument inputs
-    let (fastq, format, samples_barcodes, bb_barcodes, output_dir, threads, prefix, merge_output) =
-        arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
+    let (
+        fastq,
+        format,
+        samples_barcodes,
+        bb_barcodes,
+        output_dir,
+        threads,
+        prefix,
+        merge_output,
+        bb_errors,
+        sample_errors,
+        constant_errors,
+    ) = arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     // Create the regex string which is based on the sequencing format.  Creates the regex captures
     let regex_string = del::del_info::regex_search(format).unwrap();
@@ -142,6 +153,9 @@ pub fn arguments() -> Result<
         u8,
         String,
         bool,
+        Option<usize>,
+        Option<usize>,
+        Option<usize>,
     ),
     Box<dyn std::error::Error>,
 > {
@@ -213,6 +227,24 @@ pub fn arguments() -> Result<
                 .takes_value(false)
                 .help("Merge sample output counts into a single file.  Not necessary when there is only one sample"),
         )
+        .arg(
+            Arg::with_name("bb_errors")
+                .long("bb_errors")
+                .takes_value(true)
+                .help("Maximimum number of sequence errors allowed within each building block barcode. Defaults to 20% of the total."),
+        )
+        .arg(
+            Arg::with_name("sample_errors")
+                .long("sample_errors")
+                .takes_value(true)
+                .help("Maximimum number of sequence errors allowed within sample barcode. Defaults to 20% of the total."),
+        )
+        .arg(
+            Arg::with_name("contant_errors")
+                .long("constant_errors")
+                .takes_value(true)
+                .help("Maximimum number of sequence errors allowed within constant region. Defaults to 20% of the total."),
+        )
         .get_matches();
 
     let sample_barcodes;
@@ -227,6 +259,27 @@ pub fn arguments() -> Result<
         bb_barcodes = Some(bb.to_string())
     } else {
         bb_barcodes = None
+    }
+
+    let bb_errors;
+    if let Some(bb) = args.value_of("bb_errors") {
+        bb_errors = Some(bb.parse::<usize>()?)
+    } else {
+        bb_errors = None
+    }
+
+    let sample_errors;
+    if let Some(sample) = args.value_of("sample_errors") {
+        sample_errors = Some(sample.parse::<usize>()?)
+    } else {
+        sample_errors = None
+    }
+
+    let constant_errors;
+    if let Some(constant) = args.value_of("constant_errors") {
+        constant_errors = Some(constant.parse::<usize>()?)
+    } else {
+        constant_errors = None
     }
 
     let merge_output;
@@ -245,5 +298,8 @@ pub fn arguments() -> Result<
         args.value_of("threads").unwrap().parse::<u8>().unwrap(),
         args.value_of("prefix").unwrap().to_string(),
         merge_output,
+        bb_errors,
+        sample_errors,
+        constant_errors,
     ));
 }
