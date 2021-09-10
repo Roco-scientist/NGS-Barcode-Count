@@ -157,20 +157,26 @@ del --fastq <fastq_file> \
 </ul>
 
 ### Output files
-Each sample name will get a file in the default format of <year>-<month>-<day>_<sample_name>_counts.csv in the following format (for 3 building blocks):
+Each sample name will get a file in the default format of year-month-day_<sample_name>_counts.csv in the following format (for 3 building blocks):
 <table>
 <tr>
 <th>BB_1</th>
 <th>BB_2</th>
 <th>BB_3</th>
 <th>Count</th>
+</tr>
 <tr>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>#</td>
+</tr>
 <tr>
-<th>BB_ID/DNA code</th>
-<th>BB_ID/DNA code</th>
-<th>BB_ID/DNA code</th>
-<th>#</th>
-<tr>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>#</td>
+</tr>
 </table>
 
 Where BB_ID is used if there is a building block convernsion file, otherwise the DNA code is used. `#` represents the count number<br><br>
@@ -184,15 +190,23 @@ If `--merge_output` is called, an additional file is created with the format (fo
 <th>Sample_1</th>
 <th>Sample_2</th>
 <th>Sample_3</th>
+</tr>
 <tr>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>#</td>
+<td>#</td>
+<td>#</td>
+</tr>
 <tr>
-<th>BB_ID/DNA code</th>
-<th>BB_ID/DNA code</th>
-<th>BB_ID/DNA code</th>
-<th>#</th>
-<th>#</th>
-<th>#</th>
-<tr>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>BB_ID/DNA code</td>
+<td>#</td>
+<td>#</td>
+<td>#</td>
+</tr>
 </table>
 
 
