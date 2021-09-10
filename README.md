@@ -8,7 +8,7 @@ Error handling is set at 20% maximum sequence error.  The algorithm fixes any se
 it is not counted.
 <br>
 <br>
-Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/decode>decode</a>
+Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/decode target="_blank" rel="noopener noreferrer" >decode</a>
 
 ## Table of Contents
 <ul>
@@ -20,7 +20,7 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 
 ## Requirements
 
-### Rust installed locally: <a href=https://www.rust-lang.org/tools/install>instructions here</a>
+### Rust installed locally: <a href=https://www.rust-lang.org/tools/install target="_blank" rel="noopener noreferrer" >instructions here</a>
 
 ```
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
