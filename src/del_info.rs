@@ -278,3 +278,167 @@ pub fn bb_barcode_file_conversion(
     }
     Ok(barcode_data)
 }
+
+// Struct of how many sequencing errrors are allowed
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct MaxSeqErrors {
+    // errors within the constant region
+    constant_region: usize,
+    // errors within the sample barcode
+    sample_barcode: usize,
+    // erors within the building block barcode
+    bb_barcode: usize,
+}
+
+impl MaxSeqErrors {
+    /// Create a new sequence error struct
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::MaxSeqErrors;
+    ///
+    /// let sample_errors_option = None;
+    /// let bb_errors_option = None;
+    /// let constant_errors_option = None;
+    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
+    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// ```
+    pub fn new(
+        sample_errors_option: Option<usize>,
+        bb_errors_option: Option<usize>,
+        constant_errors_option: Option<usize>,
+        regex_string: &String,
+        constant_region_string: &String,
+    ) -> Result<MaxSeqErrors, Box<dyn Error>> {
+        // let regex_string =  "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})";
+        let sample_search = Regex::new(r"sample>\.\{(?P<sample_size>\d+)")?;
+        let bb_search = Regex::new(r"bb\d+>\.\{(?P<bb_size>\d+)")?;
+        let sample_size_search_option = sample_search.captures(regex_string);
+        let max_sample_errors;
+        if let Some(sample_size_search) = sample_size_search_option {
+            if let Some(sample_errors) = sample_errors_option {
+                max_sample_errors = sample_errors
+            } else {
+                max_sample_errors = sample_size_search
+                    .name("sample_size")
+                    .unwrap()
+                    .as_str()
+                    .parse::<usize>()?
+                    / 5;
+            }
+        } else {
+            max_sample_errors = 0;
+        }
+
+        let max_bb_errors;
+        let bb_size = bb_search
+            .captures(regex_string)
+            .unwrap()
+            .name("bb_size")
+            .unwrap()
+            .as_str()
+            .parse::<usize>()?;
+        if let Some(bb_errors) = bb_errors_option {
+            max_bb_errors = bb_errors
+        } else {
+            max_bb_errors = bb_size / 5;
+        }
+
+        let max_constant_errors;
+        if let Some(constant_errors) = constant_errors_option {
+            max_constant_errors = constant_errors
+        } else {
+            max_constant_errors =
+                (constant_region_string.len() - constant_region_string.matches("N").count()) / 5;
+            // errors allowed is the length of the constant region - the Ns / 5 or 20%
+        }
+
+        Ok(MaxSeqErrors {
+            constant_region: max_constant_errors,
+            sample_barcode: max_sample_errors,
+            bb_barcode: max_bb_errors,
+        })
+    }
+
+    /// Returns the maximum allowed constant region errors
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::MaxSeqErrors;
+    ///
+    /// let sample_errors_option = None;
+    /// let bb_errors_option = None;
+    /// let constant_errors_option = None;
+    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
+    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// assert_eq!(max_sequence_errors.max_constant_errors(), 5);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, Some(3), &regex_string, &constant_region_string).unwrap();
+    /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
+    /// ```
+    pub fn max_constant_errors(&mut self) -> usize {
+        self.constant_region
+    }
+
+    /// Returns the maximum allowed sample barcode errors
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::MaxSeqErrors;
+    ///
+    /// let sample_errors_option = None;
+    /// let bb_errors_option = None;
+    /// let constant_errors_option = None;
+    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
+    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// assert_eq!(max_sequence_errors.max_sample_errors(), 1);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(Some(2), bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// assert_eq!(max_sequence_errors.max_sample_errors(), 2);
+    /// ```
+    pub fn max_sample_errors(&mut self) -> usize {
+        self.sample_barcode
+    }
+
+    /// Returns the maximum allowed building block barcode errors
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::MaxSeqErrors;
+    ///
+    /// let sample_errors_option = None;
+    /// let bb_errors_option = None;
+    /// let constant_errors_option = None;
+    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
+    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// assert_eq!(max_sequence_errors.max_bb_errors(), 1);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, Some(2), constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// assert_eq!(max_sequence_errors.max_bb_errors(), 2);
+    /// ```
+    pub fn max_bb_errors(&mut self) -> usize {
+        self.bb_barcode
+    }
+
+    /// Print to stdout all maximum sequencing errors
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::MaxSeqErrors;
+    ///
+    /// let sample_errors_option = None;
+    /// let bb_errors_option = None;
+    /// let constant_errors_option = None;
+    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
+    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// max_sequence_errors.display();
+    /// ```
+    pub fn display(&mut self) {
+        println!(
+            "Maximum Constant Region Mismatches Allowed Per Sequence: {}\nMaximum Sample Barcode Mismatches Allowed Per Sequence: {}\nMaximum Building Block Mismatches Allowed Per Barcode: {}",
+            self.constant_region, self.sample_barcode, self.bb_barcode
+        )
+    }
+}

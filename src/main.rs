@@ -23,9 +23,9 @@ fn main() {
         threads,
         prefix,
         merge_output,
-        bb_errors,
-        sample_errors,
-        constant_errors,
+        bb_errors_option,
+        sample_errors_option,
+        constant_errors_option,
     ) = arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     // Create the regex string which is based on the sequencing format.  Creates the regex captures
@@ -44,11 +44,12 @@ fn main() {
     let random_barcodes = Arc::new(Mutex::new(HashMap::new()));
 
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
-    let samples_hashmap;
+    let samples_hashmap_option;
     if let Some(samples) = samples_barcodes {
-        samples_hashmap = Some(del::del_info::sample_barcode_file_conversion(samples).unwrap());
+        let samples_hashmap = del::del_info::sample_barcode_file_conversion(samples).unwrap();
+        samples_hashmap_option = Some(samples_hashmap);
     } else {
-        samples_hashmap = None
+        samples_hashmap_option = None
     }
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
@@ -65,6 +66,15 @@ fn main() {
     // Create a passed exit passed variable to stop reading when a thread has panicked
     let exit = Arc::new(Mutex::new(false));
 
+    let mut max_errors = del::del_info::MaxSeqErrors::new(
+        sample_errors_option,
+        bb_errors_option,
+        constant_errors_option,
+        &regex_string,
+        &constant_region_string,
+    )
+    .unwrap_or_else(|err| panic!("Max Sequencing Errors error: {}", err));
+    max_errors.display();
     // Start the multithreading scope
     rayon::scope(|s| {
         // Create a sequence vec which will have sequences entered by the reading thread, and sequences removed by the processing threads
@@ -89,11 +99,12 @@ fn main() {
             let regex_string_clone = regex_string.clone();
             let results_clone = Arc::clone(&results);
             let random_barcodes_clone = Arc::clone(&random_barcodes);
-            let samples_clone = samples_hashmap.clone();
+            let samples_clone = samples_hashmap_option.clone();
             let bb_clone = bb_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
             let constant_clone = constant_region_string.clone();
             let exit_clone = Arc::clone(&exit);
+            let max_errors_clone = max_errors.clone();
 
             // Create a processing thread
             s.spawn(move |_| {
@@ -107,6 +118,7 @@ fn main() {
                     samples_clone,
                     bb_clone,
                     sequence_errors_clone,
+                    max_errors_clone,
                 )
                 .unwrap_or_else(|err| {
                     *exit_clone.lock().unwrap() = true;

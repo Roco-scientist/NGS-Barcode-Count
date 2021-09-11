@@ -18,7 +18,8 @@ pub fn parse(
     random_barcodes_clone: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
     samples_clone: Option<HashMap<String, String>>,
     bb_clone: Option<HashMap<usize, HashMap<String, String>>>,
-    sequence_errors_clone: Arc<Mutex<super::del_info::SequenceErrors>>,
+    sequence_errors_clone: Arc<Mutex<crate::del_info::SequenceErrors>>,
+    mut max_errors_clone: crate::del_info::MaxSeqErrors,
 ) -> Result<(), Box<dyn Error>> {
     // Create a new regex search that has captures for each barcode
     let format_search = Regex::new(&regex_string)?;
@@ -81,6 +82,7 @@ pub fn parse(
                 &sample_seqs,
                 &bb_seqs_option,
                 &constant_clone,
+                &mut max_errors_clone,
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
             if let Some((sample_name, bb_string, random_barcode_option)) = result_tuple_option {
@@ -152,6 +154,7 @@ fn match_seq(
     sample_seqs: &Option<Vec<String>>,
     bb_seqs_option: &Option<Vec<Vec<String>>>,
     constant_clone: &String,
+    max_errors_clone: &mut crate::del_info::MaxSeqErrors,
 ) -> Result<Option<(String, String, Option<String>)>, Box<dyn Error>> {
     // find the barcodes with the reges search
     let mut barcode_search = format_search.captures(&sequence);
@@ -159,7 +162,11 @@ fn match_seq(
     // If the barcode search results in None, try and fix the constant regions
     let fixed_sequence;
     if barcode_search.is_none() {
-        let fixed_sequence_option = fix_constant_region(&sequence, constant_clone)?;
+        let fixed_sequence_option = fix_constant_region(
+            &sequence,
+            constant_clone,
+            max_errors_clone.max_constant_errors(),
+        )?;
         // If a suitable fix for the constant region was found, recreate the barcode search,
         // otherwise record the constant region error and return None
         if fixed_sequence_option.is_some() {
@@ -205,8 +212,11 @@ fn match_seq(
             if let Some(sample) = samples_clone.as_ref().unwrap().get(&sample_barcode) {
                 sample_name_option = Some(sample.to_string())
             } else {
-                let sample_seq_option =
-                    fix_error(&sample_barcode, &sample_seqs.as_ref().unwrap(), 3)?;
+                let sample_seq_option = fix_error(
+                    &sample_barcode,
+                    &sample_seqs.as_ref().unwrap(),
+                    max_errors_clone.max_sample_errors(),
+                )?;
                 if let Some(sample_seq_new) = sample_seq_option {
                     sample_name_option = Some(
                         samples_clone
@@ -238,7 +248,7 @@ fn match_seq(
                     // If it cannnot fix the sequence, add to bb_barcode_error
                     if !bb_seqs[x].contains(&bb_seq) {
                         let bb_seq_fix_option =
-                            fix_error(&bb_seq, &bb_seqs[x], bb_seq.chars().count() / 5)?;
+                            fix_error(&bb_seq, &bb_seqs[x], max_errors_clone.max_bb_errors())?;
                         if let Some(bb_seq_fix) = bb_seq_fix_option {
                             bb_seq = bb_seq_fix
                         } else {
@@ -350,11 +360,11 @@ pub fn fix_error(
 fn fix_constant_region(
     sequence: &String,
     constant_clone: &String,
+    max_constant_errors: usize,
 ) -> Result<Option<String>, Box<dyn Error>> {
     // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
-    let errors_allowed = (constant_clone.len() - constant_clone.matches("N").count()) / 5; // errors allowed is the length of the constant region - the Ns / 5 or 20%
-                                                                                           // Get the length difference between what was sequenced and the barcode region with constant regions
-                                                                                           // This is to stop the iteration in the next step
+    // Get the length difference between what was sequenced and the barcode region with constant regions
+    // This is to stop the iteration in the next step
     let length_diff = sequence.len() - constant_clone.len();
 
     // Create a vector of sequences the length of the constant region + barcodes to check for where the best match is located
@@ -369,7 +379,7 @@ fn fix_constant_region(
         possible_seqs.push(possible_seq);
     }
     // Find the closest match within what was sequenced to the constant region
-    fix_error(&constant_clone, &possible_seqs, errors_allowed)
+    fix_error(&constant_clone, &possible_seqs, max_constant_errors)
 }
 
 /// Fixes the constant region of the sequence by flipping the barcodes into the constant region format string within the locations of the 'N's
