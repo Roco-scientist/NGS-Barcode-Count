@@ -284,10 +284,13 @@ pub fn bb_barcode_file_conversion(
 pub struct MaxSeqErrors {
     // errors within the constant region
     constant_region: usize,
+    constant_size: usize,
     // errors within the sample barcode
     sample_barcode: usize,
+    sample_size: usize,
     // erors within the building block barcode
     bb_barcode: usize,
+    bb_size: usize,
 }
 
 impl MaxSeqErrors {
@@ -311,27 +314,35 @@ impl MaxSeqErrors {
         regex_string: &String,
         constant_region_string: &String,
     ) -> Result<MaxSeqErrors, Box<dyn Error>> {
-        // let regex_string =  "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})";
+        // Find the length of the sample barcodes and set maximum error to either 20% of that length, or the input value from args
+        // Create a regex to pull the number from the sample group
         let sample_search = Regex::new(r"sample>\.\{(?P<sample_size>\d+)")?;
-        let bb_search = Regex::new(r"bb\d+>\.\{(?P<bb_size>\d+)")?;
         let sample_size_search_option = sample_search.captures(regex_string);
         let max_sample_errors;
+        // start with a sample size of 0 in case there is no sample barcode.  If there is then mutate
+        let mut sample_size = 0;
+        // If sample barcode was included, calculate the maximum error, otherwise set error to 0
         if let Some(sample_size_search) = sample_size_search_option {
+            // get sample size from the regex string
+            sample_size = sample_size_search
+                .name("sample_size")
+                .unwrap()
+                .as_str()
+                .parse::<usize>()?;
+            // if there was sample errors input from arguments, use that, otherwise calculate 20% for max errors
             if let Some(sample_errors) = sample_errors_option {
                 max_sample_errors = sample_errors
             } else {
-                max_sample_errors = sample_size_search
-                    .name("sample_size")
-                    .unwrap()
-                    .as_str()
-                    .parse::<usize>()?
-                    / 5;
+                max_sample_errors = sample_size / 5;
             }
         } else {
             max_sample_errors = 0;
         }
 
+        // Find the length of the building block barcodes and set maximum error to either 20% of that length, or the input value from args
+        let bb_search = Regex::new(r"bb\d+>\.\{(?P<bb_size>\d+)")?;
         let max_bb_errors;
+        // Get the building block size from the first building block.  This assumes they are all the same size.  Can come back and make this better
         let bb_size = bb_search
             .captures(regex_string)
             .unwrap()
@@ -339,25 +350,33 @@ impl MaxSeqErrors {
             .unwrap()
             .as_str()
             .parse::<usize>()?;
+        // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
         if let Some(bb_errors) = bb_errors_option {
             max_bb_errors = bb_errors
         } else {
             max_bb_errors = bb_size / 5;
         }
 
+        // Find the length of the constant region and set maximum error to either 20% of that length, or the input value from args
         let max_constant_errors;
+        // Get the constant region size by subtracting the 'N's from the format string
+        let constant_size =
+            constant_region_string.len() - constant_region_string.matches("N").count();
+        // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
         if let Some(constant_errors) = constant_errors_option {
             max_constant_errors = constant_errors
         } else {
-            max_constant_errors =
-                (constant_region_string.len() - constant_region_string.matches("N").count()) / 5;
+            max_constant_errors = constant_size / 5;
             // errors allowed is the length of the constant region - the Ns / 5 or 20%
         }
 
         Ok(MaxSeqErrors {
             constant_region: max_constant_errors,
+            constant_size,
             sample_barcode: max_sample_errors,
+            sample_size,
             bb_barcode: max_bb_errors,
+            bb_size,
         })
     }
 
@@ -437,8 +456,18 @@ impl MaxSeqErrors {
     /// ```
     pub fn display(&mut self) {
         println!(
-            "Maximum Constant Region Mismatches Allowed Per Sequence: {}\nMaximum Sample Barcode Mismatches Allowed Per Sequence: {}\nMaximum Building Block Mismatches Allowed Per Barcode: {}",
-            self.constant_region, self.sample_barcode, self.bb_barcode
+            "Constant region size: {}\n\
+            Maximum constant region mismatches allowed per sequence: {}\n\
+            Sample barcode size: {}\n\
+            Maximum sample barcode mismatches allowed per sequence: {}\n\
+            Building block size: {}\n\
+            Maximum building block mismatches allowed per barcode: {}",
+            self.constant_size,
+            self.constant_region,
+            self.sample_size,
+            self.sample_barcode,
+            self.bb_size,
+            self.bb_barcode
         )
     }
 }
