@@ -66,6 +66,7 @@ fn main() {
     // Create a passed exit passed variable to stop reading when a thread has panicked
     let exit = Arc::new(Mutex::new(false));
 
+    // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
     let mut max_errors = del::del_info::MaxSeqErrors::new(
         sample_errors_option,
         bb_errors_option,
@@ -74,7 +75,9 @@ fn main() {
         &constant_region_string,
     )
     .unwrap_or_else(|err| panic!("Max Sequencing Errors error: {}", err));
+    // Display region sizes and errors allowed
     max_errors.display();
+
     // Start the multithreading scope
     rayon::scope(|s| {
         // Create a sequence vec which will have sequences entered by the reading thread, and sequences removed by the processing threads
@@ -175,7 +178,7 @@ pub fn arguments() -> Result<
     let today = Local::today().format("%Y-%m-%d").to_string();
     // parse arguments
     let args = App::new("DEL analysis")
-        .version("0.3.1")
+        .version("0.3.2")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
         .arg(
