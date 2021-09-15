@@ -111,7 +111,8 @@ pub fn parse(
                             // if the random barcode is already in the vector, change add_value to false
                             // otherqise add the random barcode to the random_barcodes vector
                             if random_vec.contains(&random_barcode) {
-                                add_value = false
+                                add_value = false;
+                                sequence_errors_clone.lock().unwrap().duplicated()
                             } else {
                                 random_vec.push(random_barcode)
                             }
@@ -136,6 +137,7 @@ pub fn parse(
                         .unwrap()
                         .entry(bb_string)
                         .or_insert(0) += 1;
+                    sequence_errors_clone.lock().unwrap().correct_match()
                 }
             }
         }

@@ -29,11 +29,11 @@ pub fn read_fastq(
 
     let mut line_num = 1; // start line to know that each 2nd of 4 lines is pulled
                           // If the file is not zipped, proceed.  Still need to work on opening a zipped file
+    let mut total_reads = 0;
     if !fastq.ends_with("fastq.gz") {
         if !fastq.ends_with("fastq") {
             panic!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental");
         }
-        let mut total_reads = 0;
 
         // go line by line
         for line in BufReader::new(fastq_file).lines() {
@@ -105,6 +105,7 @@ pub fn read_fastq(
             }
         }
     }
+    print!("Total sequences: {}\r", total_reads);
     println!();
     Ok(())
 }
