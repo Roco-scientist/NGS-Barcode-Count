@@ -1,7 +1,7 @@
 pub mod del_info;
 pub mod parse_sequences;
 
-// use flate2::read::GzDecoder;
+use flate2::read::GzDecoder;
 use std::{
     collections::HashMap,
     error::Error,
@@ -52,11 +52,34 @@ pub fn read_fastq(fastq: String, seq_clone: Arc<Mutex<Vec<String>>>) -> Result<(
             }
         }
     } else {
-        // TODO make this work with gzip files
-        // let mut buffer = [0; 1000000000];
-        // fastq_file.read(&buffer)?;
-        // let flate_line = GzDecoder::new(buffer);
-        // seq_clone.lock().unwrap().insert(0, flate_line);
+        let reader = BufReader::new(GzDecoder::new(fastq_file));
+        let mut total_reads = 0;
+
+        // go line by line
+        for line in reader.lines() {
+            // if it is the sequence line which is line 2
+            if line_num == 2 {
+                if let Ok(sequence_data) = line {
+                    // Pause if there are already 10000 sequences in the vec so memory is not overloaded
+                    while seq_clone.lock().unwrap().len() >= 10000 {}
+                    // Insert the sequence into the vec.  This will be popped out by other threads
+                    seq_clone.lock().unwrap().insert(0, sequence_data);
+                }
+                // Add to read count to print numnber of sequences read by this thread
+                total_reads += 1;
+                if total_reads % 1000 == 0 {
+                    print!("Total sequences: {}\r", total_reads);
+                }
+            }
+
+            // increase line number and if it has passed line 4, reset to 1
+            line_num += 1;
+            if line_num == 5 {
+                line_num = 1
+            }
+        }
+        // let mut line = String::new();
+        // reader.read_line(&mut line);
     }
     println!();
     Ok(())
