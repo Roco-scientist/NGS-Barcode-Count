@@ -66,19 +66,21 @@ pub fn read_fastq(
             }
         }
     } else {
-        let reader = BufReader::new(GzDecoder::new(fastq_file));
+        let mut reader = BufReader::new(GzDecoder::new(fastq_file));
         let mut total_reads = 0;
 
         // go line by line
-        for line in reader.lines() {
+        let mut line = "Start".to_string();
+        // reader.read_line(&mut line);
+        while !line.is_empty() {
+            line = String::new();
+            reader.read_line(&mut line)?;
             // if it is the sequence line which is line 2
             if line_num == 2 {
-                if let Ok(sequence_data) = line {
-                    // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-                    while seq_clone.lock().unwrap().len() >= 10000 {}
-                    // Insert the sequence into the vec.  This will be popped out by other threads
-                    seq_clone.lock().unwrap().insert(0, sequence_data);
-                }
+                // Pause if there are already 10000 sequences in the vec so memory is not overloaded
+                while seq_clone.lock().unwrap().len() >= 10000 {}
+                // Insert the sequence into the vec.  This will be popped out by other threads
+                seq_clone.lock().unwrap().insert(0, line.clone());
                 // Add to read count to print numnber of sequences read by this thread
                 total_reads += 1;
                 if total_reads % 1000 == 0 {
@@ -92,8 +94,6 @@ pub fn read_fastq(
                 line_num = 1
             }
         }
-        // let mut line = String::new();
-        // reader.read_line(&mut line);
     }
     println!();
     Ok(())
