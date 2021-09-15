@@ -29,7 +29,10 @@ pub fn read_fastq(
 
     let mut line_num = 1; // start line to know that each 2nd of 4 lines is pulled
                           // If the file is not zipped, proceed.  Still need to work on opening a zipped file
-    if !fastq.ends_with("gz") {
+    if !fastq.ends_with("fastq.gz") {
+        if !fastq.ends_with("fastq") {
+            panic!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental");
+        }
         let mut total_reads = 0;
 
         // go line by line
@@ -66,15 +69,22 @@ pub fn read_fastq(
             }
         }
     } else {
+        println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file");
         let mut reader = BufReader::new(GzDecoder::new(fastq_file));
         let mut total_reads = 0;
 
         // go line by line
-        let mut line = "Start".to_string();
         // reader.read_line(&mut line);
-        while !line.is_empty() {
-            line = String::new();
-            reader.read_line(&mut line)?;
+        let mut read_response = 10;
+        while read_response != 0 {
+            let mut line = String::new();
+            read_response = reader.read_line(&mut line)?;
+            //            if read_response == 0 {
+            //               line = String::new();
+            //              read_response = reader.read_line(&mut line)?;
+            //         }
+            // println!("Read response: {}\t{}", &read_response, &line);
+            //print!("{}", &line);
             // if it is the sequence line which is line 2
             if line_num == 2 {
                 // Pause if there are already 10000 sequences in the vec so memory is not overloaded
@@ -84,7 +94,7 @@ pub fn read_fastq(
                 // Add to read count to print numnber of sequences read by this thread
                 total_reads += 1;
                 if total_reads % 1000 == 0 {
-                    print!("Total sequences: {}\r", total_reads);
+                    println!("Total sequences: {}\r", total_reads);
                 }
             }
 
