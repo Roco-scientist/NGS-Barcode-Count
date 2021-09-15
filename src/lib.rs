@@ -1,7 +1,7 @@
 pub mod del_info;
 pub mod parse_sequences;
 
-// use flate2::read::GzDecoder;
+use flate2::read::GzDecoder;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
@@ -29,7 +29,10 @@ pub fn read_fastq(
 
     let mut line_num = 1; // start line to know that each 2nd of 4 lines is pulled
                           // If the file is not zipped, proceed.  Still need to work on opening a zipped file
-    if !fastq.ends_with("gz") {
+    if !fastq.ends_with("fastq.gz") {
+        if !fastq.ends_with("fastq") {
+            panic!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental");
+        }
         let mut total_reads = 0;
 
         // go line by line
@@ -66,11 +69,41 @@ pub fn read_fastq(
             }
         }
     } else {
-        // TODO make this work with gzip files
-        // let mut buffer = [0; 1000000000];
-        // fastq_file.read(&buffer)?;
-        // let flate_line = GzDecoder::new(buffer);
-        // seq_clone.lock().unwrap().insert(0, flate_line);
+        println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file");
+        let mut reader = BufReader::new(GzDecoder::new(fastq_file));
+        let mut total_reads = 0;
+
+        // go line by line
+        // reader.read_line(&mut line);
+        let mut read_response = 10;
+        while read_response != 0 {
+            let mut line = String::new();
+            read_response = reader.read_line(&mut line)?;
+            //            if read_response == 0 {
+            //               line = String::new();
+            //              read_response = reader.read_line(&mut line)?;
+            //         }
+            // println!("Read response: {}\t{}", &read_response, &line);
+            //print!("{}", &line);
+            // if it is the sequence line which is line 2
+            if line_num == 2 {
+                // Pause if there are already 10000 sequences in the vec so memory is not overloaded
+                while seq_clone.lock().unwrap().len() >= 10000 {}
+                // Insert the sequence into the vec.  This will be popped out by other threads
+                seq_clone.lock().unwrap().insert(0, line.clone());
+                // Add to read count to print numnber of sequences read by this thread
+                total_reads += 1;
+                if total_reads % 1000 == 0 {
+                    println!("Total sequences: {}\r", total_reads);
+                }
+            }
+
+            // increase line number and if it has passed line 4, reset to 1
+            line_num += 1;
+            if line_num == 5 {
+                line_num = 1
+            }
+        }
     }
     println!();
     Ok(())
