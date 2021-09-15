@@ -11,6 +11,10 @@ pub struct SequenceErrors {
     sample_barcode: u64,
     // erors within the building block barcode
     bb_barcode: u64,
+    // total matched
+    matched: u64,
+    // total random barcode duplicates
+    duplicates: u64,
 }
 
 impl SequenceErrors {
@@ -27,6 +31,8 @@ impl SequenceErrors {
             constant_region: 0,
             sample_barcode: 0,
             bb_barcode: 0,
+            matched: 0,
+            duplicates: 0,
         }
     }
 
@@ -69,6 +75,32 @@ impl SequenceErrors {
         self.bb_barcode += 1;
     }
 
+    /// Add one to correct match
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// sequence_errors.correct_match();
+    /// ```
+    pub fn correct_match(&mut self) {
+        self.matched += 1;
+    }
+
+    /// Add one to duplicates
+    ///
+    /// # Example
+    /// ```
+    /// use del::del_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// sequence_errors.duplicated();
+    /// ```
+    pub fn duplicated(&mut self) {
+        self.duplicates += 1;
+    }
+
     /// Print to stdout all sequencing error counts
     ///
     /// # Example
@@ -81,8 +113,8 @@ impl SequenceErrors {
     /// ```
     pub fn display(&mut self) {
         println!(
-            "Constant Region Mismatches: {}\nSample Barcode Mismatches: {}\nBuilding Block Mismatches: {}",
-            self.constant_region, self.sample_barcode, self.bb_barcode
+            "Constant Region Mismatches: {}\nSample Barcode Mismatches: {}\nBuilding Block Mismatches: {}\nCorrectly matched sequences: {}\nDuplicates: {}",
+            self.constant_region, self.sample_barcode, self.bb_barcode, self.matched, self.duplicates
         )
     }
 }
