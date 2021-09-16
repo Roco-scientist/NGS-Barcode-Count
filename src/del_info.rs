@@ -113,9 +113,52 @@ impl SequenceErrors {
     /// ```
     pub fn display(&mut self) {
         println!(
-            "Constant Region Mismatches: {}\nSample Barcode Mismatches: {}\nBuilding Block Mismatches: {}\nCorrectly matched sequences: {}\nDuplicates: {}",
-            self.constant_region, self.sample_barcode, self.bb_barcode, self.matched, self.duplicates
+            "Correctly matched sequences: {}\nConstant Region Mismatches:  {}\nSample Barcode Mismatches:   {}\nBuilding Block Mismatches:   {}\nDuplicates:                  {}",
+            self.matched, self.constant_region, self.sample_barcode, self.bb_barcode, self.duplicates
         )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SequenceFormat {
+    pub format_string: String,
+    // Not implemented yet
+    pub format_string_multiple: Option<Vec<String>>,
+    pub format_regex: Regex,
+    pub regex_string: String,
+    pub bb_num: usize,
+    // Not implemented yet
+    pub bb_num_miltiple: Option<Vec<usize>>,
+    // Not implemented yet
+    pub multiple: bool,
+}
+
+impl SequenceFormat {
+    pub fn new(format: String) -> Result<SequenceFormat, Box<dyn Error>> {
+        // Read sequenc format file to string
+        let format_data = fs::read_to_string(format)?
+            .lines() // split into lines
+            .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
+            .collect::<String>(); // collect into a String
+
+        let regex_string = build_regex_captures(&format_data)?;
+        let format_regex = Regex::new(&regex_string)?;
+
+        let format_string = build_format_string(&format_data)?;
+        let bb_num = regex_string.matches("bb").count();
+        Ok(SequenceFormat {
+            format_string,
+            format_string_multiple: None,
+            format_regex,
+            regex_string,
+            bb_num,
+            bb_num_miltiple: None,
+            multiple: false,
+        })
+    }
+
+    pub fn display_format(&self) -> () {
+        println!("Format: {}", &self.format_string)
     }
 }
 
@@ -127,7 +170,36 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
         .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
         .collect::<String>(); // collect into a String
 
-    let final_format = build_regex_captures(format_data)?;
+    let final_format = build_regex_captures(&format_data)?;
+    Ok(final_format)
+}
+
+/// Builds the catpure groups from the file format
+///
+/// # Example
+///
+/// ```
+/// use del::del_info::build_format_string;
+/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
+///
+/// assert_eq!(build_format_string(&format_data).unwrap(),  "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string())
+/// ```
+pub fn build_format_string(format_data: &String) -> Result<String, Box<dyn Error>> {
+    let digit_search = Regex::new(r"\d+")?;
+    let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
+    let mut final_format = String::new();
+    for group in barcode_search.find_iter(format_data) {
+        let group_str = group.as_str();
+        let digits_option = digit_search.find(group_str);
+        if let Some(digit) = digits_option {
+            let digit_value = digit.as_str().parse::<usize>()?;
+            for _ in 0..digit_value {
+                final_format.push_str("N")
+            }
+        } else {
+            final_format.push_str(group_str)
+        }
+    }
     Ok(final_format)
 }
 
@@ -139,9 +211,9 @@ pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
 /// use del::del_info::build_regex_captures;
 /// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
 ///
-/// assert_eq!(build_regex_captures(format_data).unwrap(),  "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6}).{4}AT".to_string())
+/// assert_eq!(build_regex_captures(&format_data).unwrap(),  "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6}).{4}AT".to_string())
 /// ```
-pub fn build_regex_captures(format_data: String) -> Result<String, Box<dyn Error>> {
+pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Error>> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     // the previous does not bumber each barcode but names each caputre with bb#
@@ -149,7 +221,7 @@ pub fn build_regex_captures(format_data: String) -> Result<String, Box<dyn Error
     let mut final_format = String::new();
     let mut bb_num = 0;
     // Fore each character, if the character is #, replace with the sequential building block number
-    for group in barcode_search.find_iter(&format_data) {
+    for group in barcode_search.find_iter(format_data) {
         let group_str = group.as_str();
         let mut group_name_option = None;
         if group_str.contains("[") {
@@ -488,12 +560,14 @@ impl MaxSeqErrors {
     /// ```
     pub fn display(&mut self) {
         println!(
-            "Constant region size: {}\n\
+            "
+            \n########## Barcode Info ###################################\n\
+            Constant region size: {}\n\
             Maximum constant region mismatches allowed per sequence: {}\n\
             Sample barcode size: {}\n\
             Maximum sample barcode mismatches allowed per sequence: {}\n\
             Building block size: {}\n\
-            Maximum building block mismatches allowed per barcode: {}",
+            Maximum building block mismatches allowed per barcode: {}\n",
             self.constant_size,
             self.constant_region,
             self.sample_size,

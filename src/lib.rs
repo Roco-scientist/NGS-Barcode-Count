@@ -53,7 +53,7 @@ pub fn read_fastq(
                 // Add to read count to print numnber of sequences read by this thread
                 total_reads += 1;
                 if total_reads % 1000 == 0 {
-                    print!("Total sequences: {}\r", total_reads);
+                    print!("Total sequences:             {}\r", total_reads);
                 }
             }
 
@@ -94,7 +94,7 @@ pub fn read_fastq(
                 // Add to read count to print numnber of sequences read by this thread
                 total_reads += 1;
                 if total_reads % 1000 == 0 {
-                    print!("Total sequences: {}\r", total_reads);
+                    print!("Total sequences:             {}\r", total_reads);
                 }
             }
 
@@ -105,7 +105,7 @@ pub fn read_fastq(
             }
         }
     }
-    print!("Total sequences: {}\r", total_reads);
+    print!("Total sequences:             {}\r", total_reads);
     println!();
     Ok(())
 }
@@ -114,7 +114,7 @@ pub fn read_fastq(
 pub fn output_counts(
     output_dir: String,
     results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
-    bb_num: usize,
+    sequence_format: crate::del_info::SequenceFormat,
     bb_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
     prefix: String,
     merge_output: bool,
@@ -126,7 +126,7 @@ pub fn output_counts(
 
     // Create a comma separated header.  First columns are the building block bumbers, 'BB_#'.  The last header is 'Count'
     let mut header = "BB_1".to_string();
-    for num in 1..bb_num {
+    for num in 1..sequence_format.bb_num {
         header.push_str(&format!(",BB_{}", num + 1))
     }
     // create the directory variable to join the file to
