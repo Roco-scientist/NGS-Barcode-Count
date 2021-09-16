@@ -28,14 +28,9 @@ fn main() {
         constant_errors_option,
     ) = arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
-    // Create the regex string which is based on the sequencing format.  Creates the regex captures
-    let regex_string = del::del_info::regex_search(format).unwrap();
-    // println!("Regex format: {}", regex_string);
-    // Create a string for fixing constant region errors.  This is also displayed in stdout as the format
-    let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
-    println!("Format: {}", constant_region_string);
-    // Count the number of building blocks for future use
-    let bb_num = regex_string.matches("bb").count();
+    let sequence_format = del::del_info::SequenceFormat::new(format)
+        .unwrap_or_else(|err| panic!("sequence format error: {}", err));
+    sequence_format.display_format();
 
     // Create a results hashmap that will contain the counts.  This is passed between threads
     let results = Arc::new(Mutex::new(HashMap::new()));
@@ -55,7 +50,8 @@ fn main() {
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
     let bb_hashmap;
     if let Some(bb) = bb_barcodes {
-        bb_hashmap = Some(del::del_info::bb_barcode_file_conversion(bb, bb_num).unwrap());
+        bb_hashmap =
+            Some(del::del_info::bb_barcode_file_conversion(bb, sequence_format.bb_num).unwrap());
     } else {
         bb_hashmap = None
     }
@@ -71,8 +67,8 @@ fn main() {
         sample_errors_option,
         bb_errors_option,
         constant_errors_option,
-        &regex_string,
-        &constant_region_string,
+        &sequence_format.regex_string,
+        &sequence_format.format_string,
     )
     .unwrap_or_else(|err| panic!("Max Sequencing Errors error: {}", err));
     // Display region sizes and errors allowed
@@ -99,13 +95,12 @@ fn main() {
             // Clone all variables needed to pass into each thread
             let seq_clone = Arc::clone(&seq);
             let finished_clone = Arc::clone(&finished);
-            let regex_string_clone = regex_string.clone();
+            let sequence_format_clone = sequence_format.clone();
             let results_clone = Arc::clone(&results);
             let random_barcodes_clone = Arc::clone(&random_barcodes);
             let samples_clone = samples_hashmap_option.clone();
             let bb_clone = bb_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
-            let constant_clone = constant_region_string.clone();
             let exit_clone = Arc::clone(&exit);
             let max_errors_clone = max_errors.clone();
 
@@ -114,8 +109,7 @@ fn main() {
                 del::parse_sequences::parse(
                     seq_clone,
                     finished_clone,
-                    regex_string_clone,
-                    constant_clone,
+                    sequence_format_clone,
                     results_clone,
                     random_barcodes_clone,
                     samples_clone,
@@ -134,11 +128,12 @@ fn main() {
     // Print sequencing error counts to stdout
     sequence_errors.lock().unwrap().display();
 
+    println!();
     println!("Writing counts");
     del::output_counts(
         output_dir,
         results,
-        bb_num,
+        sequence_format,
         bb_hashmap,
         prefix,
         merge_output,
@@ -178,7 +173,7 @@ pub fn arguments() -> Result<
     let today = Local::today().format("%Y-%m-%d").to_string();
     // parse arguments
     let args = App::new("DEL analysis")
-        .version("0.4.0")
+        .version("0.4.1")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
         .arg(

@@ -1,4 +1,3 @@
-use regex::Regex;
 use std::{
     collections::HashMap,
     error::Error,
@@ -12,8 +11,7 @@ use std::{
 pub fn parse(
     seq_clone: Arc<Mutex<Vec<String>>>,
     finished_clone: Arc<Mutex<bool>>,
-    regex_string: String,
-    constant_clone: String,
+    sequence_format_clone: crate::del_info::SequenceFormat,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     random_barcodes_clone: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
     samples_clone: Option<HashMap<String, String>>,
@@ -21,12 +19,6 @@ pub fn parse(
     sequence_errors_clone: Arc<Mutex<crate::del_info::SequenceErrors>>,
     mut max_errors_clone: crate::del_info::MaxSeqErrors,
 ) -> Result<(), Box<dyn Error>> {
-    // Create a new regex search that has captures for each barcode
-    let format_search = Regex::new(&regex_string)?;
-
-    // Get the number of barcodes for later use
-    let building_block_num = regex_string.matches("bb").count();
-
     // Get a vec of all possible sample barcodes for error correction
     let sample_seqs: Option<Vec<String>>;
     if let Some(ref samples) = samples_clone {
@@ -75,13 +67,11 @@ pub fn parse(
             // This is a convenience for later writing to a file since it will already be comma separated
             let result_tuple_option = match_seq(
                 &sequence,
-                &format_search,
+                &sequence_format_clone,
                 &samples_clone,
                 &sequence_errors_clone,
-                building_block_num,
                 &sample_seqs,
                 &bb_seqs_option,
-                &constant_clone,
                 &mut max_errors_clone,
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
@@ -149,31 +139,29 @@ pub fn parse(
 /// building block barcodes.  This is used as a key within the results vector, where the value can be used as the count
 fn match_seq(
     sequence: &String,
-    format_search: &Regex,
+    sequence_format_clone: &crate::del_info::SequenceFormat,
     samples_clone: &Option<HashMap<String, String>>,
     sequence_errors_clone: &Arc<Mutex<super::del_info::SequenceErrors>>,
-    building_block_num: usize,
     sample_seqs: &Option<Vec<String>>,
     bb_seqs_option: &Option<Vec<Vec<String>>>,
-    constant_clone: &String,
     max_errors_clone: &mut crate::del_info::MaxSeqErrors,
 ) -> Result<Option<(String, String, Option<String>)>, Box<dyn Error>> {
     // find the barcodes with the reges search
-    let mut barcode_search = format_search.captures(&sequence);
+    let mut barcode_search = sequence_format_clone.format_regex.captures(&sequence);
 
     // If the barcode search results in None, try and fix the constant regions
     let fixed_sequence;
     if barcode_search.is_none() {
         let fixed_sequence_option = fix_constant_region(
             &sequence,
-            constant_clone,
+            &sequence_format_clone.format_string,
             max_errors_clone.max_constant_errors(),
         )?;
         // If a suitable fix for the constant region was found, recreate the barcode search,
         // otherwise record the constant region error and return None
         if fixed_sequence_option.is_some() {
             fixed_sequence = fixed_sequence_option.unwrap();
-            barcode_search = format_search.captures(&fixed_sequence);
+            barcode_search = sequence_format_clone.format_regex.captures(&fixed_sequence);
         } else {
             sequence_errors_clone
                 .lock()
@@ -244,7 +232,7 @@ fn match_seq(
             if let Some(bb_seqs) = bb_seqs_option {
                 let mut bb_string = String::new();
                 // fore each building block, convert and add as comma separated to a key text for results hashmap
-                for x in 0..building_block_num {
+                for x in 0..sequence_format_clone.bb_num {
                     let mut bb_seq = barcodes[format!("bb{}", x + 1).as_str()].to_string();
                     // If the building block sequence does not exists within the conversion file, try and fix
                     // If it cannnot fix the sequence, add to bb_barcode_error
@@ -273,7 +261,7 @@ fn match_seq(
             } else {
                 // If there is not a building block conversion file, do not try and fix the barcode errors. Push the raw DNA barcode seqeunces
                 let mut bb_string = barcodes["bb1"].to_string();
-                for x in 1..building_block_num {
+                for x in 1..sequence_format_clone.bb_num {
                     let bb_num = format!("bb{}", x + 1);
                     bb_string.push_str(",");
                     bb_string.push_str(&barcodes[bb_num.as_str()]);
