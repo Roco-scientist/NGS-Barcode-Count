@@ -94,7 +94,7 @@ pub fn read_fastq(
                 // Add to read count to print numnber of sequences read by this thread
                 total_reads += 1;
                 if total_reads % 1000 == 0 {
-                    println!("Total sequences: {}\r", total_reads);
+                    print!("Total sequences: {}\r", total_reads);
                 }
             }
 
