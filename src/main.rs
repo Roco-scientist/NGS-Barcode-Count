@@ -5,6 +5,7 @@ use rayon;
 // use rayon::prelude::*;
 use std::{
     collections::HashMap,
+    error::Error,
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -14,21 +15,9 @@ fn main() {
     let start = Instant::now();
 
     // get the argument inputs
-    let (
-        fastq,
-        format,
-        samples_barcodes,
-        bb_barcodes,
-        output_dir,
-        threads,
-        prefix,
-        merge_output,
-        bb_errors_option,
-        sample_errors_option,
-        constant_errors_option,
-    ) = arguments().unwrap_or_else(|err| panic!("Argument error: {}", err));
+    let args = Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
-    let sequence_format = del::del_info::SequenceFormat::new(format)
+    let sequence_format = del::del_info::SequenceFormat::new(args.format.clone())
         .unwrap_or_else(|err| panic!("sequence format error: {}", err));
     sequence_format.display_format();
 
@@ -40,7 +29,7 @@ fn main() {
 
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     let samples_hashmap_option;
-    if let Some(samples) = samples_barcodes {
+    if let Some(ref samples) = args.sample_barcodes_option {
         let samples_hashmap = del::del_info::sample_barcode_file_conversion(samples).unwrap();
         samples_hashmap_option = Some(samples_hashmap);
     } else {
@@ -49,7 +38,7 @@ fn main() {
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
     let bb_hashmap;
-    if let Some(bb) = bb_barcodes {
+    if let Some(ref bb) = args.bb_barcodes_option {
         bb_hashmap =
             Some(del::del_info::bb_barcode_file_conversion(bb, sequence_format.bb_num).unwrap());
     } else {
@@ -64,9 +53,9 @@ fn main() {
 
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
     let mut max_errors = del::del_info::MaxSeqErrors::new(
-        sample_errors_option,
-        bb_errors_option,
-        constant_errors_option,
+        args.sample_errors_option,
+        args.bb_errors_option,
+        args.constant_errors_option,
         &sequence_format.regex_string,
         &sequence_format.format_string,
     )
@@ -85,13 +74,14 @@ fn main() {
         let seq_clone = Arc::clone(&seq);
         let finished_clone = Arc::clone(&finished);
         let exit_clone = Arc::clone(&exit);
+        let fastq = args.fastq.clone();
         s.spawn(move |_| {
             del::read_fastq(fastq, seq_clone, exit_clone).unwrap();
             *finished_clone.lock().unwrap() = true;
         });
 
         // Create processing threads.  One less than the total threads because of the single reading thread
-        for _ in 1..threads {
+        for _ in 1..args.threads {
             // Clone all variables needed to pass into each thread
             let seq_clone = Arc::clone(&seq);
             let finished_clone = Arc::clone(&finished);
@@ -144,12 +134,12 @@ fn main() {
     println!();
     println!("Writing counts");
     del::output_counts(
-        output_dir,
+        args.output_dir,
         results,
         sequence_format,
         bb_hashmap,
-        prefix,
-        merge_output,
+        args.prefix,
+        args.merge_output,
     )
     .unwrap();
     // Get the end time and print total time for the algorithm
@@ -165,27 +155,26 @@ fn main() {
     }
 }
 
-/// Gets the command line arguments
-pub fn arguments() -> Result<
-    (
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        String,
-        u8,
-        String,
-        bool,
-        Option<usize>,
-        Option<usize>,
-        Option<usize>,
-    ),
-    Box<dyn std::error::Error>,
-> {
-    let total_cpus = num_cpus::get().to_string();
-    let today = Local::today().format("%Y-%m-%d").to_string();
-    // parse arguments
-    let args = App::new("DEL analysis")
+struct Args {
+    fastq: String,
+    format: String,
+    sample_barcodes_option: Option<String>,
+    bb_barcodes_option: Option<String>,
+    output_dir: String,
+    threads: u8,
+    prefix: String,
+    merge_output: bool,
+    bb_errors_option: Option<usize>,
+    sample_errors_option: Option<usize>,
+    constant_errors_option: Option<usize>,
+}
+
+impl Args {
+    fn new() -> Result<Args, Box<dyn Error>> {
+        let total_cpus = num_cpus::get().to_string();
+        let today = Local::today().format("%Y-%m-%d").to_string();
+        // parse arguments
+        let args = App::new("DEL analysis")
         .version("0.4.1")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
@@ -270,59 +259,65 @@ pub fn arguments() -> Result<
         )
         .get_matches();
 
-    let sample_barcodes;
-    if let Some(sample) = args.value_of("sample_barcodes") {
-        sample_barcodes = Some(sample.to_string())
-    } else {
-        sample_barcodes = None
-    }
+        let sample_barcodes_option;
+        if let Some(sample) = args.value_of("sample_barcodes") {
+            sample_barcodes_option = Some(sample.to_string())
+        } else {
+            sample_barcodes_option = None
+        }
 
-    let bb_barcodes;
-    if let Some(bb) = args.value_of("bb_barcodes") {
-        bb_barcodes = Some(bb.to_string())
-    } else {
-        bb_barcodes = None
-    }
+        let bb_barcodes_option;
+        if let Some(bb) = args.value_of("bb_barcodes") {
+            bb_barcodes_option = Some(bb.to_string())
+        } else {
+            bb_barcodes_option = None
+        }
 
-    let bb_errors;
-    if let Some(bb) = args.value_of("bb_errors") {
-        bb_errors = Some(bb.parse::<usize>()?)
-    } else {
-        bb_errors = None
-    }
+        let bb_errors_option;
+        if let Some(bb) = args.value_of("bb_errors") {
+            bb_errors_option = Some(bb.parse::<usize>()?)
+        } else {
+            bb_errors_option = None
+        }
 
-    let sample_errors;
-    if let Some(sample) = args.value_of("sample_errors") {
-        sample_errors = Some(sample.parse::<usize>()?)
-    } else {
-        sample_errors = None
-    }
+        let sample_errors_option;
+        if let Some(sample) = args.value_of("sample_errors") {
+            sample_errors_option = Some(sample.parse::<usize>()?)
+        } else {
+            sample_errors_option = None
+        }
 
-    let constant_errors;
-    if let Some(constant) = args.value_of("constant_errors") {
-        constant_errors = Some(constant.parse::<usize>()?)
-    } else {
-        constant_errors = None
-    }
+        let constant_errors_option;
+        if let Some(constant) = args.value_of("constant_errors") {
+            constant_errors_option = Some(constant.parse::<usize>()?)
+        } else {
+            constant_errors_option = None
+        }
 
-    let merge_output;
-    if args.is_present("merge_output") {
-        merge_output = true
-    } else {
-        merge_output = false
-    }
+        let merge_output;
+        if args.is_present("merge_output") {
+            merge_output = true
+        } else {
+            merge_output = false
+        }
+        let fastq = args.value_of("fastq").unwrap().to_string();
+        let format = args.value_of("sequence_format").unwrap().to_string();
+        let output_dir = args.value_of("output_dir").unwrap().to_string();
+        let threads = args.value_of("threads").unwrap().parse::<u8>().unwrap();
+        let prefix = args.value_of("prefix").unwrap().to_string();
 
-    return Ok((
-        args.value_of("fastq").unwrap().to_string(),
-        args.value_of("sequence_format").unwrap().to_string(),
-        sample_barcodes,
-        bb_barcodes,
-        args.value_of("output_dir").unwrap().to_string(),
-        args.value_of("threads").unwrap().parse::<u8>().unwrap(),
-        args.value_of("prefix").unwrap().to_string(),
-        merge_output,
-        bb_errors,
-        sample_errors,
-        constant_errors,
-    ));
+        Ok(Args {
+            fastq,
+            format,
+            sample_barcodes_option,
+            bb_barcodes_option,
+            output_dir,
+            threads,
+            prefix,
+            merge_output,
+            bb_errors_option,
+            sample_errors_option,
+            constant_errors_option,
+        })
+    }
 }
