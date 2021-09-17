@@ -155,18 +155,19 @@ fn main() {
     }
 }
 
+/// A struct that contains and initiates all input arguments
 struct Args {
-    fastq: String,
-    format: String,
-    sample_barcodes_option: Option<String>,
-    bb_barcodes_option: Option<String>,
-    output_dir: String,
-    threads: u8,
-    prefix: String,
-    merge_output: bool,
-    bb_errors_option: Option<usize>,
-    sample_errors_option: Option<usize>,
-    constant_errors_option: Option<usize>,
+    fastq: String,                          // fastq file path
+    format: String,                         // format scheme file path
+    sample_barcodes_option: Option<String>, // sample barcode file path.  Optional
+    bb_barcodes_option: Option<String>,     // building block barcode file path. Optional
+    output_dir: String,                     // output directory.  Deafaults to './'
+    threads: u8, // Number of threads to use.  Defaults to number of threads on the machine
+    prefix: String, // Prefix string for the output files
+    merge_output: bool, // Whether or not to create an additional output file that merges all samples
+    bb_errors_option: Option<usize>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
+    sample_errors_option: Option<usize>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
+    constant_errors_option: Option<usize>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
 }
 
 impl Args {
