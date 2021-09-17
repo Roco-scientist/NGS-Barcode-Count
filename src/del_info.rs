@@ -127,6 +127,9 @@ pub struct SequenceFormat {
     pub format_regex: Regex,
     pub regex_string: String,
     pub bb_num: usize,
+    pub bb_lengths: Vec<usize>,
+    pub sample_length_option: Option<usize>,
+    pub constant_region_length: usize,
     // Not implemented yet
     pub bb_num_miltiple: Option<Vec<usize>>,
     // Not implemented yet
@@ -143,8 +146,12 @@ impl SequenceFormat {
 
         let regex_string = build_regex_captures(&format_data)?;
         let format_regex = Regex::new(&regex_string)?;
-
         let format_string = build_format_string(&format_data)?;
+
+        let bb_lengths = retrieve_bb_lengths(&format_data)?;
+        let sample_length_option = retrieve_sample_length(&format_data)?;
+        let constant_region_length = retrieve_constant_region_length(&format_string);
+
         let bb_num = regex_string.matches("bb").count();
         Ok(SequenceFormat {
             format_string,
@@ -152,6 +159,9 @@ impl SequenceFormat {
             format_regex,
             regex_string,
             bb_num,
+            bb_lengths,
+            sample_length_option,
+            constant_region_length,
             bb_num_miltiple: None,
             multiple: false,
         })
@@ -263,6 +273,72 @@ pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Erro
         }
     }
     return Ok(final_format);
+}
+
+/// Gets the lengths of the building blocks from the format sequence
+///
+/// # Example
+///
+/// ```
+/// use del::del_info::retrieve_bb_lengths;
+/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
+///
+/// assert_eq!(retrieve_bb_lengths(&format_data).unwrap(),  vec![6,6,6])
+/// ```
+pub fn retrieve_bb_lengths(format_data: &String) -> Result<Vec<usize>, Box<dyn Error>> {
+    let bb_search = Regex::new(r"(\{\d+\})")?;
+    let digit_search = Regex::new(r"\d+")?;
+    let mut bb_lengths = Vec::new();
+    for group in bb_search.find_iter(format_data) {
+        let group_str = group.as_str();
+        let digits = digit_search
+            .find(group_str)
+            .unwrap()
+            .as_str()
+            .parse::<usize>()?;
+        bb_lengths.push(digits)
+    }
+    Ok(bb_lengths)
+}
+
+/// Gets the lengths of the sample barcode from the format sequence
+///
+/// # Example
+///
+/// ```
+/// use del::del_info::retrieve_sample_length;
+/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
+///
+/// assert_eq!(retrieve_sample_length(&format_data).unwrap(),  Some(8))
+/// ```
+pub fn retrieve_sample_length(format_data: &String) -> Result<Option<usize>, Box<dyn Error>> {
+    let sample_search = Regex::new(r"(\[\d+\])")?;
+    let digit_search = Regex::new(r"\d+")?;
+    if let Some(sample_match) = sample_search.find(format_data) {
+        let sample_str = sample_match.as_str();
+        let digits = digit_search
+            .find(sample_str)
+            .unwrap()
+            .as_str()
+            .parse::<usize>()?;
+        return Ok(Some(digits));
+    } else {
+        return Ok(None);
+    }
+}
+
+/// Gets the lengths of the sample barcode from the format sequence
+///
+/// # Example
+///
+/// ```
+/// use del::del_info::retrieve_constant_region_length;
+/// let format_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string();
+///
+/// assert_eq!(retrieve_constant_region_length(&format_string),  28)
+/// ```
+pub fn retrieve_constant_region_length(format_string: &String) -> usize {
+    format_string.len() - format_string.matches("N").count()
 }
 
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode

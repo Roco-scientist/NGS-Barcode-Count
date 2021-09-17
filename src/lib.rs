@@ -79,16 +79,15 @@ pub fn read_fastq(
         while read_response != 0 {
             let mut line = String::new();
             read_response = reader.read_line(&mut line)?;
-            //            if read_response == 0 {
-            //               line = String::new();
-            //              read_response = reader.read_line(&mut line)?;
-            //         }
-            // println!("Read response: {}\t{}", &read_response, &line);
-            //print!("{}", &line);
             // if it is the sequence line which is line 2
             if line_num == 2 {
                 // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-                while seq_clone.lock().unwrap().len() >= 10000 {}
+                while seq_clone.lock().unwrap().len() >= 10000 {
+                    // if threads have failed exit out of this thread
+                    if *exit_clone.lock().unwrap() {
+                        break;
+                    }
+                }
                 // Insert the sequence into the vec.  This will be popped out by other threads
                 seq_clone.lock().unwrap().insert(0, line.clone());
                 // Add to read count to print numnber of sequences read by this thread
@@ -102,6 +101,9 @@ pub fn read_fastq(
             line_num += 1;
             if line_num == 5 {
                 line_num = 1
+            }
+            if *exit_clone.lock().unwrap() {
+                break;
             }
         }
     }
