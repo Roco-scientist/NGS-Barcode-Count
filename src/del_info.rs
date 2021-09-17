@@ -265,45 +265,6 @@ pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Erro
     return Ok(final_format);
 }
 
-/// Replaces the capture groups in the regex string with 'N's hte lenght of the barcode
-/// returns the reformatted string
-///
-/// # Example
-/// ```
-/// use del::del_info;
-/// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})";
-/// let sequence_format = del_info::replace_group(regex_string);
-/// assert_eq!(sequence_format.unwrap(), "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN")
-/// ```
-pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
-    // Create a search for all of the captures in order to remove
-    let remove_search = Regex::new(r"(\(\?P<sample>.)|(\(\?P<random>.)|(\(\?P<bb\d+>.)|(\}\))|\{")?;
-    // Create a capture for digits or sequences
-    let captures_search = Regex::new(r"(\d+)|([ATGC]+)")?;
-
-    // Clean the regex string by removing the captures only leaving the numbers
-    let regex_string_cleaned = remove_search.replace_all(regex_string, "");
-
-    // setup a new string to push into for the final return
-    let mut new_format = String::new();
-
-    // For each group of numbers or nucleotids, if it is a number, repeat 'N' for the amount of number.
-    // If it is a group of nucleotides, just push those to the final string
-    for capture in captures_search.find_iter(&regex_string_cleaned) {
-        let found = capture.as_str().to_string();
-        // If it is a number, repeat Ns, otherwise just add the nucleotides
-        let digit_check = found.parse::<u32>();
-        if let Ok(digit) = digit_check {
-            for _ in 0..digit {
-                new_format.push_str("N");
-            }
-        } else {
-            new_format.push_str(&found);
-        }
-    }
-    Ok(new_format)
-}
-
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
 /// and the second needs to be the ID
 pub fn sample_barcode_file_conversion(
@@ -408,7 +369,7 @@ impl MaxSeqErrors {
     /// let bb_errors_option = None;
     /// let constant_errors_option = None;
     /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
     /// ```
     pub fn new(
@@ -494,7 +455,7 @@ impl MaxSeqErrors {
     /// let bb_errors_option = None;
     /// let constant_errors_option = None;
     /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 5);
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, Some(3), &regex_string, &constant_region_string).unwrap();
@@ -514,7 +475,7 @@ impl MaxSeqErrors {
     /// let bb_errors_option = None;
     /// let constant_errors_option = None;
     /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 1);
     /// let mut max_sequence_errors = MaxSeqErrors::new(Some(2), bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
@@ -534,7 +495,7 @@ impl MaxSeqErrors {
     /// let bb_errors_option = None;
     /// let constant_errors_option = None;
     /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
     /// assert_eq!(max_sequence_errors.max_bb_errors(), 1);
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, Some(2), constant_errors_option, &regex_string, &constant_region_string).unwrap();
@@ -554,7 +515,7 @@ impl MaxSeqErrors {
     /// let bb_errors_option = None;
     /// let constant_errors_option = None;
     /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
+    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
     /// max_sequence_errors.display();
     /// ```
