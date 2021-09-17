@@ -69,7 +69,7 @@ pub fn read_fastq(
             }
         }
     } else {
-        println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file");
+        println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file\n");
         let mut reader = BufReader::new(GzDecoder::new(fastq_file));
         let mut total_reads = 0;
 

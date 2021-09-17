@@ -129,6 +129,19 @@ fn main() {
     sequence_errors.lock().unwrap().display();
 
     println!();
+    // Get the end time and print total time for the algorithm
+    let elapsed_time = start.elapsed();
+    if elapsed_time.as_secs() < 3 {
+        println!("Compute time: {} milliseconds", elapsed_time.as_millis());
+    } else {
+        if elapsed_time.as_secs() > 600 {
+            println!("Compute time: {} minutes", elapsed_time.as_secs() / 60)
+        } else {
+            println!("Compute time: {} seconds", elapsed_time.as_secs())
+        }
+    }
+
+    println!();
     println!("Writing counts");
     del::output_counts(
         output_dir,
