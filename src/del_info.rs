@@ -307,7 +307,7 @@ pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
 /// and the second needs to be the ID
 pub fn sample_barcode_file_conversion(
-    barcode_path: String,
+    barcode_path: &String,
 ) -> Result<HashMap<String, String>, Box<dyn Error>> {
     // read in the sample barcode file
     let barcode_data: HashMap<String, String> = fs::read_to_string(barcode_path)?
@@ -335,7 +335,7 @@ pub fn sample_barcode_file_conversion(
 /// This panics if the third column of the barcode conversion file does not contain integers.  Also
 /// panics if not all integers for barcode numbers is within this columns
 pub fn bb_barcode_file_conversion(
-    barcode_path: String,
+    barcode_path: &String,
     bb_num: usize,
 ) -> Result<HashMap<usize, HashMap<String, String>>, Box<dyn Error>> {
     // read in the sample barcode file
