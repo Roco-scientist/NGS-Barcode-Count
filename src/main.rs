@@ -119,7 +119,7 @@ fn main() {
     sequence_errors.lock().unwrap().display();
 
     println!();
-    // Get the end time and print total time for the algorithm
+    // Get the end time and print compute time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 3 {
         println!("Compute time: {} milliseconds", elapsed_time.as_millis());
@@ -144,7 +144,7 @@ fn main() {
     .unwrap();
     // Get the end time and print total time for the algorithm
     let elapsed_time = start.elapsed();
-    if elapsed_time.as_secs() < 2 {
+    if elapsed_time.as_secs() < 3 {
         println!("Total time: {} milliseconds", elapsed_time.as_millis());
     } else {
         if elapsed_time.as_secs() > 600 {
