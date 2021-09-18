@@ -596,4 +596,74 @@ mod tests {
             }
         )
     }
+
+    #[test]
+    fn seq_errors_test() {
+        let mut sequence_errors = SequenceErrors::new();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 0,
+                sample_barcode: 0,
+                bb_barcode: 0,
+                matched: 0,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.correct_match();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 0,
+                sample_barcode: 0,
+                bb_barcode: 0,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.constant_region_error();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 0,
+                bb_barcode: 0,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.sample_barcode_error();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 1,
+                bb_barcode: 0,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.bb_barcode_error();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 1,
+                bb_barcode: 1,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.duplicated();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 1,
+                bb_barcode: 1,
+                matched: 1,
+                duplicates: 1,
+            }
+        );
+    }
 }
