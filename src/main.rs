@@ -54,10 +54,11 @@ fn main() {
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
     let mut max_errors = del::del_info::MaxSeqErrors::new(
         args.sample_errors_option,
+        sequence_format.sample_length_option().unwrap(),
         args.bb_errors_option,
+        sequence_format.bb_lengths().unwrap(),
         args.constant_errors_option,
-        &sequence_format.regex_string,
-        &sequence_format.format_string,
+        sequence_format.constant_region_length(),
     )
     .unwrap_or_else(|err| panic!("Max Sequencing Errors error: {}", err));
     // Display region sizes and errors allowed
@@ -119,7 +120,7 @@ fn main() {
     sequence_errors.lock().unwrap().display();
 
     println!();
-    // Get the end time and print total time for the algorithm
+    // Get the end time and print compute time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 3 {
         println!("Compute time: {} milliseconds", elapsed_time.as_millis());
@@ -144,7 +145,7 @@ fn main() {
     .unwrap();
     // Get the end time and print total time for the algorithm
     let elapsed_time = start.elapsed();
-    if elapsed_time.as_secs() < 2 {
+    if elapsed_time.as_secs() < 3 {
         println!("Total time: {} milliseconds", elapsed_time.as_millis());
     } else {
         if elapsed_time.as_secs() > 600 {

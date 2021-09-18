@@ -128,9 +128,8 @@ pub struct SequenceFormat {
     pub regex_string: String,
     pub bb_num: usize,
     // Not implemented yet
-    pub bb_num_miltiple: Option<Vec<usize>>,
-    // Not implemented yet
     pub multiple: bool,
+    format_data: String,
 }
 
 impl SequenceFormat {
@@ -143,22 +142,58 @@ impl SequenceFormat {
 
         let regex_string = build_regex_captures(&format_data)?;
         let format_regex = Regex::new(&regex_string)?;
-
         let format_string = build_format_string(&format_data)?;
         let bb_num = regex_string.matches("bb").count();
+
         Ok(SequenceFormat {
             format_string,
             format_string_multiple: None,
             format_regex,
             regex_string,
             bb_num,
-            bb_num_miltiple: None,
             multiple: false,
+            format_data,
         })
     }
 
     pub fn display_format(&self) -> () {
-        println!("Format: {}", &self.format_string)
+        println!("Format: {}", self.format_string)
+    }
+
+    pub fn bb_lengths(&self) -> Result<Vec<usize>, Box<dyn Error>> {
+        let bb_search = Regex::new(r"(\{\d+\})")?;
+        let digit_search = Regex::new(r"\d+")?;
+        let mut bb_lengths = Vec::new();
+        for group in bb_search.find_iter(&self.format_data) {
+            let group_str = group.as_str();
+            let digits = digit_search
+                .find(group_str)
+                .unwrap()
+                .as_str()
+                .parse::<usize>()?;
+            bb_lengths.push(digits)
+        }
+        Ok(bb_lengths)
+    }
+
+    pub fn sample_length_option(&self) -> Result<Option<usize>, Box<dyn Error>> {
+        let sample_search = Regex::new(r"(\[\d+\])")?;
+        let digit_search = Regex::new(r"\d+")?;
+        if let Some(sample_match) = sample_search.find(&self.format_data) {
+            let sample_str = sample_match.as_str();
+            let digits = digit_search
+                .find(sample_str)
+                .unwrap()
+                .as_str()
+                .parse::<usize>()?;
+            return Ok(Some(digits));
+        } else {
+            return Ok(None);
+        }
+    }
+
+    pub fn constant_region_length(&self) -> usize {
+        self.format_string.len() - self.format_string.matches("N").count()
     }
 }
 
@@ -265,45 +300,6 @@ pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Erro
     return Ok(final_format);
 }
 
-/// Replaces the capture groups in the regex string with 'N's hte lenght of the barcode
-/// returns the reformatted string
-///
-/// # Example
-/// ```
-/// use del::del_info;
-/// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})";
-/// let sequence_format = del_info::replace_group(regex_string);
-/// assert_eq!(sequence_format.unwrap(), "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN")
-/// ```
-pub fn replace_group(regex_string: &str) -> Result<String, Box<dyn Error>> {
-    // Create a search for all of the captures in order to remove
-    let remove_search = Regex::new(r"(\(\?P<sample>.)|(\(\?P<random>.)|(\(\?P<bb\d+>.)|(\}\))|\{")?;
-    // Create a capture for digits or sequences
-    let captures_search = Regex::new(r"(\d+)|([ATGC]+)")?;
-
-    // Clean the regex string by removing the captures only leaving the numbers
-    let regex_string_cleaned = remove_search.replace_all(regex_string, "");
-
-    // setup a new string to push into for the final return
-    let mut new_format = String::new();
-
-    // For each group of numbers or nucleotids, if it is a number, repeat 'N' for the amount of number.
-    // If it is a group of nucleotides, just push those to the final string
-    for capture in captures_search.find_iter(&regex_string_cleaned) {
-        let found = capture.as_str().to_string();
-        // If it is a number, repeat Ns, otherwise just add the nucleotides
-        let digit_check = found.parse::<u32>();
-        if let Ok(digit) = digit_check {
-            for _ in 0..digit {
-                new_format.push_str("N");
-            }
-        } else {
-            new_format.push_str(&found);
-        }
-    }
-    Ok(new_format)
-}
-
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
 /// and the second needs to be the ID
 pub fn sample_barcode_file_conversion(
@@ -384,17 +380,17 @@ pub fn bb_barcode_file_conversion(
 }
 
 // Struct of how many sequencing errrors are allowed
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MaxSeqErrors {
     // errors within the constant region
     constant_region: usize,
-    constant_size: usize,
+    constant_region_size: usize,
     // errors within the sample barcode
     sample_barcode: usize,
     sample_size: usize,
     // erors within the building block barcode
     bb_barcode: usize,
-    bb_size: usize,
+    bb_sizes: Vec<usize>,
 }
 
 impl MaxSeqErrors {
@@ -405,82 +401,61 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// ```
     pub fn new(
         sample_errors_option: Option<usize>,
+        sample_barcode_size_option: Option<usize>,
         bb_errors_option: Option<usize>,
+        bb_sizes: Vec<usize>,
         constant_errors_option: Option<usize>,
-        regex_string: &String,
-        constant_region_string: &String,
+        constant_region_size: usize,
     ) -> Result<MaxSeqErrors, Box<dyn Error>> {
-        // Find the length of the sample barcodes and set maximum error to either 20% of that length, or the input value from args
-        // Create a regex to pull the number from the sample group
-        let sample_search = Regex::new(r"sample>\.\{(?P<sample_size>\d+)")?;
-        let sample_size_search_option = sample_search.captures(regex_string);
         let max_sample_errors;
         // start with a sample size of 0 in case there is no sample barcode.  If there is then mutate
         let mut sample_size = 0;
         // If sample barcode was included, calculate the maximum error, otherwise set error to 0
-        if let Some(sample_size_search) = sample_size_search_option {
-            // get sample size from the regex string
-            sample_size = sample_size_search
-                .name("sample_size")
-                .unwrap()
-                .as_str()
-                .parse::<usize>()?;
+        if let Some(sample_size_actual) = sample_barcode_size_option {
+            sample_size = sample_size_actual;
             // if there was sample errors input from arguments, use that, otherwise calculate 20% for max errors
             if let Some(sample_errors) = sample_errors_option {
                 max_sample_errors = sample_errors
             } else {
-                max_sample_errors = sample_size / 5;
+                max_sample_errors = sample_size_actual / 5;
             }
         } else {
             max_sample_errors = 0;
         }
 
-        // Find the length of the building block barcodes and set maximum error to either 20% of that length, or the input value from args
-        let bb_search = Regex::new(r"bb\d+>\.\{(?P<bb_size>\d+)")?;
         let max_bb_errors;
-        // Get the building block size from the first building block.  This assumes they are all the same size.  Can come back and make this better
-        let bb_size = bb_search
-            .captures(regex_string)
-            .unwrap()
-            .name("bb_size")
-            .unwrap()
-            .as_str()
-            .parse::<usize>()?;
         // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
         if let Some(bb_errors) = bb_errors_option {
             max_bb_errors = bb_errors
         } else {
-            max_bb_errors = bb_size / 5;
+            max_bb_errors = bb_sizes.iter().max().unwrap() / 5;
         }
 
-        // Find the length of the constant region and set maximum error to either 20% of that length, or the input value from args
         let max_constant_errors;
-        // Get the constant region size by subtracting the 'N's from the format string
-        let constant_size =
-            constant_region_string.len() - constant_region_string.matches("N").count();
         // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
         if let Some(constant_errors) = constant_errors_option {
             max_constant_errors = constant_errors
         } else {
-            max_constant_errors = constant_size / 5;
+            max_constant_errors = constant_region_size / 5;
             // errors allowed is the length of the constant region - the Ns / 5 or 20%
         }
 
         Ok(MaxSeqErrors {
             constant_region: max_constant_errors,
-            constant_size,
+            constant_region_size,
             sample_barcode: max_sample_errors,
             sample_size,
             bb_barcode: max_bb_errors,
-            bb_size,
+            bb_sizes,
         })
     }
 
@@ -491,13 +466,16 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
-    /// assert_eq!(max_sequence_errors.max_constant_errors(), 5);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, Some(3), &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
+    /// assert_eq!(max_sequence_errors.max_constant_errors(), 6);
+    /// let bb_sizes = vec![8,8,8];
+    /// let constant_errors_option = Some(3);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
     /// ```
     pub fn max_constant_errors(&mut self) -> usize {
@@ -511,14 +489,17 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
-    /// assert_eq!(max_sequence_errors.max_sample_errors(), 1);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(Some(2), bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 2);
+    /// let bb_sizes = vec![8,8,8];
+    /// let sample_errors_option = Some(3);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
+    /// assert_eq!(max_sequence_errors.max_sample_errors(), 3);
     /// ```
     pub fn max_sample_errors(&mut self) -> usize {
         self.sample_barcode
@@ -531,13 +512,16 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_bb_errors(), 1);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, Some(2), constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let bb_sizes = vec![8,8,8];
+    /// let bb_errors_option = Some(2);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_bb_errors(), 2);
     /// ```
     pub fn max_bb_errors(&mut self) -> usize {
@@ -551,11 +535,12 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = del::del_info::replace_group(&regex_string).unwrap();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// max_sequence_errors.display();
     /// ```
     pub fn display(&mut self) {
@@ -566,14 +551,119 @@ impl MaxSeqErrors {
             Maximum constant region mismatches allowed per sequence: {}\n\
             Sample barcode size: {}\n\
             Maximum sample barcode mismatches allowed per sequence: {}\n\
-            Building block size: {}\n\
+            Building block sizes: {:?}\n\
             Maximum building block mismatches allowed per barcode: {}\n",
-            self.constant_size,
+            self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
-            self.bb_size,
+            self.bb_sizes,
             self.bb_barcode
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn max_sequence_errors_test() {
+        let sample_errors_option = None;
+        let sample_barcode_size_option = Some(10);
+        let bb_errors_option = None;
+        let bb_sizes = vec![8, 8, 8];
+        let constant_errors_option = None;
+        let constant_region_size = 30;
+        let max_sequence_errors = MaxSeqErrors::new(
+            sample_errors_option,
+            sample_barcode_size_option,
+            bb_errors_option,
+            bb_sizes,
+            constant_errors_option,
+            constant_region_size,
+        )
+        .unwrap();
+        assert_eq!(
+            max_sequence_errors,
+            MaxSeqErrors {
+                constant_region: 6,
+                constant_region_size: 30,
+                sample_barcode: 2,
+                sample_size: 10,
+                bb_barcode: 1,
+                bb_sizes: vec![8, 8, 8],
+            }
+        )
+    }
+
+    #[test]
+    fn seq_errors_test() {
+        let mut sequence_errors = SequenceErrors::new();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 0,
+                sample_barcode: 0,
+                bb_barcode: 0,
+                matched: 0,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.correct_match();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 0,
+                sample_barcode: 0,
+                bb_barcode: 0,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.constant_region_error();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 0,
+                bb_barcode: 0,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.sample_barcode_error();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 1,
+                bb_barcode: 0,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.bb_barcode_error();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 1,
+                bb_barcode: 1,
+                matched: 1,
+                duplicates: 0,
+            }
+        );
+        sequence_errors.duplicated();
+        assert_eq!(
+            sequence_errors,
+            SequenceErrors {
+                constant_region: 1,
+                sample_barcode: 1,
+                bb_barcode: 1,
+                matched: 1,
+                duplicates: 1,
+            }
+        );
     }
 }
