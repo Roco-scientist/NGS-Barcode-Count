@@ -695,4 +695,18 @@ mod tests {
         }
         assert_eq!(bb_barcodes, bb_comparison);
     }
+
+    #[test]
+    fn sample_barcode_file_conversion_test() {
+        let sample_barcodes =
+            sample_barcode_file_conversion(&"sample_barcode.example.csv".to_string()).unwrap();
+        let sample_barcodes_comparison: HashMap<String, String> = [
+            ("AGCATAC".to_string(), "Sample_name_1".to_string()),
+            ("AACTTAC".to_string(), "Sample_name_2".to_string()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+        assert_eq!(sample_barcodes, sample_barcodes_comparison);
+    }
 }
