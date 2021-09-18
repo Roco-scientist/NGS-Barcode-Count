@@ -197,18 +197,6 @@ impl SequenceFormat {
     }
 }
 
-/// Reads in the sequencing format file and outputs a regex string with captures
-pub fn regex_search(format: String) -> Result<String, Box<dyn Error>> {
-    // Read sequenc format file to string
-    let format_data = fs::read_to_string(format)?
-        .lines() // split into lines
-        .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
-        .collect::<String>(); // collect into a String
-
-    let final_format = build_regex_captures(&format_data)?;
-    Ok(final_format)
-}
-
 /// Builds the catpure groups from the file format
 ///
 /// # Example
