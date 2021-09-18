@@ -380,7 +380,7 @@ pub fn bb_barcode_file_conversion(
 }
 
 // Struct of how many sequencing errrors are allowed
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MaxSeqErrors {
     // errors within the constant region
     constant_region: usize,
@@ -401,11 +401,12 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// ```
     pub fn new(
         sample_errors_option: Option<usize>,
@@ -465,13 +466,16 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
-    /// assert_eq!(max_sequence_errors.max_constant_errors(), 5);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, Some(3), &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
+    /// assert_eq!(max_sequence_errors.max_constant_errors(), 6);
+    /// let bb_sizes = vec![8,8,8];
+    /// let constant_errors_option = Some(3);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
     /// ```
     pub fn max_constant_errors(&mut self) -> usize {
@@ -485,14 +489,17 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
-    /// assert_eq!(max_sequence_errors.max_sample_errors(), 1);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(Some(2), bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 2);
+    /// let bb_sizes = vec![8,8,8];
+    /// let sample_errors_option = Some(3);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
+    /// assert_eq!(max_sequence_errors.max_sample_errors(), 3);
     /// ```
     pub fn max_sample_errors(&mut self) -> usize {
         self.sample_barcode
@@ -505,13 +512,16 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_bb_errors(), 1);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, Some(2), constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let bb_sizes = vec![8,8,8];
+    /// let bb_errors_option = Some(2);
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_bb_errors(), 2);
     /// ```
     pub fn max_bb_errors(&mut self) -> usize {
@@ -525,11 +535,12 @@ impl MaxSeqErrors {
     /// use del::del_info::MaxSeqErrors;
     ///
     /// let sample_errors_option = None;
+    /// let sample_barcode_size_option = Some(10);
     /// let bb_errors_option = None;
+    /// let bb_sizes = vec![8,8,8];
     /// let constant_errors_option = None;
-    /// let regex_string = "(?P<sample>.{8})AGCTAGATC(?P<bb1>.{6})TGGA(?P<bb2>.{6})TGGA(?P<bb3>.{6})TGATTGCGC(?P<random>.{6})".to_string();
-    /// let constant_region_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNN".to_string();
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, bb_errors_option, constant_errors_option, &regex_string, &constant_region_string).unwrap();
+    /// let constant_region_size = 30;
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, bb_errors_option, bb_sizes, constant_errors_option, constant_region_size).unwrap();
     /// max_sequence_errors.display();
     /// ```
     pub fn display(&mut self) {
@@ -548,6 +559,41 @@ impl MaxSeqErrors {
             self.sample_barcode,
             self.bb_sizes,
             self.bb_barcode
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn max_sequence_errors_test() {
+        let sample_errors_option = None;
+        let sample_barcode_size_option = Some(10);
+        let bb_errors_option = None;
+        let bb_sizes = vec![8, 8, 8];
+        let constant_errors_option = None;
+        let constant_region_size = 30;
+        let max_sequence_errors = MaxSeqErrors::new(
+            sample_errors_option,
+            sample_barcode_size_option,
+            bb_errors_option,
+            bb_sizes,
+            constant_errors_option,
+            constant_region_size,
+        )
+        .unwrap();
+        assert_eq!(
+            max_sequence_errors,
+            MaxSeqErrors {
+                constant_region: 6,
+                constant_region_size: 30,
+                sample_barcode: 2,
+                sample_size: 10,
+                bb_barcode: 1,
+                bb_sizes: vec![8, 8, 8],
+            }
         )
     }
 }
