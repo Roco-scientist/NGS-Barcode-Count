@@ -2,7 +2,7 @@ use itertools::Itertools;
 use regex::Regex;
 use std::{collections::HashMap, error::Error, fs};
 
-// Struct to keep track of sequencing errors
+// Struct to keep track of sequencing errors and correct matches.  This is displayed at the end of the algorithm for QC measures
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SequenceErrors {
     // errors within the constant region
@@ -18,7 +18,7 @@ pub struct SequenceErrors {
 }
 
 impl SequenceErrors {
-    /// Create a new sequence error struct
+    /// Create a new sequence error struct.  Starts with 0 errors in all regions, then is added to later.
     ///
     /// # Example
     /// ```
@@ -133,6 +133,7 @@ pub struct SequenceFormat {
 }
 
 impl SequenceFormat {
+    /// Creates a new SequenceFormat struct which holds the sequencing format information, such as, where the barcodes are located within the sequence
     pub fn new(format: String) -> Result<SequenceFormat, Box<dyn Error>> {
         // Read sequenc format file to string
         let format_data = fs::read_to_string(format)?
@@ -140,11 +141,12 @@ impl SequenceFormat {
             .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
             .collect::<String>(); // collect into a String
 
-        let regex_string = build_regex_captures(&format_data)?;
-        let format_regex = Regex::new(&regex_string)?;
-        let format_string = build_format_string(&format_data)?;
-        let bb_num = regex_string.matches("bb").count();
+        let regex_string = build_regex_captures(&format_data)?; // Build the regex string from the input format file information
+        let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
+        let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
+        let bb_num = regex_string.matches("bb").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
 
+        // Create and return the SequenceFormat struct
         Ok(SequenceFormat {
             format_string,
             format_string_multiple: None,
@@ -156,31 +158,41 @@ impl SequenceFormat {
         })
     }
 
+    /// Displays the sequence format information with 'N's replacing all barcodes
     pub fn display_format(&self) -> () {
         println!("Format: {}", self.format_string)
     }
 
+    /// Returns a Vec of the size of all building block barcodes within the DEL scheme
     pub fn bb_lengths(&self) -> Result<Vec<usize>, Box<dyn Error>> {
-        let bb_search = Regex::new(r"(\{\d+\})")?;
-        let digit_search = Regex::new(r"\d+")?;
-        let mut bb_lengths = Vec::new();
+        let bb_search = Regex::new(r"(\{\d+\})")?; // Create a search that finds the '{#}'
+        let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the number
+        let mut bb_lengths = Vec::new(); // Create a Vec that will contain on the building block barcode lengths
+
+        // For each building block barcode found in the format file string
         for group in bb_search.find_iter(&self.format_data) {
             let group_str = group.as_str();
+            // Pull out the numeric value
             let digits = digit_search
                 .find(group_str)
                 .unwrap()
                 .as_str()
                 .parse::<usize>()?;
+            // And add to the vector
             bb_lengths.push(digits)
         }
         Ok(bb_lengths)
     }
 
+    /// Returns the sample barcode length found in the format file string
     pub fn sample_length_option(&self) -> Result<Option<usize>, Box<dyn Error>> {
-        let sample_search = Regex::new(r"(\[\d+\])")?;
-        let digit_search = Regex::new(r"\d+")?;
+        let sample_search = Regex::new(r"(\[\d+\])")?; // Create a search that finds the '[#]'
+        let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the numeric value
+
+        // If there is a sample barcode inluded in the format file, find the size.  If not, return None
         if let Some(sample_match) = sample_search.find(&self.format_data) {
             let sample_str = sample_match.as_str();
+            // Get the numeric value of the sample barcode size
             let digits = digit_search
                 .find(sample_str)
                 .unwrap()
@@ -192,7 +204,9 @@ impl SequenceFormat {
         }
     }
 
+    /// Returns the amount of nucleotides within the constant regions from the format file
     pub fn constant_region_length(&self) -> usize {
+        // Get the full length of the format_string and subtract the amount of 'N's found to get the constant nucleotide count
         self.format_string.len() - self.format_string.matches("N").count()
     }
 }
