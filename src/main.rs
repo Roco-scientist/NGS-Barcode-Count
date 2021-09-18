@@ -54,10 +54,11 @@ fn main() {
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
     let mut max_errors = del::del_info::MaxSeqErrors::new(
         args.sample_errors_option,
+        sequence_format.sample_length_option().unwrap(),
         args.bb_errors_option,
+        sequence_format.bb_lengths().unwrap(),
         args.constant_errors_option,
-        &sequence_format.regex_string,
-        &sequence_format.format_string,
+        sequence_format.constant_region_length(),
     )
     .unwrap_or_else(|err| panic!("Max Sequencing Errors error: {}", err));
     // Display region sizes and errors allowed

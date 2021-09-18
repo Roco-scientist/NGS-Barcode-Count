@@ -127,13 +127,9 @@ pub struct SequenceFormat {
     pub format_regex: Regex,
     pub regex_string: String,
     pub bb_num: usize,
-    pub bb_lengths: Vec<usize>,
-    pub sample_length_option: Option<usize>,
-    pub constant_region_length: usize,
-    // Not implemented yet
-    pub bb_num_miltiple: Option<Vec<usize>>,
     // Not implemented yet
     pub multiple: bool,
+    format_data: String,
 }
 
 impl SequenceFormat {
@@ -147,28 +143,57 @@ impl SequenceFormat {
         let regex_string = build_regex_captures(&format_data)?;
         let format_regex = Regex::new(&regex_string)?;
         let format_string = build_format_string(&format_data)?;
-
-        let bb_lengths = retrieve_bb_lengths(&format_data)?;
-        let sample_length_option = retrieve_sample_length(&format_data)?;
-        let constant_region_length = retrieve_constant_region_length(&format_string);
-
         let bb_num = regex_string.matches("bb").count();
+
         Ok(SequenceFormat {
             format_string,
             format_string_multiple: None,
             format_regex,
             regex_string,
             bb_num,
-            bb_lengths,
-            sample_length_option,
-            constant_region_length,
-            bb_num_miltiple: None,
             multiple: false,
+            format_data,
         })
     }
 
     pub fn display_format(&self) -> () {
-        println!("Format: {}", &self.format_string)
+        println!("Format: {}", self.format_string)
+    }
+
+    pub fn bb_lengths(&self) -> Result<Vec<usize>, Box<dyn Error>> {
+        let bb_search = Regex::new(r"(\{\d+\})")?;
+        let digit_search = Regex::new(r"\d+")?;
+        let mut bb_lengths = Vec::new();
+        for group in bb_search.find_iter(&self.format_data) {
+            let group_str = group.as_str();
+            let digits = digit_search
+                .find(group_str)
+                .unwrap()
+                .as_str()
+                .parse::<usize>()?;
+            bb_lengths.push(digits)
+        }
+        Ok(bb_lengths)
+    }
+
+    pub fn sample_length_option(&self) -> Result<Option<usize>, Box<dyn Error>> {
+        let sample_search = Regex::new(r"(\[\d+\])")?;
+        let digit_search = Regex::new(r"\d+")?;
+        if let Some(sample_match) = sample_search.find(&self.format_data) {
+            let sample_str = sample_match.as_str();
+            let digits = digit_search
+                .find(sample_str)
+                .unwrap()
+                .as_str()
+                .parse::<usize>()?;
+            return Ok(Some(digits));
+        } else {
+            return Ok(None);
+        }
+    }
+
+    pub fn constant_region_length(&self) -> usize {
+        self.format_string.len() - self.format_string.matches("N").count()
     }
 }
 
@@ -275,72 +300,6 @@ pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Erro
     return Ok(final_format);
 }
 
-/// Gets the lengths of the building blocks from the format sequence
-///
-/// # Example
-///
-/// ```
-/// use del::del_info::retrieve_bb_lengths;
-/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
-///
-/// assert_eq!(retrieve_bb_lengths(&format_data).unwrap(),  vec![6,6,6])
-/// ```
-pub fn retrieve_bb_lengths(format_data: &String) -> Result<Vec<usize>, Box<dyn Error>> {
-    let bb_search = Regex::new(r"(\{\d+\})")?;
-    let digit_search = Regex::new(r"\d+")?;
-    let mut bb_lengths = Vec::new();
-    for group in bb_search.find_iter(format_data) {
-        let group_str = group.as_str();
-        let digits = digit_search
-            .find(group_str)
-            .unwrap()
-            .as_str()
-            .parse::<usize>()?;
-        bb_lengths.push(digits)
-    }
-    Ok(bb_lengths)
-}
-
-/// Gets the lengths of the sample barcode from the format sequence
-///
-/// # Example
-///
-/// ```
-/// use del::del_info::retrieve_sample_length;
-/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
-///
-/// assert_eq!(retrieve_sample_length(&format_data).unwrap(),  Some(8))
-/// ```
-pub fn retrieve_sample_length(format_data: &String) -> Result<Option<usize>, Box<dyn Error>> {
-    let sample_search = Regex::new(r"(\[\d+\])")?;
-    let digit_search = Regex::new(r"\d+")?;
-    if let Some(sample_match) = sample_search.find(format_data) {
-        let sample_str = sample_match.as_str();
-        let digits = digit_search
-            .find(sample_str)
-            .unwrap()
-            .as_str()
-            .parse::<usize>()?;
-        return Ok(Some(digits));
-    } else {
-        return Ok(None);
-    }
-}
-
-/// Gets the lengths of the sample barcode from the format sequence
-///
-/// # Example
-///
-/// ```
-/// use del::del_info::retrieve_constant_region_length;
-/// let format_string = "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string();
-///
-/// assert_eq!(retrieve_constant_region_length(&format_string),  28)
-/// ```
-pub fn retrieve_constant_region_length(format_string: &String) -> usize {
-    format_string.len() - format_string.matches("N").count()
-}
-
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
 /// and the second needs to be the ID
 pub fn sample_barcode_file_conversion(
@@ -421,17 +380,17 @@ pub fn bb_barcode_file_conversion(
 }
 
 // Struct of how many sequencing errrors are allowed
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct MaxSeqErrors {
     // errors within the constant region
     constant_region: usize,
-    constant_size: usize,
+    constant_region_size: usize,
     // errors within the sample barcode
     sample_barcode: usize,
     sample_size: usize,
     // erors within the building block barcode
     bb_barcode: usize,
-    bb_size: usize,
+    bb_sizes: Vec<usize>,
 }
 
 impl MaxSeqErrors {
@@ -450,74 +409,52 @@ impl MaxSeqErrors {
     /// ```
     pub fn new(
         sample_errors_option: Option<usize>,
+        sample_barcode_size_option: Option<usize>,
         bb_errors_option: Option<usize>,
+        bb_sizes: Vec<usize>,
         constant_errors_option: Option<usize>,
-        regex_string: &String,
-        constant_region_string: &String,
+        constant_region_size: usize,
     ) -> Result<MaxSeqErrors, Box<dyn Error>> {
-        // Find the length of the sample barcodes and set maximum error to either 20% of that length, or the input value from args
-        // Create a regex to pull the number from the sample group
-        let sample_search = Regex::new(r"sample>\.\{(?P<sample_size>\d+)")?;
-        let sample_size_search_option = sample_search.captures(regex_string);
         let max_sample_errors;
         // start with a sample size of 0 in case there is no sample barcode.  If there is then mutate
         let mut sample_size = 0;
         // If sample barcode was included, calculate the maximum error, otherwise set error to 0
-        if let Some(sample_size_search) = sample_size_search_option {
-            // get sample size from the regex string
-            sample_size = sample_size_search
-                .name("sample_size")
-                .unwrap()
-                .as_str()
-                .parse::<usize>()?;
+        if let Some(sample_size_actual) = sample_barcode_size_option {
+            sample_size = sample_size_actual;
             // if there was sample errors input from arguments, use that, otherwise calculate 20% for max errors
             if let Some(sample_errors) = sample_errors_option {
                 max_sample_errors = sample_errors
             } else {
-                max_sample_errors = sample_size / 5;
+                max_sample_errors = sample_size_actual / 5;
             }
         } else {
             max_sample_errors = 0;
         }
 
-        // Find the length of the building block barcodes and set maximum error to either 20% of that length, or the input value from args
-        let bb_search = Regex::new(r"bb\d+>\.\{(?P<bb_size>\d+)")?;
         let max_bb_errors;
-        // Get the building block size from the first building block.  This assumes they are all the same size.  Can come back and make this better
-        let bb_size = bb_search
-            .captures(regex_string)
-            .unwrap()
-            .name("bb_size")
-            .unwrap()
-            .as_str()
-            .parse::<usize>()?;
         // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
         if let Some(bb_errors) = bb_errors_option {
             max_bb_errors = bb_errors
         } else {
-            max_bb_errors = bb_size / 5;
+            max_bb_errors = bb_sizes.iter().max().unwrap() / 5;
         }
 
-        // Find the length of the constant region and set maximum error to either 20% of that length, or the input value from args
         let max_constant_errors;
-        // Get the constant region size by subtracting the 'N's from the format string
-        let constant_size =
-            constant_region_string.len() - constant_region_string.matches("N").count();
         // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
         if let Some(constant_errors) = constant_errors_option {
             max_constant_errors = constant_errors
         } else {
-            max_constant_errors = constant_size / 5;
+            max_constant_errors = constant_region_size / 5;
             // errors allowed is the length of the constant region - the Ns / 5 or 20%
         }
 
         Ok(MaxSeqErrors {
             constant_region: max_constant_errors,
-            constant_size,
+            constant_region_size,
             sample_barcode: max_sample_errors,
             sample_size,
             bb_barcode: max_bb_errors,
-            bb_size,
+            bb_sizes,
         })
     }
 
@@ -603,13 +540,13 @@ impl MaxSeqErrors {
             Maximum constant region mismatches allowed per sequence: {}\n\
             Sample barcode size: {}\n\
             Maximum sample barcode mismatches allowed per sequence: {}\n\
-            Building block size: {}\n\
+            Building block sizes: {:?}\n\
             Maximum building block mismatches allowed per barcode: {}\n",
-            self.constant_size,
+            self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
-            self.bb_size,
+            self.bb_sizes,
             self.bb_barcode
         )
     }
