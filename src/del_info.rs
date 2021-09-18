@@ -654,4 +654,45 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn bb_barcode_file_conversion_test() {
+        let bb_barcodes =
+            bb_barcode_file_conversion(&"building_block_barcode.example.csv".to_string(), 3)
+                .unwrap();
+        let mut bb_comparison = HashMap::new();
+        for barcode_num in [1usize, 2, 3] {
+            if barcode_num == 1 {
+                let start_hash: HashMap<String, String> = [
+                    ("CAGAGAC".to_string(), "BB_name_1".to_string()),
+                    ("TGATTGC".to_string(), "BB_name_2".to_string()),
+                ]
+                .iter()
+                .cloned()
+                .collect();
+                bb_comparison.insert(barcode_num, start_hash);
+            }
+            if barcode_num == 2 {
+                let start_hash: HashMap<String, String> = [
+                    ("ATGAAAT".to_string(), "BB_name_3".to_string()),
+                    ("GCGCCAT".to_string(), "BB_name_4".to_string()),
+                ]
+                .iter()
+                .cloned()
+                .collect();
+                bb_comparison.insert(barcode_num, start_hash);
+            }
+            if barcode_num == 3 {
+                let start_hash: HashMap<String, String> = [
+                    ("GATAGCT".to_string(), "BB_name_5".to_string()),
+                    ("TTAGCTA".to_string(), "BB_name_6".to_string()),
+                ]
+                .iter()
+                .cloned()
+                .collect();
+                bb_comparison.insert(barcode_num, start_hash);
+            }
+        }
+        assert_eq!(bb_barcodes, bb_comparison);
+    }
 }
