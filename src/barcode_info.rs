@@ -113,7 +113,7 @@ impl SequenceErrors {
     /// ```
     pub fn display(&mut self) {
         println!(
-            "Correctly matched sequences: {}\nConstant Region Mismatches:  {}\nSample Barcode Mismatches:   {}\nBuilding Block Mismatches:   {}\nDuplicates:                  {}",
+            "Correctly matched sequences: {}\nConstant Region Mismatches:  {}\nSample Barcode Mismatches:   {}\nBarcode Mismatches:          {}\nDuplicates:                  {}",
             self.matched, self.constant_region, self.sample_barcode, self.barcode, self.duplicates
         )
     }
@@ -376,7 +376,10 @@ pub fn barcode_file_conversion(
         }
     }
     if !missing_barcode_num.is_empty() {
-        panic!("Building block barcode conversion file missing barcode numers {:?} in the third column", missing_barcode_num)
+        panic!(
+            "Barcode conversion file missing barcode numers {:?} in the third column",
+            missing_barcode_num
+        )
     }
     Ok(barcode_data)
 }
@@ -553,7 +556,7 @@ impl MaxSeqErrors {
             Maximum constant region mismatches allowed per sequence: {}\n\
             Sample barcode size: {}\n\
             Maximum sample barcode mismatches allowed per sequence: {}\n\
-            Building block sizes: {:?}\n\
+            Barcode sizes: {:?}\n\
             Maximum building block mismatches allowed per barcode: {}\n",
             self.constant_region_size,
             self.constant_region,
