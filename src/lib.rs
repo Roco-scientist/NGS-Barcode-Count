@@ -1,4 +1,4 @@
-pub mod del_info;
+pub mod barcode_info;
 pub mod parse_sequences;
 
 use flate2::read::GzDecoder;
@@ -115,8 +115,8 @@ pub fn read_fastq(
 pub fn output_counts(
     output_dir: String,
     results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
-    sequence_format: crate::del_info::SequenceFormat,
-    bb_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
+    sequence_format: crate::barcode_info::SequenceFormat,
+    barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
     prefix: String,
     merge_output: bool,
 ) -> Result<(), Box<dyn Error>> {
@@ -127,7 +127,7 @@ pub fn output_counts(
 
     // Create a comma separated header.  First columns are the building block bumbers, 'BB_#'.  The last header is 'Count'
     let mut header = "BB_1".to_string();
-    for num in 1..sequence_format.bb_num {
+    for num in 1..sequence_format.barcode_num {
         header.push_str(&format!(",BB_{}", num + 1))
     }
     // create the directory variable to join the file to
@@ -173,16 +173,16 @@ pub fn output_counts(
 
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
         // If there is an included building block barcode file, it is converted here
-        if let Some(ref bb_hashmap) = bb_hashmap_option {
+        if let Some(ref barcodes_hashmap) = barcodes_hashmap_option {
             for (code, count) in sample_counts_hash.iter() {
                 // Convert the building block DNA barcodes and join them back to comma separated
                 let converted = code
                     .split(",")
                     .enumerate()
-                    .map(|(bb_index, bb_barcode)| {
-                        let actual_bb_num = bb_index + 1;
-                        let barcode_hash = bb_hashmap.get(&actual_bb_num).unwrap();
-                        return barcode_hash.get(bb_barcode).unwrap().to_string();
+                    .map(|(barcode_index, barcode)| {
+                        let actual_barcode_num = barcode_index + 1;
+                        let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
+                        return barcode_hash.get(barcode).unwrap().to_string();
                     })
                     .join(",");
 

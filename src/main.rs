@@ -17,7 +17,7 @@ fn main() {
     // get the argument inputs
     let args = Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
-    let sequence_format = del::del_info::SequenceFormat::new(args.format.clone())
+    let sequence_format = barcode::barcode_info::SequenceFormat::new(args.format.clone())
         .unwrap_or_else(|err| panic!("sequence format error: {}", err));
     sequence_format.display_format();
 
@@ -30,33 +30,36 @@ fn main() {
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     let samples_hashmap_option;
     if let Some(ref samples) = args.sample_barcodes_option {
-        let samples_hashmap = del::del_info::sample_barcode_file_conversion(samples).unwrap();
+        let samples_hashmap =
+            barcode::barcode_info::sample_barcode_file_conversion(samples).unwrap();
         samples_hashmap_option = Some(samples_hashmap);
     } else {
         samples_hashmap_option = None
     }
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
-    let bb_hashmap;
-    if let Some(ref bb) = args.bb_barcodes_option {
-        bb_hashmap =
-            Some(del::del_info::bb_barcode_file_conversion(bb, sequence_format.bb_num).unwrap());
+    let barcodes_hashmap;
+    if let Some(ref barcodes) = args.barcodes_option {
+        barcodes_hashmap = Some(
+            barcode::barcode_info::barcode_file_conversion(barcodes, sequence_format.barcode_num)
+                .unwrap(),
+        );
     } else {
-        bb_hashmap = None
+        barcodes_hashmap = None
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
-    let sequence_errors = Arc::new(Mutex::new(del::del_info::SequenceErrors::new()));
+    let sequence_errors = Arc::new(Mutex::new(barcode::barcode_info::SequenceErrors::new()));
 
     // Create a passed exit passed variable to stop reading when a thread has panicked
     let exit = Arc::new(Mutex::new(false));
 
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
-    let mut max_errors = del::del_info::MaxSeqErrors::new(
+    let mut max_errors = barcode::barcode_info::MaxSeqErrors::new(
         args.sample_errors_option,
         sequence_format.sample_length_option().unwrap(),
-        args.bb_errors_option,
-        sequence_format.bb_lengths().unwrap(),
+        args.barcodes_errors_option,
+        sequence_format.barcode_lengths().unwrap(),
         args.constant_errors_option,
         sequence_format.constant_region_length(),
     )
@@ -77,7 +80,7 @@ fn main() {
         let exit_clone = Arc::clone(&exit);
         let fastq = args.fastq.clone();
         s.spawn(move |_| {
-            del::read_fastq(fastq, seq_clone, exit_clone).unwrap();
+            barcode::read_fastq(fastq, seq_clone, exit_clone).unwrap();
             *finished_clone.lock().unwrap() = true;
         });
 
@@ -90,21 +93,21 @@ fn main() {
             let results_clone = Arc::clone(&results);
             let random_barcodes_clone = Arc::clone(&random_barcodes);
             let samples_clone = samples_hashmap_option.clone();
-            let bb_clone = bb_hashmap.clone();
+            let barcodes_clone = barcodes_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
             let exit_clone = Arc::clone(&exit);
             let max_errors_clone = max_errors.clone();
 
             // Create a processing thread
             s.spawn(move |_| {
-                del::parse_sequences::parse(
+                barcode::parse_sequences::parse(
                     seq_clone,
                     finished_clone,
                     sequence_format_clone,
                     results_clone,
                     random_barcodes_clone,
                     samples_clone,
-                    bb_clone,
+                    barcodes_clone,
                     sequence_errors_clone,
                     max_errors_clone,
                 )
@@ -134,11 +137,11 @@ fn main() {
 
     println!();
     println!("Writing counts");
-    del::output_counts(
+    barcode::output_counts(
         args.output_dir,
         results,
         sequence_format,
-        bb_hashmap,
+        barcodes_hashmap,
         args.prefix,
         args.merge_output,
     )
@@ -161,12 +164,12 @@ struct Args {
     fastq: String,                          // fastq file path
     format: String,                         // format scheme file path
     sample_barcodes_option: Option<String>, // sample barcode file path.  Optional
-    bb_barcodes_option: Option<String>,     // building block barcode file path. Optional
+    barcodes_option: Option<String>,        // building block barcode file path. Optional
     output_dir: String,                     // output directory.  Deafaults to './'
     threads: u8, // Number of threads to use.  Defaults to number of threads on the machine
     prefix: String, // Prefix string for the output files
     merge_output: bool, // Whether or not to create an additional output file that merges all samples
-    bb_errors_option: Option<usize>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
+    barcodes_errors_option: Option<usize>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
     sample_errors_option: Option<usize>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
     constant_errors_option: Option<usize>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
 }
@@ -176,10 +179,10 @@ impl Args {
         let total_cpus = num_cpus::get().to_string();
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
-        let args = App::new("DEL analysis")
+        let args = App::new("NGS-Barcode-Count")
         .version("0.4.1")
         .author("Rory Coffey <coffeyrt@gmail.com>")
-        .about("Counts DEL hits from fastq files and optional does conversions of sample IDs and building block IDs")
+        .about("Counts barcodes located in sequencing data")
         .arg(
             Arg::with_name("fastq")
                 .short("f")
@@ -204,9 +207,9 @@ impl Args {
                 .help("Sample barcodes file"),
         )
         .arg(
-            Arg::with_name("bb_barcodes")
+            Arg::with_name("barcodes_file")
                 .short("b")
-                .long("bb_barcodes")
+                .long("barcodes_file")
                 .takes_value(true)
                 .help("Building block barcodes file"),
         )
@@ -242,10 +245,10 @@ impl Args {
                 .help("Merge sample output counts into a single file.  Not necessary when there is only one sample"),
         )
         .arg(
-            Arg::with_name("bb_errors")
-                .long("bb_errors")
+            Arg::with_name("barcodes_errors")
+                .long("barcodes_errors")
                 .takes_value(true)
-                .help("Maximimum number of sequence errors allowed within each building block barcode. Defaults to 20% of the total."),
+                .help("Maximimum number of sequence errors allowed within each counted barcode. Defaults to 20% of the total."),
         )
         .arg(
             Arg::with_name("sample_errors")
@@ -268,18 +271,18 @@ impl Args {
             sample_barcodes_option = None
         }
 
-        let bb_barcodes_option;
-        if let Some(bb) = args.value_of("bb_barcodes") {
-            bb_barcodes_option = Some(bb.to_string())
+        let barcodes_option;
+        if let Some(barcodes) = args.value_of("barcodes_file") {
+            barcodes_option = Some(barcodes.to_string())
         } else {
-            bb_barcodes_option = None
+            barcodes_option = None
         }
 
-        let bb_errors_option;
-        if let Some(bb) = args.value_of("bb_errors") {
-            bb_errors_option = Some(bb.parse::<usize>()?)
+        let barcodes_errors_option;
+        if let Some(barcodes) = args.value_of("barcodes_errors") {
+            barcodes_errors_option = Some(barcodes.parse::<usize>()?)
         } else {
-            bb_errors_option = None
+            barcodes_errors_option = None
         }
 
         let sample_errors_option;
@@ -312,12 +315,12 @@ impl Args {
             fastq,
             format,
             sample_barcodes_option,
-            bb_barcodes_option,
+            barcodes_option,
             output_dir,
             threads,
             prefix,
             merge_output,
-            bb_errors_option,
+            barcodes_errors_option,
             sample_errors_option,
             constant_errors_option,
         })
