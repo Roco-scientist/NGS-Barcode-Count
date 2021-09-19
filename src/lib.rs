@@ -125,10 +125,10 @@ pub fn output_counts(
     let mut sample_ids = results_hashmap.keys().cloned().collect::<Vec<String>>();
     sample_ids.sort();
 
-    // Create a comma separated header.  First columns are the building block bumbers, 'BB_#'.  The last header is 'Count'
-    let mut header = "BB_1".to_string();
+    // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
+    let mut header = "Barcode_1".to_string();
     for num in 1..sequence_format.barcode_num {
-        header.push_str(&format!(",BB_{}", num + 1))
+        header.push_str(&format!(",Barcode_{}", num + 1))
     }
     // create the directory variable to join the file to
     let directory = Path::new(&output_dir);
@@ -148,7 +148,7 @@ pub fn output_counts(
         merged_output_file.write_all(merged_header.as_bytes())?;
     }
 
-    // Crate the header to be used with each sample file.  This is just BB_1..BB_n and Count
+    // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
     header.push_str(",Count\n");
 
     // Create a HashSet for if there is merging to check what compounds have been written to the merged file

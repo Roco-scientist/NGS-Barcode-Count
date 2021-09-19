@@ -73,7 +73,7 @@ The sequence format file should be a text file that is line separated by the typ
 </tr>
 </table>
 
-An example can be found in [example.scheme.txt](example.scheme.txt)
+An example can be found in [scheme.example.txt](scheme.example.txt)
 
 ### Sample Barcode File
 <b>Optional</b><br>
