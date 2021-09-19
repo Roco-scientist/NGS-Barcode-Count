@@ -35,11 +35,11 @@ pub fn parse(
         barcodes_keys.sort();
         for key in barcodes_keys {
             let barcodes_data = barcodes.get(key).unwrap();
-            let barcodes_barcodes = barcodes_data
+            let barcodes = barcodes_data
                 .keys()
                 .map(|key| key.to_string())
                 .collect::<Vec<String>>();
-            barcodes_vec.push(barcodes_barcodes);
+            barcodes_vec.push(barcodes);
         }
         barcodes_seqs_option = Some(barcodes_vec);
     } else {
@@ -235,9 +235,9 @@ fn match_seq(
                 // fore each building block, convert and add as comma separated to a key text for results hashmap
                 for x in 0..sequence_format_clone.barcode_num {
                     let mut barcodes_seq =
-                        barcodes[format!("barcodes{}", x + 1).as_str()].to_string();
+                        barcodes[format!("barcode{}", x + 1).as_str()].to_string();
                     // If the building block sequence does not exists within the conversion file, try and fix
-                    // If it cannnot fix the sequence, add to barcodes_barcode_error
+                    // If it cannnot fix the sequence, add to barcode_error
                     if !barcodes_seqs[x].contains(&barcodes_seq) {
                         let barcodes_seq_fix_option = fix_error(
                             &barcodes_seq,
@@ -265,9 +265,9 @@ fn match_seq(
                 return Ok(Some((sample_name, barcodes_string, random_barcode_option)));
             } else {
                 // If there is not a building block conversion file, do not try and fix the barcode errors. Push the raw DNA barcode seqeunces
-                let mut barcodes_string = barcodes["barcodes1"].to_string();
+                let mut barcodes_string = barcodes["barcode1"].to_string();
                 for x in 1..sequence_format_clone.barcode_num {
-                    let barcodes_num = format!("barcodes{}", x + 1);
+                    let barcodes_num = format!("barcode{}", x + 1);
                     barcodes_string.push_str(",");
                     barcodes_string.push_str(&barcodes[barcodes_num.as_str()]);
                 }
