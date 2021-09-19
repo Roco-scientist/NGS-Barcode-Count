@@ -42,7 +42,7 @@ Currently supports FASTQ, sequence format, sample barcode conversion, and buildi
 <li><a href=#fastq-file>FASTQ</a></li>
 <li><a href=#sequence-format-file>Sequence format file</a></li>
 <li><a href=#sample-barcode-file>Sample barcode file (optional)</a></li>
-<li><a href=#building-block-barcode-file>Building block barcode file (optional)</a></li>
+<li><a href=#barcode-file>Barcode file (optional)</a></li>
 </ul>
 
 
@@ -56,20 +56,25 @@ The sequence format file should be a text file that is line separated by the typ
 <tr>
 <th>Sequence Type</th>
 <th>File Code</th>
+<th>Number Needed/Allowed</th>
 </tr>
 <td>Constant</td>
 <td>ATGCN</td>
+<td>1 or more</td>
 <tr>
 <td>Sample Barcode</td>
 <td>[#]</td>
+<td>0-1</td>
 </tr>
 <tr>
 <td>Barcode for counting</td>
 <td>{#}</td>
+<td>1 or more</td>
 </tr>
 <tr>
 <td>Random Barcode</td>
 <td>(#)</td>
+<td>0-1</td>
 </tr>
 </table>
 
@@ -93,9 +98,9 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 </tr>
 </table>
 
-### Building Block Barcode File
+### Barcode File
 <b>Optional</b><br>
-The building_block_barcode_file is a comma separate file with the following format:<br>
+The barcode_file is a comma separate file with the following format:<br>
 <table>
 <tr>
 <th>Barcode</th>
@@ -108,15 +113,35 @@ The building_block_barcode_file is a comma separate file with the following form
 <td>1</td>
 </tr>
 <tr>
-<td>AACTTAC</td>
+<td>TGATTGC</td>
 <td>Barcode_name_2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>ATGAAAT</td>
+<td>Barcode_name_3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>GCGCCAT</td>
+<td>Barcode_name_4</td>
+<td>2</td>
+</tr>
+<tr>
+<td>GATAGCT</td>
+<td>Barcode_name_5</td>
+<td>3</td>
+</tr>
+<tr>
+<td>TTAGCTA</td>
+<td>Barcode_name_6</td>
 <td>3</td>
 </tr>
 </table>
-Where the first column is the DNA barcode, the second column is the building block ID which can be a smile string (without commas),
-and the last column is the building block number as an integer.  The building block numbers are in the same order as the sequence format file and starting
-at 1. For example, if there are a total of 3 building block barcodes in each sequence read, you would only have 1, 2, or 3 within this column for each row, with each number
-representing one of the three building blocks.
+Where the first column is the DNA barcode, the second column is the barcode ID which can be a smile string for DEL, CRISPR target ID, etc. but cannot contain commas. 
+The last column is the barcode number as an integer.  The barcode numbers are in the same order as the sequence format file and starting
+at 1. For example, if there are a total of 3 barcodes, which may be the case with DEL, you would only have 1, 2, or 3 within this column for each row, with each number
+representing one of the three barcodes. For CRISPR or barcode seq, where there may only be one barcode to count, this column would be all 1s.
 
 ## Run
 After compilation, the `barcode` binary can be moved anywhere.
@@ -218,7 +243,7 @@ Results below:
 Total sequences: 418770000
 Constant Region Mismatches: 173770206
 Sample Barcode Mismatches: 1597170
-Building Block Mismatches: 4520082
+Barcode Mismatches: 4520082
 Writing counts
 Total time: 78 minutes
 ```

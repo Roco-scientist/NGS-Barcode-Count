@@ -9,7 +9,7 @@ pub struct SequenceErrors {
     constant_region: u64,
     // errors within the sample barcode
     sample_barcode: u64,
-    // erors within the building block barcode
+    // erors within the counted barcode
     barcode: u64,
     // total matched
     matched: u64,
@@ -62,7 +62,7 @@ impl SequenceErrors {
         self.sample_barcode += 1;
     }
 
-    /// Add one to building block barcode error
+    /// Add one to barcode error
     ///
     /// # Example
     /// ```
@@ -163,13 +163,13 @@ impl SequenceFormat {
         println!("Format: {}", self.format_string)
     }
 
-    /// Returns a Vec of the size of all building block barcodes within the DEL scheme
+    /// Returns a Vec of the size of all counted barcodes within the seqeunce format
     pub fn barcode_lengths(&self) -> Result<Vec<usize>, Box<dyn Error>> {
         let barcode_search = Regex::new(r"(\{\d+\})")?; // Create a search that finds the '{#}'
         let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the number
-        let mut barcode_lengths = Vec::new(); // Create a Vec that will contain on the building block barcode lengths
+        let mut barcode_lengths = Vec::new(); // Create a Vec that will contain the counted barcode lengths
 
-        // For each building block barcode found in the format file string
+        // For each counted barcode found in the format file string.  This allows multiple counted barcodes, as found in DEL
         for group in barcode_search.find_iter(&self.format_data) {
             let group_str = group.as_str();
             // Pull out the numeric value
@@ -257,7 +257,7 @@ pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Erro
     // The '#' needs to bre replaced with teh sequential number
     let mut final_format = String::new();
     let mut barcode_num = 0;
-    // Fore each character, if the character is #, replace with the sequential building block number
+    // Fore each character, if the character is #, replace with the sequential barcode number
     for group in barcode_search.find_iter(format_data) {
         let group_str = group.as_str();
         let mut group_name_option = None;
@@ -326,7 +326,7 @@ pub fn sample_barcode_file_conversion(
 }
 
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
-/// the second needs to be the ID, and the third needs to be the building block number
+/// the second needs to be the ID, and the third needs to be the barcode index location
 ///
 /// # Panics
 ///
@@ -352,7 +352,7 @@ pub fn barcode_file_conversion(
     let mut barcode_num_contained = Vec::new();
     for (barcode, id, barcode_num) in barcode_vecs {
         let barcode_num_usize = barcode_num.parse::<usize>().unwrap_or_else(|err| {
-            panic!("Third column of building block barcode file contains something other than an integer: {}\nError: {}", barcode_num, err)
+            panic!("Third column of barcode file contains something other than an integer: {}\nError: {}", barcode_num, err)
         });
         if !barcode_num_contained.contains(&barcode_num_usize) {
             barcode_num_contained.push(barcode_num_usize)
@@ -393,7 +393,7 @@ pub struct MaxSeqErrors {
     // errors within the sample barcode
     sample_barcode: usize,
     sample_size: usize,
-    // erors within the building block barcode
+    // erors within the counted barcode
     barcode: usize,
     barcode_sizes: Vec<usize>,
 }
@@ -510,7 +510,7 @@ impl MaxSeqErrors {
         self.sample_barcode
     }
 
-    /// Returns the maximum allowed building block barcode errors
+    /// Returns the maximum allowed errors within each counted barcode
     ///
     /// # Example
     /// ```
@@ -549,20 +549,29 @@ impl MaxSeqErrors {
     /// max_sequence_errors.display();
     /// ```
     pub fn display(&mut self) {
+        let barcode_size_info;
+        if self.barcode_sizes.len() > 1 {
+            barcode_size_info = format!("Barcode sizes: {:?}", self.barcode_sizes)
+        } else {
+            barcode_size_info = format!("Barcode size: {}", self.barcode_sizes.first().unwrap())
+        }
         println!(
             "
             \n########## Barcode Info ###################################\n\
             Constant region size: {}\n\
-            Maximum constant region mismatches allowed per sequence: {}\n\
+            Maximum mismatches allowed per sequence: {}\n\
+            -----------------------------------------------------------\n\
             Sample barcode size: {}\n\
-            Maximum sample barcode mismatches allowed per sequence: {}\n\
-            Barcode sizes: {:?}\n\
-            Maximum building block mismatches allowed per barcode: {}\n",
+            Maximum mismatches allowed per sequence: {}\n\
+            -----------------------------------------------------------\n\
+            {}\n\
+            Maximum mismatches allowed per barcode sequence: {}\n\
+            ###########################################################",
             self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
-            self.barcode_sizes,
+            barcode_size_info,
             self.barcode
         )
     }

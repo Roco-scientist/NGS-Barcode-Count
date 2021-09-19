@@ -69,6 +69,7 @@ pub fn read_fastq(
             }
         }
     } else {
+        println!();
         println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file\n");
         let mut reader = BufReader::new(GzDecoder::new(fastq_file));
 
@@ -126,9 +127,14 @@ pub fn output_counts(
     sample_ids.sort();
 
     // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
-    let mut header = "Barcode_1".to_string();
-    for num in 1..sequence_format.barcode_num {
-        header.push_str(&format!(",Barcode_{}", num + 1))
+    let mut header = String::new();
+    if sequence_format.barcode_num > 1 {
+        let mut header = "Barcode_1".to_string();
+        for num in 1..sequence_format.barcode_num {
+            header.push_str(&format!(",Barcode_{}", num + 1))
+        }
+    } else {
+        header.push_str("Barcode")
     }
     // create the directory variable to join the file to
     let directory = Path::new(&output_dir);
