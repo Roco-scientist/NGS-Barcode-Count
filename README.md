@@ -42,7 +42,7 @@ Currently supports FASTQ, sequence format, sample barcode conversion, and buildi
 <li><a href=#fastq-file>FASTQ</a></li>
 <li><a href=#sequence-format-file>Sequence format file</a></li>
 <li><a href=#sample-barcode-file>Sample barcode file (optional)</a></li>
-<li><a href=#building-block-barcode-file>Building block barcode file (optional)</a></li>
+<li><a href=#barcode-file>Barcode file (optional)</a></li>
 </ul>
 
 
@@ -93,9 +93,9 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 </tr>
 </table>
 
-### Building Block Barcode File
+### Barcode File
 <b>Optional</b><br>
-The building_block_barcode_file is a comma separate file with the following format:<br>
+The barcode_file is a comma separate file with the following format:<br>
 <table>
 <tr>
 <th>Barcode</th>
@@ -238,7 +238,7 @@ Results below:
 Total sequences: 418770000
 Constant Region Mismatches: 173770206
 Sample Barcode Mismatches: 1597170
-Building Block Mismatches: 4520082
+Barcode Mismatches: 4520082
 Writing counts
 Total time: 78 minutes
 ```
