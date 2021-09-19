@@ -240,10 +240,15 @@ If `--merge_output` is called, an additional file is created with the format (fo
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in just under 1 hour and 20 minutes.
 Results below:
 ```
-Total sequences: 418770000
-Constant Region Mismatches: 173770206
-Sample Barcode Mismatches: 1597170
-Barcode Mismatches: 4520082
+Total sequences:             418770347
+Correctly matched sequences: 238628797
+Constant Region Mismatches:  173770206
+Sample Barcode Mismatches:   1828802
+Barcode Mismatches:          4542542
+Duplicates:                  0
+
+Compute time: 75 minutes
+
 Writing counts
-Total time: 78 minutes
+Total time: 81 minutes
 ```
