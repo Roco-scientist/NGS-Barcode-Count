@@ -108,15 +108,35 @@ The building_block_barcode_file is a comma separate file with the following form
 <td>1</td>
 </tr>
 <tr>
-<td>AACTTAC</td>
+<td>TGATTGC</td>
 <td>Barcode_name_2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>ATGAAAT</td>
+<td>Barcode_name_3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>GCGCCAT</td>
+<td>Barcode_name_4</td>
+<td>2</td>
+</tr>
+<tr>
+<td>GATAGCT</td>
+<td>Barcode_name_5</td>
+<td>3</td>
+</tr>
+<tr>
+<td>TTAGCTA</td>
+<td>Barcode_name_6</td>
 <td>3</td>
 </tr>
 </table>
-Where the first column is the DNA barcode, the second column is the building block ID which can be a smile string (without commas),
-and the last column is the building block number as an integer.  The building block numbers are in the same order as the sequence format file and starting
-at 1. For example, if there are a total of 3 building block barcodes in each sequence read, you would only have 1, 2, or 3 within this column for each row, with each number
-representing one of the three building blocks.
+Where the first column is the DNA barcode, the second column is the barcode ID which can be a smile string for DEL, CRISPR target ID, etc. but cannot contain commas. 
+The last column is the barcode number as an integer.  The barcode numbers are in the same order as the sequence format file and starting
+at 1. For example, if there are a total of 3 barcodes, which may be the case with DEL, you would only have 1, 2, or 3 within this column for each row, with each number
+representing one of the three barcodes. For CRISPR or barcode seq, where there may only be one barcode to count, this column would be all 1s.
 
 ## Run
 After compilation, the `barcode` binary can be moved anywhere.
