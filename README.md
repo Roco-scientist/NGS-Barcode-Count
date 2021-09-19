@@ -56,20 +56,25 @@ The sequence format file should be a text file that is line separated by the typ
 <tr>
 <th>Sequence Type</th>
 <th>File Code</th>
+<th>Number Needed/Allowed</th>
 </tr>
 <td>Constant</td>
 <td>ATGCN</td>
+<td>1 or more</td>
 <tr>
 <td>Sample Barcode</td>
 <td>[#]</td>
+<td>0-1</td>
 </tr>
 <tr>
 <td>Barcode for counting</td>
 <td>{#}</td>
+<td>1 or more</td>
 </tr>
 <tr>
 <td>Random Barcode</td>
 <td>(#)</td>
+<td>0-1</td>
 </tr>
 </table>
 
