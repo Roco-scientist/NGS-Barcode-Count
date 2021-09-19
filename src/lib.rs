@@ -1,6 +1,7 @@
 pub mod barcode_info;
 pub mod parse_sequences;
 
+use custom_error::custom_error;
 use flate2::read::GzDecoder;
 use std::{
     collections::{HashMap, HashSet},
@@ -12,6 +13,12 @@ use std::{
 };
 
 use itertools::Itertools;
+
+custom_error! {FastqError
+    NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
+    Line2NotSeq = "The second line within the FASTQ file is not a sequence. Check the FASTQ format",
+    Line1Seq = "The first line within the FASTQ contains DNA sequences.  Check the FASTQ format",
+}
 
 /// Reads in the FASTQ file line by line, then pushes every 2 out of 4 lines, which corresponds to the sequence line, into a Vec that is passed to other threads
 ///
@@ -30,26 +37,44 @@ pub fn read_fastq(
     let mut line_num = 1; // start line to know that each 2nd of 4 lines is pulled
                           // If the file is not zipped, proceed.  Still need to work on opening a zipped file
     let mut total_reads = 0u64;
+    let mut test_fastq_format = true; // setup bool to test the first sequence read to make sure it is a DNA sequence
+    let mut test_first_line = true; // setup bool to test the first read to make sure it is not a DNA sequence
     if !fastq.ends_with("fastq.gz") {
         if !fastq.ends_with("fastq") {
-            panic!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental");
+            return Err(Box::new(FastqError::NotFastq));
         }
 
         // go line by line
-        for line in BufReader::new(fastq_file).lines() {
+        for line_result in BufReader::new(fastq_file).lines() {
+            let line = line_result?;
+            if test_first_line {
+                let linetype = test_sequence(&line);
+                match linetype {
+                    LineType::Sequence => return Err(Box::new(FastqError::Line1Seq)),
+                    LineType::Metadata => (),
+                }
+                test_first_line = false
+            }
             // if it is the sequence line which is line 2
             if line_num == 2 {
-                if let Ok(sequence_data) = line {
-                    // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-                    while seq_clone.lock().unwrap().len() >= 10000 {
-                        // if threads have failed exit out of this thread
-                        if *exit_clone.lock().unwrap() {
-                            break;
-                        }
+                // test the first sequence line for whether or not it is a sequence and therefor in the correct format
+                if test_fastq_format {
+                    let linetype = test_sequence(&line);
+                    match linetype {
+                        LineType::Sequence => (),
+                        LineType::Metadata => return Err(Box::new(FastqError::Line2NotSeq)),
                     }
-                    // Insert the sequence into the vec.  This will be popped out by other threads
-                    seq_clone.lock().unwrap().insert(0, sequence_data);
+                    test_fastq_format = false
                 }
+                // Pause if there are already 10000 sequences in the vec so memory is not overloaded
+                while seq_clone.lock().unwrap().len() >= 10000 {
+                    // if threads have failed exit out of this thread
+                    if *exit_clone.lock().unwrap() {
+                        break;
+                    }
+                }
+                // Insert the sequence into the vec.  This will be popped out by other threads
+                seq_clone.lock().unwrap().insert(0, line);
                 // Add to read count to print numnber of sequences read by this thread
                 total_reads += 1;
                 if total_reads % 1000 == 0 {
@@ -79,8 +104,26 @@ pub fn read_fastq(
         while read_response != 0 {
             let mut line = String::new();
             read_response = reader.read_line(&mut line)?;
+            // Test the first line for whether or not it is sequence data.  It should be metadata for FASTQ formats
+            if test_first_line {
+                let linetype = test_sequence(&line);
+                match linetype {
+                    LineType::Sequence => return Err(Box::new(FastqError::Line1Seq)),
+                    LineType::Metadata => (),
+                }
+                test_first_line = false
+            }
             // if it is the sequence line which is line 2
             if line_num == 2 {
+                // test the first sequence line for whether or not it is a sequence and therefor in the correct format
+                if test_fastq_format {
+                    let linetype = test_sequence(&line);
+                    match linetype {
+                        LineType::Sequence => (),
+                        LineType::Metadata => return Err(Box::new(FastqError::Line2NotSeq)),
+                    }
+                    test_fastq_format = false
+                }
                 // Pause if there are already 10000 sequences in the vec so memory is not overloaded
                 while seq_clone.lock().unwrap().len() >= 10000 {
                     // if threads have failed exit out of this thread
@@ -110,6 +153,27 @@ pub fn read_fastq(
     print!("Total sequences:             {}\r", total_reads);
     println!();
     Ok(())
+}
+
+/// An enum of linetype to use with test_sequence.  Every line of a FASTQ should either be sequence or metadata for the sequence.
+enum LineType {
+    Sequence,
+    Metadata,
+}
+
+/// Tests whether a line within the file String is a sequence by checking if over half of the line contains DNA neceotide letters
+fn test_sequence(sequence: &String) -> LineType {
+    let sequence_length = sequence.len(); // the the length of the line
+    let adenines = sequence.matches("A").count(); // And the amount of each DNA nucleotide
+    let guanines = sequence.matches("G").count();
+    let cytosines = sequence.matches("C").count();
+    let thymines = sequence.matches("T").count();
+    let total_dna = adenines + guanines + cytosines + thymines;
+    // Check if less than half of the line contains DNA nucleotides.  If so, return that the line is metadata.  Otherwise, a sequence
+    if total_dna < sequence_length / 2 {
+        return LineType::Metadata;
+    }
+    return LineType::Sequence;
 }
 
 /// Writes counts result to CSV file
