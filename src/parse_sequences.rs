@@ -11,13 +11,13 @@ use std::{
 pub fn parse(
     seq_clone: Arc<Mutex<Vec<String>>>,
     finished_clone: Arc<Mutex<bool>>,
-    sequence_format_clone: crate::del_info::SequenceFormat,
+    sequence_format_clone: crate::barcode_info::SequenceFormat,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     random_barcodes_clone: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
     samples_clone: Option<HashMap<String, String>>,
-    bb_clone: Option<HashMap<usize, HashMap<String, String>>>,
-    sequence_errors_clone: Arc<Mutex<crate::del_info::SequenceErrors>>,
-    mut max_errors_clone: crate::del_info::MaxSeqErrors,
+    barcodes_clone: Option<HashMap<usize, HashMap<String, String>>>,
+    sequence_errors_clone: Arc<Mutex<crate::barcode_info::SequenceErrors>>,
+    mut max_errors_clone: crate::barcode_info::MaxSeqErrors,
 ) -> Result<(), Box<dyn Error>> {
     // Get a vec of all possible sample barcodes for error correction
     let sample_seqs: Option<Vec<String>>;
@@ -28,22 +28,22 @@ pub fn parse(
     }
 
     // Get a vec of all possible building block barcodes for error correction
-    let bb_seqs_option: Option<Vec<Vec<String>>>;
-    if let Some(ref bb) = bb_clone {
-        let mut bb_vec = Vec::new();
-        let mut bb_keys = bb.keys().collect::<Vec<&usize>>();
-        bb_keys.sort();
-        for key in bb_keys {
-            let bb_data = bb.get(key).unwrap();
-            let bb_barcodes = bb_data
+    let barcodes_seqs_option: Option<Vec<Vec<String>>>;
+    if let Some(ref barcodes) = barcodes_clone {
+        let mut barcodes_vec = Vec::new();
+        let mut barcodes_keys = barcodes.keys().collect::<Vec<&usize>>();
+        barcodes_keys.sort();
+        for key in barcodes_keys {
+            let barcodes_data = barcodes.get(key).unwrap();
+            let barcodes_barcodes = barcodes_data
                 .keys()
                 .map(|key| key.to_string())
                 .collect::<Vec<String>>();
-            bb_vec.push(bb_barcodes);
+            barcodes_vec.push(barcodes_barcodes);
         }
-        bb_seqs_option = Some(bb_vec);
+        barcodes_seqs_option = Some(barcodes_vec);
     } else {
-        bb_seqs_option = None
+        barcodes_seqs_option = None
     }
 
     // Loop until there are no sequences left to parse.  These are fed into seq_clone vec by the reader thread
@@ -71,11 +71,12 @@ pub fn parse(
                 &samples_clone,
                 &sequence_errors_clone,
                 &sample_seqs,
-                &bb_seqs_option,
+                &barcodes_seqs_option,
                 &mut max_errors_clone,
             )?;
             // If the constant region matched proceed to add to results, otherwise try and fix the constant region
-            if let Some((sample_name, bb_string, random_barcode_option)) = result_tuple_option {
+            if let Some((sample_name, barcodes_string, random_barcode_option)) = result_tuple_option
+            {
                 // Alwasy add value unless random barcode is included and it has already been found for the sample and building blocks
                 let mut add_value = true;
                 // If there is a random barcode included
@@ -87,16 +88,16 @@ pub fn parse(
                     if !random_hashmap.contains_key(&sample_name) {
                         let mut intermediate_hashmap = HashMap::new();
                         let intermediate_vec = vec![random_barcode];
-                        intermediate_hashmap.insert(bb_string.clone(), intermediate_vec);
+                        intermediate_hashmap.insert(barcodes_string.clone(), intermediate_vec);
                         random_hashmap.insert(sample_name.clone(), intermediate_hashmap);
                     } else {
-                        let bb_hashmap = random_hashmap.get_mut(&sample_name).unwrap();
+                        let barcodes_hashmap = random_hashmap.get_mut(&sample_name).unwrap();
                         // If the random hashmap does not have the building blocks yet, insert building_block -> random_barcodes
-                        if !bb_hashmap.contains_key(&bb_string) {
+                        if !barcodes_hashmap.contains_key(&barcodes_string) {
                             let intermediate_vec = vec![random_barcode];
-                            bb_hashmap.insert(bb_string.clone(), intermediate_vec);
+                            barcodes_hashmap.insert(barcodes_string.clone(), intermediate_vec);
                         } else {
-                            let random_vec = bb_hashmap.get_mut(&bb_string).unwrap();
+                            let random_vec = barcodes_hashmap.get_mut(&barcodes_string).unwrap();
                             // else check if the random barcode already used for the sample_name and building_blocks
                             // if the random barcode is already in the vector, change add_value to false
                             // otherqise add the random barcode to the random_barcodes vector
@@ -116,7 +117,7 @@ pub fn parse(
                     // If results hashmap does not already contain the sample_name, insert the sanmle_name -> barcodes -> 0
                     if !results_hashmap.contains_key(&sample_name) {
                         let mut intermediate_hashmap = HashMap::new();
-                        intermediate_hashmap.insert(bb_string.clone(), 0);
+                        intermediate_hashmap.insert(barcodes_string.clone(), 0);
                         results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
                     }
 
@@ -125,7 +126,7 @@ pub fn parse(
                     *results_hashmap
                         .get_mut(&sample_name)
                         .unwrap()
-                        .entry(bb_string)
+                        .entry(barcodes_string)
                         .or_insert(0) += 1;
                     sequence_errors_clone.lock().unwrap().correct_match()
                 }
@@ -139,12 +140,12 @@ pub fn parse(
 /// building block barcodes.  This is used as a key within the results vector, where the value can be used as the count
 fn match_seq(
     sequence: &String,
-    sequence_format_clone: &crate::del_info::SequenceFormat,
+    sequence_format_clone: &crate::barcode_info::SequenceFormat,
     samples_clone: &Option<HashMap<String, String>>,
-    sequence_errors_clone: &Arc<Mutex<super::del_info::SequenceErrors>>,
+    sequence_errors_clone: &Arc<Mutex<super::barcode_info::SequenceErrors>>,
     sample_seqs: &Option<Vec<String>>,
-    bb_seqs_option: &Option<Vec<Vec<String>>>,
-    max_errors_clone: &mut crate::del_info::MaxSeqErrors,
+    barcodes_seqs_option: &Option<Vec<Vec<String>>>,
+    max_errors_clone: &mut crate::barcode_info::MaxSeqErrors,
 ) -> Result<Option<(String, String, Option<String>)>, Box<dyn Error>> {
     // find the barcodes with the reges search
     let mut barcode_search = sequence_format_clone.format_regex.captures(&sequence);
@@ -229,44 +230,48 @@ fn match_seq(
         // If the sample barcode -> ID is found, add the building block suquences to the result string.  Otherwise, return None
         if let Some(sample_name) = sample_name_option {
             // if there is a building block conversion file used, convert
-            if let Some(bb_seqs) = bb_seqs_option {
-                let mut bb_string = String::new();
+            if let Some(barcodes_seqs) = barcodes_seqs_option {
+                let mut barcodes_string = String::new();
                 // fore each building block, convert and add as comma separated to a key text for results hashmap
-                for x in 0..sequence_format_clone.bb_num {
-                    let mut bb_seq = barcodes[format!("bb{}", x + 1).as_str()].to_string();
+                for x in 0..sequence_format_clone.barcode_num {
+                    let mut barcodes_seq =
+                        barcodes[format!("barcodes{}", x + 1).as_str()].to_string();
                     // If the building block sequence does not exists within the conversion file, try and fix
-                    // If it cannnot fix the sequence, add to bb_barcode_error
-                    if !bb_seqs[x].contains(&bb_seq) {
-                        let bb_seq_fix_option =
-                            fix_error(&bb_seq, &bb_seqs[x], max_errors_clone.max_bb_errors())?;
-                        if let Some(bb_seq_fix) = bb_seq_fix_option {
-                            bb_seq = bb_seq_fix
+                    // If it cannnot fix the sequence, add to barcodes_barcode_error
+                    if !barcodes_seqs[x].contains(&barcodes_seq) {
+                        let barcodes_seq_fix_option = fix_error(
+                            &barcodes_seq,
+                            &barcodes_seqs[x],
+                            max_errors_clone.max_barcode_errors(),
+                        )?;
+                        if let Some(barcodes_seq_fix) = barcodes_seq_fix_option {
+                            barcodes_seq = barcodes_seq_fix
                         } else {
-                            sequence_errors_clone.lock().unwrap().bb_barcode_error();
+                            sequence_errors_clone.lock().unwrap().barcode_error();
                             return Ok(None);
                         }
                     }
-                    // If it is the start just push the bb DNA barcode, otherwise a comma and the bb DNA barcode
+                    // If it is the start just push the barcodes DNA barcode, otherwise a comma and the barcodes DNA barcode
                     // This is converted while writing to disk in case the memory size of the conversion would be too large
                     // ie, 6 DNA nucleotides takes up less memory than a long SMIILES string
                     if x == 0 {
-                        bb_string.push_str(&bb_seq);
+                        barcodes_string.push_str(&barcodes_seq);
                     } else {
-                        bb_string.push_str(",");
-                        bb_string.push_str(&bb_seq);
+                        barcodes_string.push_str(",");
+                        barcodes_string.push_str(&barcodes_seq);
                     }
                 }
-                // if all goes well with bb_conversion and sample conversion, return Some
-                return Ok(Some((sample_name, bb_string, random_barcode_option)));
+                // if all goes well with barcodes_conversion and sample conversion, return Some
+                return Ok(Some((sample_name, barcodes_string, random_barcode_option)));
             } else {
                 // If there is not a building block conversion file, do not try and fix the barcode errors. Push the raw DNA barcode seqeunces
-                let mut bb_string = barcodes["bb1"].to_string();
-                for x in 1..sequence_format_clone.bb_num {
-                    let bb_num = format!("bb{}", x + 1);
-                    bb_string.push_str(",");
-                    bb_string.push_str(&barcodes[bb_num.as_str()]);
+                let mut barcodes_string = barcodes["barcodes1"].to_string();
+                for x in 1..sequence_format_clone.barcode_num {
+                    let barcodes_num = format!("barcodes{}", x + 1);
+                    barcodes_string.push_str(",");
+                    barcodes_string.push_str(&barcodes[barcodes_num.as_str()]);
                 }
-                return Ok(Some((sample_name, bb_string, random_barcode_option)));
+                return Ok(Some((sample_name, barcodes_string, random_barcode_option)));
             }
         } else {
             // If the sample barcode was not found record the error and return None
@@ -289,7 +294,7 @@ fn match_seq(
 /// # Example
 ///
 /// ```
-/// use del::parse_sequences::fix_error;
+/// use barcode::parse_sequences::fix_error;
 ///
 /// let barcode = "AGTAG".to_string();
 ///
@@ -378,7 +383,7 @@ fn fix_constant_region(
 /// # Example
 ///
 /// ```
-/// use del::parse_sequences::insert_barcodes_constant_region;
+/// use barcode::parse_sequences::insert_barcodes_constant_region;
 ///
 /// let sequence = "AGTAGATCTGAGATAGACAGC".to_string();// A 'CG' sequencing error is in the middle when compared to the format
 /// let sequence_format = "AGTAGNNNTGACGTANNNAGC".to_string();
