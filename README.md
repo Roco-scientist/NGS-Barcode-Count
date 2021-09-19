@@ -1,7 +1,8 @@
-# DEL-Decode
-DNA encoded library decoding.  Multithreaded and low resource use.  Uses one thread to read and the rest to process the data, so at least a 2 threaded machine is essential.
+# NGS-Barcode-Count
+Counts barcodes from next generation sequencing data.  Works for DEL (DNA encoded libraries), high throughput CRISPR sequencing, barcode sequencing.  If the barcode file is included, the program will convert to barcode names and correct for errors.<br>
+<br>
+Multithreaded and low resource use.  Uses one thread to read and the rest to process the data, so at least a 2 threaded machine is essential.
 This program does not store all data within RAM but instead sequentially processes the sequencing data in order to remain memory efficient.  
-With very large DEL libraries, there may be some memory creep.  This is because the more barcodes that exist within the sequencing reads, the more barcodes that need to remain in memory.
 <br>
 <br>
 Error handling is defaulted at 20% maximum sequence error per constant region and barcode. This can be changed through CLI arguments.  The algorithm fixes any sequenced constant region or barcode with the best match possible.  If there are two or more best matches,
@@ -12,13 +13,13 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 
 ## Table of Contents
 <ul>
-<li><a href=#Requirements>Requirements</a></li>
+<li><a href=#installation>Installation</a></li>
 <li><a href=#files-needed>Files Needed</a></li>
 <li><a href=#run>Run</a></li>
 <li><a href=#test-results>Test Results</a></li>
 </ul>
 
-## Requirements
+## Installation
 
 ### Rust installed locally: <a href=https://www.rust-lang.org/tools/install target="_blank" rel="noopener noreferrer">instructions here</a>
 
@@ -29,10 +30,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ### Del-Decode downoaded and compiled
 
 ```
-git clone https://github.com/Roco-scientist/DEL-Decode.git
-cd DEL-Decode
+git clone https://github.com/Roco-scientist/NGS-Barcode-Count
+cd NGS-Barcode-Count
 cargo build --release
-mv ./target/release/del ./
+mv ./target/release/barcode ./
 ```
 
 ## Files Needed
@@ -63,7 +64,7 @@ The sequence format file should be a text file that is line separated by the typ
 <td>[#]</td>
 </tr>
 <tr>
-<td>Building Block Barcode</td>
+<td>Barcode for counting</td>
 <td>{#}</td>
 </tr>
 <tr>
@@ -98,17 +99,17 @@ The building_block_barcode_file is a comma separate file with the following form
 <table>
 <tr>
 <th>Barcode</th>
-<th>BB_ID</th>
-<th>BB_Number</th>
+<th>Barcode_ID</th>
+<th>Barcode_Number</th>
 </tr>
 <tr>
 <td>CAGAGAC</td>
-<td>BB_name_1</td>
+<td>Barcode_name_1</td>
 <td>1</td>
 </tr>
 <tr>
 <td>AACTTAC</td>
-<td>BB_name_2</td>
+<td>Barcode_name_2</td>
 <td>3</td>
 </tr>
 </table>
@@ -118,16 +119,16 @@ at 1. For example, if there are a total of 3 building block barcodes in each seq
 representing one of the three building blocks.
 
 ## Run
-After compilation, the `del` binary can be moved anywhere.
+After compilation, the `barcode` binary can be moved anywhere.
 <br>
 <br>
 Run DEL-Decode<br>
 
 ```
-del --fastq <fastq_file> \
+barcode --fastq <fastq_file> \
 	--sample_barcodes <sample_barcode_file> \
 	--sequence_format <sequence_format_file> \
-	--bb_barcodes <building_block_barcode_file> \
+	--barcodes_file <barcodes_file> \
 	--output_dir <output_dir> \
 	--prefix <file_prefix> \
 	--threads <num_of_threads> \
@@ -137,7 +138,7 @@ del --fastq <fastq_file> \
 <br>
 <ul>
 <li>
---bb_barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
+--barcodes_file is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
 </li>
 <li>
 --sample_barcodes is optional.  If it is not used, all samples are marked as unknown.
@@ -160,49 +161,49 @@ del --fastq <fastq_file> \
 Each sample name will get a file in the default format of year-month-day_<sample_name>_counts.csv in the following format (for 3 building blocks):
 <table>
 <tr>
-<th>BB_1</th>
-<th>BB_2</th>
-<th>BB_3</th>
+<th>Barcode_1</th>
+<th>Barcode_2</th>
+<th>Barcode_3</th>
 <th>Count</th>
 </tr>
 <tr>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
 <td>#</td>
 </tr>
 <tr>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
 <td>#</td>
 </tr>
 </table>
 
-Where BB_ID is used if there is a building block conversion file, otherwise the DNA code is used. `#` represents the count number<br><br>
+Where Barcode_ID is used if there is a building block conversion file, otherwise the DNA code is used. `#` represents the count number<br><br>
 If `--merge_output` is called, an additional file is created with the format (for 3 samples):
 
 <table>
 <tr>
-<th>BB_1</th>
-<th>BB_2</th>
-<th>BB_3</th>
+<th>Barcode_1</th>
+<th>Barcode_2</th>
+<th>Barcode_3</th>
 <th>Sample_1</th>
 <th>Sample_2</th>
 <th>Sample_3</th>
 </tr>
 <tr>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
 <td>#</td>
 <td>#</td>
 <td>#</td>
 </tr>
 <tr>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
-<td>BB_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
+<td>Barcode_ID/DNA code</td>
 <td>#</td>
 <td>#</td>
 <td>#</td>
