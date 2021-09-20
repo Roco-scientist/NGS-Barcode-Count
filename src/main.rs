@@ -80,7 +80,10 @@ fn main() {
         let exit_clone = Arc::clone(&exit);
         let fastq = args.fastq.clone();
         s.spawn(move |_| {
-            barcode::read_fastq(fastq, seq_clone, exit_clone).unwrap();
+            barcode::read_fastq(fastq, seq_clone, exit_clone).unwrap_or_else(|err| {
+                *finished_clone.lock().unwrap() = true;
+                panic!("Error: {}", err)
+            });
             *finished_clone.lock().unwrap() = true;
         });
 
@@ -180,7 +183,7 @@ impl Args {
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
-        .version("0.4.1")
+        .version("0.5.0")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts barcodes located in sequencing data")
         .arg(

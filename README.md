@@ -1,5 +1,5 @@
 # NGS-Barcode-Count
-Counts barcodes from next generation sequencing data.  Works for DEL (DNA encoded libraries), high throughput CRISPR sequencing, barcode sequencing.  If the barcode file is included, the program will convert to barcode names and correct for errors.<br>
+Counts barcodes from next generation sequencing data.  Works for DEL (DNA encoded libraries), high throughput CRISPR sequencing, barcode sequencing.  If the barcode file is included, the program will convert to barcode names and correct for errors. If a random barcode is included, duplicates will not be counted.<br>
 <br>
 Multithreaded and low resource use.  Uses one thread to read and the rest to process the data, so at least a 2 threaded machine is essential.
 This program does not store all data within RAM but instead sequentially processes the sequencing data in order to remain memory efficient.  
@@ -240,10 +240,15 @@ If `--merge_output` is called, an additional file is created with the format (fo
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in just under 1 hour and 20 minutes.
 Results below:
 ```
-Total sequences: 418770000
-Constant Region Mismatches: 173770206
-Sample Barcode Mismatches: 1597170
-Barcode Mismatches: 4520082
+Total sequences:             418770347
+Correctly matched sequences: 238628797
+Constant Region Mismatches:  173770206
+Sample Barcode Mismatches:   1828802
+Barcode Mismatches:          4542542
+Duplicates:                  0
+
+Compute time: 75 minutes
+
 Writing counts
-Total time: 78 minutes
+Total time: 81 minutes
 ```

@@ -113,7 +113,7 @@ impl SequenceErrors {
     /// ```
     pub fn display(&mut self) {
         println!(
-            "Correctly matched sequences: {}\nConstant Region Mismatches:  {}\nSample Barcode Mismatches:   {}\nBarcode Mismatches:          {}\nDuplicates:                  {}",
+            "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}",
             self.matched, self.constant_region, self.sample_barcode, self.barcode, self.duplicates
         )
     }
