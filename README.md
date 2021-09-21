@@ -27,7 +27,7 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-### Del-Decode downoaded and compiled
+### NGS-Barcode-Count downoaded and compiled
 
 ```
 git clone https://github.com/Roco-scientist/NGS-Barcode-Count
