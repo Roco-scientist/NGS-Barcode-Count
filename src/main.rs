@@ -125,7 +125,6 @@ fn main() {
     // Print sequencing error counts to stdout
     sequence_errors.lock().unwrap().display();
 
-    println!();
     // Get the end time and print compute time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 3 {
@@ -137,9 +136,10 @@ fn main() {
             println!("Compute time: {} seconds", elapsed_time.as_secs())
         }
     }
-
     println!();
+
     println!("Writing counts");
+    println!();
     barcode::output_counts(
         args.output_dir,
         results,
