@@ -206,16 +206,20 @@ pub fn output_counts(
     // Create the merge file and push the header, if merged called within arguments
     let merged_file_name = format!("{}{}", prefix, "_counts.all.csv");
     let merged_output_path = directory.join(merged_file_name);
-    let mut merged_output_file = File::create(merged_output_path)?;
+    let mut merged_output_file_option: Option<File> = None;
     // If merged called, create the header with the sample names as columns and write
     if merge_output {
+        merged_output_file_option = Some(File::create(merged_output_path)?);
         let mut merged_header = header.clone();
         for sample_id in &sample_ids {
             merged_header.push_str(",");
             merged_header.push_str(&sample_id);
         }
         merged_header.push_str("\n");
-        merged_output_file.write_all(merged_header.as_bytes())?;
+        merged_output_file_option
+            .as_ref()
+            .unwrap()
+            .write_all(merged_header.as_bytes())?;
     }
 
     // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
@@ -257,7 +261,7 @@ pub fn output_counts(
                     .join(",");
 
                 // If merge output argument is called, pull data for the compound and write to merged file
-                if merge_output {
+                if let Some(ref mut merged_output_file) = merged_output_file_option {
                     // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                     if !compounds_written.contains(code) {
                         // Add the compound to the hashset so that it is not repeated later
@@ -292,7 +296,7 @@ pub fn output_counts(
                 output.write_all(row.as_bytes())?;
 
                 // If merge output argument is called, pull data for the compound and write to merged file
-                if merge_output {
+                if let Some(ref mut merged_output_file) = merged_output_file_option {
                     // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                     if !compounds_written.contains(code) {
                         // Add the compound to the hashset so that it is not repeated later
