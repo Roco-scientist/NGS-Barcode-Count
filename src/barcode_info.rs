@@ -115,7 +115,8 @@ impl SequenceErrors {
         println!(
             "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}",
             self.matched, self.constant_region, self.sample_barcode, self.barcode, self.duplicates
-        )
+        );
+        println!()
     }
 }
 
@@ -160,7 +161,8 @@ impl SequenceFormat {
 
     /// Displays the sequence format information with 'N's replacing all barcodes
     pub fn display_format(&self) -> () {
-        println!("Format: {}", self.format_string)
+        println!("Format: {}", self.format_string);
+        // println!();
     }
 
     /// Returns a Vec of the size of all counted barcodes within the seqeunce format
@@ -573,7 +575,8 @@ impl MaxSeqErrors {
             self.sample_barcode,
             barcode_size_info,
             self.barcode
-        )
+        );
+        println!();
     }
 }
 
