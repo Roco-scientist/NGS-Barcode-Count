@@ -34,12 +34,12 @@ pub fn read_fastq(
 ) -> Result<(), Box<dyn Error>> {
     let fastq_file = File::open(fastq.clone())?; // open file
 
-    let mut line_num = 1; // start line to know that each 2nd of 4 lines is pulled
-                          // If the file is not zipped, proceed.  Still need to work on opening a zipped file
-    let mut total_reads = 0u64;
-    let mut test_fastq_format = true; // setup bool to test the first sequence read to make sure it is a DNA sequence
-    let mut test_first_line = true; // setup bool to test the first read to make sure it is not a DNA sequence
+    // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
+    let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
+
+    // If the file is not gzipped use BufReader to read in lines
     if !fastq.ends_with("fastq.gz") {
+        // If the file does not end with fastq, return with an error
         if !fastq.ends_with("fastq") {
             return Err(Box::new(FastqError::NotFastq));
         }
@@ -47,112 +47,108 @@ pub fn read_fastq(
         // go line by line
         for line_result in BufReader::new(fastq_file).lines() {
             let line = line_result?;
-            if test_first_line {
-                let linetype = test_sequence(&line);
-                match linetype {
-                    LineType::Sequence => return Err(Box::new(FastqError::Line1Seq)),
-                    LineType::Metadata => (),
-                }
-                test_first_line = false
-            }
-            // if it is the sequence line which is line 2
-            if line_num == 2 {
-                // test the first sequence line for whether or not it is a sequence and therefor in the correct format
-                if test_fastq_format {
-                    let linetype = test_sequence(&line);
-                    match linetype {
-                        LineType::Sequence => (),
-                        LineType::Metadata => return Err(Box::new(FastqError::Line2NotSeq)),
-                    }
-                    test_fastq_format = false
-                }
-                // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-                while seq_clone.lock().unwrap().len() >= 10000 {
-                    // if threads have failed exit out of this thread
-                    if *exit_clone.lock().unwrap() {
-                        break;
-                    }
-                }
-                // Insert the sequence into the vec.  This will be popped out by other threads
-                seq_clone.lock().unwrap().insert(0, line);
-                // Add to read count to print numnber of sequences read by this thread
-                total_reads += 1;
-                if total_reads % 1000 == 0 {
-                    print!("Total sequences:             {}\r", total_reads);
-                }
-            }
-
-            // increase line number and if it has passed line 4, reset to 1
-            line_num += 1;
-            if line_num == 5 {
-                line_num = 1
-            }
-
-            // if threads have failed exit out of this thread
-            if *exit_clone.lock().unwrap() {
-                break;
-            }
+            // post the line to the shared vector and keep track of the number of sequences etc
+            fastq_line_reader.read_and_post(line)?;
         }
     } else {
-        println!();
         println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file\n");
+        println!();
+        // stream in first by decoding with GzDecoder, the reading into buffer
         let mut reader = BufReader::new(GzDecoder::new(fastq_file));
 
-        // go line by line
-        // reader.read_line(&mut line);
+        // artificially set the read response to 10.  The first number does not matter
         let mut read_response = 10;
+        // continue reading until there is a response of 0, which indicates the end of file.  This may be where some gzipped files abrupty end
         while read_response != 0 {
             let mut line = String::new();
+            // move the read line to the line variable and get the response to check if it is 0 and therefore the file is done
             read_response = reader.read_line(&mut line)?;
-            // Test the first line for whether or not it is sequence data.  It should be metadata for FASTQ formats
-            if test_first_line {
-                let linetype = test_sequence(&line);
-                match linetype {
-                    LineType::Sequence => return Err(Box::new(FastqError::Line1Seq)),
-                    LineType::Metadata => (),
-                }
-                test_first_line = false
-            }
-            // if it is the sequence line which is line 2
-            if line_num == 2 {
-                // test the first sequence line for whether or not it is a sequence and therefor in the correct format
-                if test_fastq_format {
-                    let linetype = test_sequence(&line);
-                    match linetype {
-                        LineType::Sequence => (),
-                        LineType::Metadata => return Err(Box::new(FastqError::Line2NotSeq)),
-                    }
-                    test_fastq_format = false
-                }
-                // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-                while seq_clone.lock().unwrap().len() >= 10000 {
-                    // if threads have failed exit out of this thread
-                    if *exit_clone.lock().unwrap() {
-                        break;
-                    }
-                }
-                // Insert the sequence into the vec.  This will be popped out by other threads
-                seq_clone.lock().unwrap().insert(0, line.clone());
-                // Add to read count to print numnber of sequences read by this thread
-                total_reads += 1;
-                if total_reads % 1000 == 0 {
-                    print!("Total sequences:             {}\r", total_reads);
-                }
-            }
-
-            // increase line number and if it has passed line 4, reset to 1
-            line_num += 1;
-            if line_num == 5 {
-                line_num = 1
-            }
-            if *exit_clone.lock().unwrap() {
-                break;
-            }
+            // post the line to the shared vector and keep track of the number of sequences etc
+            fastq_line_reader.read_and_post(line)?;
         }
     }
-    print!("Total sequences:             {}\r", total_reads);
+    // Display the final total read count
+    fastq_line_reader.display_total_reads();
     println!();
     Ok(())
+}
+
+/// A struct with functions for keeping track of read information and to post sequence lines to the shared vector
+struct FastqLineReader {
+    test_first_line: bool, // whether or not to keep testing line 1 as a sequence or metadata
+    test_fastq_format: bool, // whether or not to test line 2, which should be a sequence
+    line_num: u8,          // the current line number 1-4.  Resets back to 1
+    total_reads: u64,      // total sequences read within the fastq file
+    seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
+    exit_clone: Arc<Mutex<bool>>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
+}
+
+impl FastqLineReader {
+    /// Creates a new FastqLineReader struct
+    pub fn new(
+        seq_clone: Arc<Mutex<Vec<String>>>,
+        exit_clone: Arc<Mutex<bool>>,
+    ) -> FastqLineReader {
+        FastqLineReader {
+            test_first_line: true,
+            test_fastq_format: true,
+            line_num: 1,
+            total_reads: 0,
+            seq_clone,
+            exit_clone,
+        }
+    }
+
+    /// Reads in the line and either passes to the vec or discards it, depending if it is a sequence line.  Also increments on line count, sequence count etc.
+    pub fn read_and_post(&mut self, line: String) -> Result<(), Box<dyn Error>> {
+        // Test the first line for whether or not it is sequence data.  It should be metadata for FASTQ formats
+        if self.test_first_line {
+            let linetype = test_sequence(&line);
+            match linetype {
+                LineType::Sequence => return Err(Box::new(FastqError::Line1Seq)),
+                LineType::Metadata => (),
+            }
+            self.test_first_line = false
+        }
+        // if it is the sequence line which is line 2
+        if self.line_num == 2 {
+            // test the first sequence line for whether or not it is a sequence and therefor in the correct format
+            if self.test_fastq_format {
+                let linetype = test_sequence(&line);
+                match linetype {
+                    LineType::Sequence => (),
+                    LineType::Metadata => return Err(Box::new(FastqError::Line2NotSeq)),
+                }
+                self.test_fastq_format = false
+            }
+            // Pause if there are already 10000 sequences in the vec so memory is not overloaded
+            while self.seq_clone.lock().unwrap().len() >= 10000 {
+                // if threads have failed exit out of this thread
+                if *self.exit_clone.lock().unwrap() {
+                    break;
+                }
+            }
+            // Insert the sequence into the vec.  This will be popped out by other threads
+            self.seq_clone.lock().unwrap().insert(0, line.clone());
+            // Add to read count to print numnber of sequences read by this thread
+            self.total_reads += 1;
+            if self.total_reads % 1000 == 0 {
+                self.display_total_reads();
+            }
+        }
+
+        // increase line number and if it has passed line 4, reset to 1
+        self.line_num += 1;
+        if self.line_num == 5 {
+            self.line_num = 1
+        }
+        Ok(())
+    }
+
+    /// Displays the total reads so far.  Used while reading to incrementally display, then used after finished reading the file to display total sequences that were read
+    pub fn display_total_reads(&self) -> () {
+        print!("Total sequences:             {}\r", self.total_reads);
+    }
 }
 
 /// An enum of linetype to use with test_sequence.  Every line of a FASTQ should either be sequence or metadata for the sequence.
