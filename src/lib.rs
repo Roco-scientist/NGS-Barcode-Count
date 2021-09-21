@@ -168,7 +168,8 @@ fn test_sequence(sequence: &String) -> LineType {
     let guanines = sequence.matches("G").count();
     let cytosines = sequence.matches("C").count();
     let thymines = sequence.matches("T").count();
-    let total_dna = adenines + guanines + cytosines + thymines;
+    let any = sequence.matches("N").count();
+    let total_dna = adenines + guanines + cytosines + thymines + any;
     // Check if less than half of the line contains DNA nucleotides.  If so, return that the line is metadata.  Otherwise, a sequence
     if total_dna < sequence_length / 2 {
         return LineType::Metadata;
