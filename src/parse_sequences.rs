@@ -142,7 +142,7 @@ pub fn parse(
 /// Does a regex search and captures the barcodes.  Converts the sample barcode to ID.  Returns a String with commas between Sample_ID and
 /// building block barcodes.  This is used as a key within the results vector, where the value can be used as the count
 fn match_seq(
-    sequence: &String,
+    sequence: &str,
     sequence_format_clone: &crate::barcode_info::SequenceFormat,
     samples_clone: &Option<HashMap<String, String>>,
     sequence_errors_clone: &Arc<Mutex<super::barcode_info::SequenceErrors>>,
@@ -151,20 +151,20 @@ fn match_seq(
     max_errors_clone: &mut crate::barcode_info::MaxSeqErrors,
 ) -> Result<Option<(String, String, Option<String>)>, Box<dyn Error>> {
     // find the barcodes with the reges search
-    let mut barcode_search = sequence_format_clone.format_regex.captures(&sequence);
+    let mut barcode_search = sequence_format_clone.format_regex.captures(sequence);
 
     // If the barcode search results in None, try and fix the constant regions
     let fixed_sequence;
     if barcode_search.is_none() {
         let fixed_sequence_option = fix_constant_region(
-            &sequence,
+            sequence,
             &sequence_format_clone.format_string,
             max_errors_clone.max_constant_errors(),
         )?;
         // If a suitable fix for the constant region was found, recreate the barcode search,
         // otherwise record the constant region error and return None
-        if fixed_sequence_option.is_some() {
-            fixed_sequence = fixed_sequence_option.unwrap();
+        if let Some(fixed_sequence_start) = fixed_sequence_option {
+            fixed_sequence = fixed_sequence_start;
             barcode_search = sequence_format_clone.format_regex.captures(&fixed_sequence);
         } else {
             sequence_errors_clone
@@ -208,7 +208,7 @@ fn match_seq(
             } else {
                 let sample_seq_option = fix_error(
                     &sample_barcode,
-                    &sample_seqs.as_ref().unwrap(),
+                    sample_seqs.as_ref().unwrap(),
                     max_errors_clone.max_sample_errors(),
                 )?;
                 if let Some(sample_seq_new) = sample_seq_option {
@@ -257,24 +257,22 @@ fn match_seq(
                     // If it is the start just push the barcodes DNA barcode, otherwise a comma and the barcodes DNA barcode
                     // This is converted while writing to disk in case the memory size of the conversion would be too large
                     // ie, 6 DNA nucleotides takes up less memory than a long SMIILES string
-                    if x == 0 {
-                        barcodes_string.push_str(&barcodes_seq);
-                    } else {
-                        barcodes_string.push_str(",");
-                        barcodes_string.push_str(&barcodes_seq);
+                    if x != 0 {
+                        barcodes_string.push(',');
                     }
+                    barcodes_string.push_str(&barcodes_seq);
                 }
                 // if all goes well with barcodes_conversion and sample conversion, return Some
-                return Ok(Some((sample_name, barcodes_string, random_barcode_option)));
+                Ok(Some((sample_name, barcodes_string, random_barcode_option)))
             } else {
                 // If there is not a building block conversion file, do not try and fix the barcode errors. Push the raw DNA barcode seqeunces
                 let mut barcodes_string = barcodes["barcode1"].to_string();
                 for x in 1..sequence_format_clone.barcode_num {
                     let barcodes_num = format!("barcode{}", x + 1);
-                    barcodes_string.push_str(",");
+                    barcodes_string.push(',');
                     barcodes_string.push_str(&barcodes[barcodes_num.as_str()]);
                 }
-                return Ok(Some((sample_name, barcodes_string, random_barcode_option)));
+                Ok(Some((sample_name, barcodes_string, random_barcode_option)))
             }
         } else {
             // If the sample barcode was not found record the error and return None
@@ -306,15 +304,15 @@ fn match_seq(
 ///
 /// let max_mismatches = barcode.chars().count() / 5; // allow up to 20% mismatches
 ///
-/// let fixed_error_one = fix_error(&barcode, &possible_barcodes_one_match, max_mismatches).unwrap();
-/// let fixed_error_two = fix_error(&barcode, &possible_barcodes_two_match, max_mismatches).unwrap();
+/// let fixed_error_one = fix_error(barcode, &possible_barcodes_one_match, max_mismatches).unwrap();
+/// let fixed_error_two = fix_error(barcode, &possible_barcodes_two_match, max_mismatches).unwrap();
 ///
 /// assert_eq!(fixed_error_one, Some("AGCAG".to_string()));
 /// assert_eq!(fixed_error_two, None);
 /// ```
 pub fn fix_error(
-    mismatch_seq: &String,
-    possible_seqs: &Vec<String>,
+    mismatch_seq: &str,
+    possible_seqs: &[String],
     mismatches: usize,
 ) -> Result<Option<String>, Box<dyn Error>> {
     let mut best_match = None; // start the best match with None
@@ -356,8 +354,8 @@ pub fn fix_error(
 }
 
 fn fix_constant_region(
-    sequence: &String,
-    constant_clone: &String,
+    sequence: &str,
+    constant_clone: &str,
     max_constant_errors: usize,
 ) -> Result<Option<String>, Box<dyn Error>> {
     // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
@@ -377,7 +375,7 @@ fn fix_constant_region(
         possible_seqs.push(possible_seq);
     }
     // Find the closest match within what was sequenced to the constant region
-    fix_error(&constant_clone, &possible_seqs, max_constant_errors)
+    fix_error(constant_clone, &possible_seqs, max_constant_errors)
 }
 
 /// Fixes the constant region of the sequence by flipping the barcodes into the constant region format string within the locations of the 'N's
@@ -393,7 +391,7 @@ fn fix_constant_region(
 /// let fixed_sequence = insert_barcodes_constant_region(sequence, &sequence_format); // flips in the 'CG' sequencing error
 /// assert_eq!(fixed_sequence, "AGTAGATCTGACGTAGACAGC".to_string())
 /// ```
-pub fn insert_barcodes_constant_region(old_sequence: String, sequence_fix: &String) -> String {
+pub fn insert_barcodes_constant_region(old_sequence: String, sequence_fix: &str) -> String {
     // Start a new string to push to
     let mut fixed_sequence = String::new();
     // Push the correct constant region nucleotides.  If the constant string has an N, push the nucleotides from the original
@@ -405,5 +403,5 @@ pub fn insert_barcodes_constant_region(old_sequence: String, sequence_fix: &Stri
             fixed_sequence.push_str(&new_char.to_string());
         }
     }
-    return fixed_sequence;
+    fixed_sequence
 }

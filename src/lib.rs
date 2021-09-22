@@ -129,7 +129,7 @@ impl FastqLineReader {
                 }
             }
             // Insert the sequence into the vec.  This will be popped out by other threads
-            self.seq_clone.lock().unwrap().insert(0, line.clone());
+            self.seq_clone.lock().unwrap().insert(0, line);
             // Add to read count to print numnber of sequences read by this thread
             self.total_reads += 1;
             if self.total_reads % 1000 == 0 {
@@ -146,7 +146,7 @@ impl FastqLineReader {
     }
 
     /// Displays the total reads so far.  Used while reading to incrementally display, then used after finished reading the file to display total sequences that were read
-    pub fn display_total_reads(&self) -> () {
+    pub fn display_total_reads(&self) {
         print!("Total sequences:             {}\r", self.total_reads);
     }
 }
@@ -158,19 +158,19 @@ enum LineType {
 }
 
 /// Tests whether a line within the file String is a sequence by checking if over half of the line contains DNA neceotide letters
-fn test_sequence(sequence: &String) -> LineType {
+fn test_sequence(sequence: &str) -> LineType {
     let sequence_length = sequence.len(); // the the length of the line
-    let adenines = sequence.matches("A").count(); // And the amount of each DNA nucleotide
-    let guanines = sequence.matches("G").count();
-    let cytosines = sequence.matches("C").count();
-    let thymines = sequence.matches("T").count();
-    let any = sequence.matches("N").count();
+    let adenines = sequence.matches('A').count(); // And the amount of each DNA nucleotide
+    let guanines = sequence.matches('G').count();
+    let cytosines = sequence.matches('C').count();
+    let thymines = sequence.matches('T').count();
+    let any = sequence.matches('N').count();
     let total_dna = adenines + guanines + cytosines + thymines + any;
     // Check if less than half of the line contains DNA nucleotides.  If so, return that the line is metadata.  Otherwise, a sequence
     if total_dna < sequence_length / 2 {
         return LineType::Metadata;
     }
-    return LineType::Sequence;
+    LineType::Sequence
 }
 
 /// Writes counts result to CSV file
@@ -209,10 +209,10 @@ pub fn output_counts(
         merged_output_file_option = Some(File::create(merged_output_path)?);
         let mut merged_header = header.clone();
         for sample_id in &sample_ids {
-            merged_header.push_str(",");
-            merged_header.push_str(&sample_id);
+            merged_header.push(',');
+            merged_header.push_str(sample_id);
         }
-        merged_header.push_str("\n");
+        merged_header.push('\n');
         merged_output_file_option
             .as_ref()
             .unwrap()
@@ -248,7 +248,7 @@ pub fn output_counts(
             for (code, count) in sample_counts_hash.iter() {
                 // Convert the building block DNA barcodes and join them back to comma separated
                 let converted = code
-                    .split(",")
+                    .split(',')
                     .enumerate()
                     .map(|(barcode_index, barcode)| {
                         let actual_barcode_num = barcode_index + 1;
@@ -267,7 +267,7 @@ pub fn output_counts(
                         let mut merged_row = converted.clone();
                         // For every sample, retrieve the count and add to the row with a comma
                         for sample_id in &sample_ids {
-                            merged_row.push_str(",");
+                            merged_row.push(',');
                             merged_row.push_str(
                                 &results_hashmap
                                     .get(sample_id)
@@ -277,7 +277,7 @@ pub fn output_counts(
                                     .to_string(),
                             )
                         }
-                        merged_row.push_str("\n");
+                        merged_row.push('\n');
                         // write to the merged file
                         merged_output_file.write_all(merged_row.as_bytes())?;
                     }
@@ -302,7 +302,7 @@ pub fn output_counts(
                         let mut merged_row = code.clone();
                         // For every sample, retrieve the count and add to the row with a comma
                         for sample_id in &sample_ids {
-                            merged_row.push_str(",");
+                            merged_row.push(',');
                             merged_row.push_str(
                                 &results_hashmap
                                     .get(sample_id)
@@ -312,7 +312,7 @@ pub fn output_counts(
                                     .to_string(),
                             )
                         }
-                        merged_row.push_str("\n");
+                        merged_row.push('\n');
                         // write to the merged file
                         merged_output_file.write_all(merged_row.as_bytes())?;
                     }

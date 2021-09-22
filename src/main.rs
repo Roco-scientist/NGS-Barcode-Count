@@ -1,7 +1,5 @@
 use chrono::Local;
 use clap::{App, Arg};
-use num_cpus;
-use rayon;
 // use rayon::prelude::*;
 use std::{
     collections::HashMap,
@@ -132,13 +130,12 @@ fn main() {
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 3 {
         println!("Compute time: {} milliseconds", elapsed_time.as_millis());
+    } else if elapsed_time.as_secs() > 600 {
+        println!("Compute time: {} minutes", elapsed_time.as_secs() / 60)
     } else {
-        if elapsed_time.as_secs() > 600 {
-            println!("Compute time: {} minutes", elapsed_time.as_secs() / 60)
-        } else {
-            println!("Compute time: {} seconds", elapsed_time.as_secs())
-        }
+        println!("Compute time: {} seconds", elapsed_time.as_secs())
     }
+
     println!();
 
     println!("Writing counts");
@@ -156,12 +153,10 @@ fn main() {
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 3 {
         println!("Total time: {} milliseconds", elapsed_time.as_millis());
+    } else if elapsed_time.as_secs() > 600 {
+        println!("Total time: {} minutes", elapsed_time.as_secs() / 60)
     } else {
-        if elapsed_time.as_secs() > 600 {
-            println!("Total time: {} minutes", elapsed_time.as_secs() / 60)
-        } else {
-            println!("Total time: {} seconds", elapsed_time.as_secs())
-        }
+        println!("Total time: {} seconds", elapsed_time.as_secs())
     }
 }
 
