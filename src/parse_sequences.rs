@@ -7,6 +7,16 @@ use std::{
     },
 };
 
+type CountedBarcode = String;
+type BarcodeID = String;
+type BarcodeBarcodeID = HashMap<CountedBarcode, BarcodeID>;
+type BarcodeNum = usize;
+type BarcodeNumBarcode = HashMap<BarcodeNum, BarcodeBarcodeID>;
+type RandomBarcodes = Vec<String>;
+type BarcodeRandomBarcode = HashMap<CountedBarcode, RandomBarcodes>;
+type SampleName = String;
+type RandomBarcodeHolder = HashMap<SampleName, BarcodeRandomBarcode>;
+
 /// Parses the sequence into its barcodes and converts the sample barcode to ID.
 /// Setup with thread safe variables to allow multithreading.
 /// There is some error correction.  For the constant region, up to 20% error is allowed.
@@ -16,9 +26,9 @@ pub fn parse(
     finished_clone: Arc<AtomicBool>,
     sequence_format_clone: crate::barcode_info::SequenceFormat,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
-    random_barcodes_clone: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
+    random_barcodes_clone: Arc<Mutex<RandomBarcodeHolder>>,
     samples_clone: Option<HashMap<String, String>>,
-    barcodes_clone: Option<HashMap<usize, HashMap<String, String>>>,
+    barcodes_clone: Option<BarcodeNumBarcode>,
     sequence_errors_clone: Arc<Mutex<crate::barcode_info::SequenceErrors>>,
     mut max_errors_clone: crate::barcode_info::MaxSeqErrors,
 ) -> Result<(), Box<dyn Error>> {
@@ -139,6 +149,9 @@ pub fn parse(
     Ok(())
 }
 
+type BarcodeString = String;
+type RandomBarcodeOption = Option<String>;
+
 /// Does a regex search and captures the barcodes.  Converts the sample barcode to ID.  Returns a String with commas between Sample_ID and
 /// building block barcodes.  This is used as a key within the results vector, where the value can be used as the count
 fn match_seq(
@@ -149,7 +162,7 @@ fn match_seq(
     sample_seqs: &Option<Vec<String>>,
     barcodes_seqs_option: &Option<Vec<Vec<String>>>,
     max_errors_clone: &mut crate::barcode_info::MaxSeqErrors,
-) -> Result<Option<(String, String, Option<String>)>, Box<dyn Error>> {
+) -> Result<Option<(SampleName, BarcodeString, RandomBarcodeOption)>, Box<dyn Error>> {
     // find the barcodes with the reges search
     let mut barcode_search = sequence_format_clone.format_regex.captures(sequence);
 
