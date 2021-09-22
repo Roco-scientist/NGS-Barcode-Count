@@ -9,7 +9,10 @@ use std::{
     fs::File,
     io::{BufRead, BufReader, Write},
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use itertools::Itertools;
@@ -30,7 +33,7 @@ custom_error! {FastqError
 pub fn read_fastq(
     fastq: String,
     seq_clone: Arc<Mutex<Vec<String>>>,
-    exit_clone: Arc<Mutex<bool>>,
+    exit_clone: Arc<AtomicBool>,
 ) -> Result<(), Box<dyn Error>> {
     let fastq_file = File::open(fastq.clone())?; // open file
 
@@ -80,15 +83,12 @@ struct FastqLineReader {
     line_num: u8,          // the current line number 1-4.  Resets back to 1
     total_reads: u64,      // total sequences read within the fastq file
     seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
-    exit_clone: Arc<Mutex<bool>>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
+    exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
 
 impl FastqLineReader {
     /// Creates a new FastqLineReader struct
-    pub fn new(
-        seq_clone: Arc<Mutex<Vec<String>>>,
-        exit_clone: Arc<Mutex<bool>>,
-    ) -> FastqLineReader {
+    pub fn new(seq_clone: Arc<Mutex<Vec<String>>>, exit_clone: Arc<AtomicBool>) -> FastqLineReader {
         FastqLineReader {
             test_first_line: true,
             test_fastq_format: true,
@@ -124,7 +124,7 @@ impl FastqLineReader {
             // Pause if there are already 10000 sequences in the vec so memory is not overloaded
             while self.seq_clone.lock().unwrap().len() >= 10000 {
                 // if threads have failed exit out of this thread
-                if *self.exit_clone.lock().unwrap() {
+                if self.exit_clone.load(Ordering::Relaxed) {
                     break;
                 }
             }

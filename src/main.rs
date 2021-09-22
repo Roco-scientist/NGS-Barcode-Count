@@ -6,7 +6,10 @@ use rayon;
 use std::{
     collections::HashMap,
     error::Error,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::Instant,
 };
 
@@ -52,7 +55,7 @@ fn main() {
     let sequence_errors = Arc::new(Mutex::new(barcode::barcode_info::SequenceErrors::new()));
 
     // Create a passed exit passed variable to stop reading when a thread has panicked
-    let exit = Arc::new(Mutex::new(false));
+    let exit = Arc::new(AtomicBool::new(false));
 
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
     let mut max_errors = barcode::barcode_info::MaxSeqErrors::new(
@@ -72,7 +75,7 @@ fn main() {
         // Create a sequence vec which will have sequences entered by the reading thread, and sequences removed by the processing threads
         let seq = Arc::new(Mutex::new(Vec::new()));
         // Create a passed variable to let the processing threads know the reading thread is done
-        let finished = Arc::new(Mutex::new(false));
+        let finished = Arc::new(AtomicBool::new(false));
 
         // Clone variables that are needed to be passed into the reading thread and create the reading thread
         let seq_clone = Arc::clone(&seq);
@@ -81,10 +84,10 @@ fn main() {
         let fastq = args.fastq.clone();
         s.spawn(move |_| {
             barcode::read_fastq(fastq, seq_clone, exit_clone).unwrap_or_else(|err| {
-                *finished_clone.lock().unwrap() = true;
+                finished_clone.store(true, Ordering::Relaxed);
                 panic!("Error: {}", err)
             });
-            *finished_clone.lock().unwrap() = true;
+            finished_clone.store(true, Ordering::Relaxed);
         });
 
         // Create processing threads.  One less than the total threads because of the single reading thread
@@ -98,7 +101,7 @@ fn main() {
             let samples_clone = samples_hashmap_option.clone();
             let barcodes_clone = barcodes_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
-            let exit_clone = Arc::clone(&exit);
+            let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
 
             // Create a processing thread
@@ -115,7 +118,7 @@ fn main() {
                     max_errors_clone,
                 )
                 .unwrap_or_else(|err| {
-                    *exit_clone.lock().unwrap() = true;
+                    exit_clone.store(true, Ordering::Relaxed);
                     panic!("Compute thread panic error: {}", err)
                 });
             })

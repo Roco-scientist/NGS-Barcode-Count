@@ -1,7 +1,10 @@
 use std::{
     collections::HashMap,
     error::Error,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
 };
 
 /// Parses the sequence into its barcodes and converts the sample barcode to ID.
@@ -10,7 +13,7 @@ use std::{
 /// It finds the best match among possible candidates.  If there are two best matches, then it leads to an error recorded and no count
 pub fn parse(
     seq_clone: Arc<Mutex<Vec<String>>>,
-    finished_clone: Arc<Mutex<bool>>,
+    finished_clone: Arc<AtomicBool>,
     sequence_format_clone: crate::barcode_info::SequenceFormat,
     results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
     random_barcodes_clone: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
@@ -50,12 +53,12 @@ pub fn parse(
     loop {
         // If there are no sequences in seq_clone, pause, unless the reader thread is finished
         while seq_clone.lock().unwrap().is_empty() {
-            if *finished_clone.lock().unwrap() {
+            if finished_clone.load(Ordering::Relaxed) {
                 break;
             }
         }
         // If thre are no sequences and the reader thread is finished, break out of the loop
-        if seq_clone.lock().unwrap().is_empty() && *finished_clone.lock().unwrap() {
+        if seq_clone.lock().unwrap().is_empty() && finished_clone.load(Ordering::Relaxed) {
             break;
         }
 

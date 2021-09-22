@@ -160,7 +160,7 @@ impl SequenceFormat {
     }
 
     /// Displays the sequence format information with 'N's replacing all barcodes
-    pub fn display_format(&self) -> () {
+    pub fn display_format(&self) {
         println!("Format: {}", self.format_string);
         // println!();
     }
