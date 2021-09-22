@@ -139,7 +139,7 @@ impl SequenceFormat {
         // Read sequenc format file to string
         let format_data = fs::read_to_string(format)?
             .lines() // split into lines
-            .filter(|line| !line.starts_with("#")) // remove any line that starts with '#'
+            .filter(|line| !line.starts_with('#')) // remove any line that starts with '#'
             .collect::<String>(); // collect into a String
 
         let regex_string = build_regex_captures(&format_data)?; // Build the regex string from the input format file information
@@ -160,7 +160,7 @@ impl SequenceFormat {
     }
 
     /// Displays the sequence format information with 'N's replacing all barcodes
-    pub fn display_format(&self) -> () {
+    pub fn display_format(&self) {
         println!("Format: {}", self.format_string);
         // println!();
     }
@@ -200,16 +200,16 @@ impl SequenceFormat {
                 .unwrap()
                 .as_str()
                 .parse::<usize>()?;
-            return Ok(Some(digits));
+            Ok(Some(digits))
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 
     /// Returns the amount of nucleotides within the constant regions from the format file
     pub fn constant_region_length(&self) -> usize {
         // Get the full length of the format_string and subtract the amount of 'N's found to get the constant nucleotide count
-        self.format_string.len() - self.format_string.matches("N").count()
+        self.format_string.len() - self.format_string.matches('N').count()
     }
 }
 
@@ -223,7 +223,7 @@ impl SequenceFormat {
 ///
 /// assert_eq!(build_format_string(&format_data).unwrap(),  "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string())
 /// ```
-pub fn build_format_string(format_data: &String) -> Result<String, Box<dyn Error>> {
+pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     let mut final_format = String::new();
@@ -233,7 +233,7 @@ pub fn build_format_string(format_data: &String) -> Result<String, Box<dyn Error
         if let Some(digit) = digits_option {
             let digit_value = digit.as_str().parse::<usize>()?;
             for _ in 0..digit_value {
-                final_format.push_str("N")
+                final_format.push('N')
             }
         } else {
             final_format.push_str(group_str)
@@ -252,7 +252,7 @@ pub fn build_format_string(format_data: &String) -> Result<String, Box<dyn Error
 ///
 /// assert_eq!(build_regex_captures(&format_data).unwrap(),  "(?P<sample>.{8})AGCTAGATC(?P<barcode1>.{6})TGGA(?P<barcode2>.{6})TGGA(?P<barcode3>.{6})TGATTGCGC(?P<random>.{6}).{4}AT".to_string())
 /// ```
-pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Error>> {
+pub fn build_regex_captures(format_data: &str) -> Result<String, Box<dyn Error>> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     // the previous does not bumber each barcode but names each caputre with barcode#
@@ -263,21 +263,18 @@ pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Erro
     for group in barcode_search.find_iter(format_data) {
         let group_str = group.as_str();
         let mut group_name_option = None;
-        if group_str.contains("[") {
+        if group_str.contains('[') {
             group_name_option = Some("sample".to_string())
-        } else {
-            if group_str.contains("{") {
-                barcode_num += 1;
-                group_name_option = Some(format!("barcode{}", barcode_num));
-            } else {
-                if group_str.contains("(") {
-                    group_name_option = Some("random".to_string());
-                }
-            }
+        } else if group_str.contains('{') {
+            barcode_num += 1;
+            group_name_option = Some(format!("barcode{}", barcode_num));
+        } else if group_str.contains('(') {
+            group_name_option = Some("random".to_string());
         }
+
         if let Some(group_name) = group_name_option {
             let digits = digit_search
-                .captures(&group_str)
+                .captures(group_str)
                 .unwrap()
                 .get(0)
                 .unwrap()
@@ -289,32 +286,30 @@ pub fn build_regex_captures(format_data: &String) -> Result<String, Box<dyn Erro
             capture_group.push_str(&digits.to_string());
             capture_group.push_str("})");
             final_format.push_str(&capture_group);
+        } else if group_str.contains('N') {
+            let num_of_ns = group_str.matches('N').count();
+            let mut n_group = ".{".to_string();
+            n_group.push_str(&num_of_ns.to_string());
+            n_group.push('}');
+            final_format.push_str(&n_group);
         } else {
-            if group_str.contains("N") {
-                let num_of_ns = group_str.matches("N").count();
-                let mut n_group = ".{".to_string();
-                n_group.push_str(&num_of_ns.to_string());
-                n_group.push('}');
-                final_format.push_str(&n_group);
-            } else {
-                final_format.push_str(&group_str.to_uppercase())
-            }
+            final_format.push_str(&group_str.to_uppercase())
         }
     }
-    return Ok(final_format);
+    Ok(final_format)
 }
 
 /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
 /// and the second needs to be the ID
 pub fn sample_barcode_file_conversion(
-    barcode_path: &String,
+    barcode_path: &str,
 ) -> Result<HashMap<String, String>, Box<dyn Error>> {
     // read in the sample barcode file
     let barcode_data: HashMap<String, String> = fs::read_to_string(barcode_path)?
         .lines() // split the lines
         .skip(1) // skip the first line which should be the header
         .map(|line| {
-            line.split(",")
+            line.split(',')
                 .take(2) // take only the first two values, or columns
                 .map(|value| value.to_string())
                 .collect_tuple()
@@ -335,7 +330,7 @@ pub fn sample_barcode_file_conversion(
 /// This panics if the third column of the barcode conversion file does not contain integers.  Also
 /// panics if not all integers for barcode numbers is within this columns
 pub fn barcode_file_conversion(
-    barcode_path: &String,
+    barcode_path: &str,
     barcode_num: usize,
 ) -> Result<HashMap<usize, HashMap<String, String>>, Box<dyn Error>> {
     // read in the sample barcode file
@@ -343,7 +338,7 @@ pub fn barcode_file_conversion(
         .lines() // split the lines
         .skip(1) // skip the first line which should be the header
         .map(|line| {
-            line.split(",")
+            line.split(',')
                 .take(3) // take only the first three values, or columns
                 .map(|value| value.to_string())
                 .collect_tuple()
@@ -359,10 +354,11 @@ pub fn barcode_file_conversion(
         if !barcode_num_contained.contains(&barcode_num_usize) {
             barcode_num_contained.push(barcode_num_usize)
         };
-        if !barcode_data.contains_key(&barcode_num_usize) {
+        if let std::collections::hash_map::Entry::Vacant(e) = barcode_data.entry(barcode_num_usize)
+        {
             let mut intermediate_hash = HashMap::new();
             intermediate_hash.insert(barcode, id);
-            barcode_data.insert(barcode_num_usize, intermediate_hash);
+            e.insert(intermediate_hash);
         } else {
             barcode_data
                 .get_mut(&barcode_num_usize)
