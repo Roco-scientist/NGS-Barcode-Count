@@ -481,7 +481,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
     /// ```
-    pub fn max_constant_errors(&mut self) -> usize {
+    pub fn max_constant_errors(&self) -> usize {
         self.constant_region
     }
 
@@ -504,7 +504,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 3);
     /// ```
-    pub fn max_sample_errors(&mut self) -> usize {
+    pub fn max_sample_errors(&self) -> usize {
         self.sample_barcode
     }
 
@@ -527,7 +527,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), 2);
     /// ```
-    pub fn max_barcode_errors(&mut self) -> usize {
+    pub fn max_barcode_errors(&self) -> usize {
         self.barcode
     }
 

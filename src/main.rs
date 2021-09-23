@@ -104,7 +104,7 @@ fn main() {
 
             // Create a processing thread
             s.spawn(move |_| {
-                barcode::parse_sequences::parse(
+                let mut parser = barcode::parse_sequences::SequenceParser::new(
                     seq_clone,
                     finished_clone,
                     sequence_format_clone,
@@ -114,8 +114,8 @@ fn main() {
                     barcodes_clone,
                     sequence_errors_clone,
                     max_errors_clone,
-                )
-                .unwrap_or_else(|err| {
+                );
+                parser.parse().unwrap_or_else(|err| {
                     exit_clone.store(true, Ordering::Relaxed);
                     panic!("Compute thread panic error: {}", err)
                 });
