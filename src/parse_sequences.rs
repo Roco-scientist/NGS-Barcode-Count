@@ -1,3 +1,4 @@
+use regex::Captures;
 use std::{
     collections::HashMap,
     error::Error,
@@ -30,7 +31,7 @@ pub struct SequenceParser {
     sample_seqs: Option<Vec<String>>,
     barcodes_seqs_option: Option<Vec<Vec<String>>>,
     raw_sequence: RawSequence,
-    seq_match_result_option: Option<SequenceMatchResult>,
+    barcode_groups: Vec<String>,
 }
 
 impl SequenceParser {
@@ -45,6 +46,10 @@ impl SequenceParser {
         sequence_errors_clone: Arc<Mutex<crate::barcode_info::SequenceErrors>>,
         max_errors_clone: crate::barcode_info::MaxSeqErrors,
     ) -> SequenceParser {
+        let mut barcode_groups = Vec::new();
+        for x in 0..sequence_format_clone.barcode_num {
+            barcode_groups.push(format!("barcode{}", x + 1))
+        }
         SequenceParser {
             seq_clone,
             finished_clone,
@@ -58,7 +63,7 @@ impl SequenceParser {
             sample_seqs: None,
             barcodes_seqs_option: None,
             raw_sequence: RawSequence::new("".to_string()),
-            seq_match_result_option: None,
+            barcode_groups,
         }
     }
     pub fn parse(&mut self) -> Result<(), Box<dyn Error>> {
@@ -82,73 +87,37 @@ impl SequenceParser {
             }
 
             self.get_seqeunce();
-            // If this returns a Some value proceed
             if !self.raw_sequence.sequence.is_empty() {
-                // get the result string match from the sequence.  This is a String with commas between sample_ID and builbding block sequences.
-                // This is a convenience for later writing to a file since it will already be comma separated
-                self.match_seq()?;
-                // If the constant region matched proceed to add to results, otherwise try and fix the constant region
-                if let Some(seq_match_result) = &self.seq_match_result_option {
+                if let Some(seq_match_result) = self.match_seq()? {
+                    let barcode_string = seq_match_result.barcode_string();
                     // Alwasy add value unless random barcode is included and it has already been found for the sample and building blocks
                     let mut add_value = true;
+                    let sample_name = seq_match_result.sample_name();
                     // If there is a random barcode included
-                    if let Some(random_barcode) = &seq_match_result.random_barcode_option {
-                        // Unlock the random_hashmap
-                        let mut random_hashmap = self.random_barcodes_clone.lock().unwrap();
-
-                        // If it does not already have the sample name, insert the sample name -> building_block -> random_barcodes
-                        if !random_hashmap.contains_key(&seq_match_result.sample_name) {
-                            let mut intermediate_hashmap = HashMap::new();
-                            let intermediate_vec = vec![random_barcode.to_string()];
-                            intermediate_hashmap
-                                .insert(seq_match_result.barcode_string.clone(), intermediate_vec);
-                            random_hashmap
-                                .insert(seq_match_result.sample_name.clone(), intermediate_hashmap);
-                        } else {
-                            let barcodes_hashmap = random_hashmap
-                                .get_mut(&seq_match_result.sample_name)
-                                .unwrap();
-                            // If the random hashmap does not have the building blocks yet, insert building_block -> random_barcodes
-                            if !barcodes_hashmap.contains_key(&seq_match_result.barcode_string) {
-                                let intermediate_vec = vec![random_barcode.to_string()];
-                                barcodes_hashmap.insert(
-                                    seq_match_result.barcode_string.clone(),
-                                    intermediate_vec,
-                                );
-                            } else {
-                                let random_vec = barcodes_hashmap
-                                    .get_mut(&seq_match_result.barcode_string)
-                                    .unwrap();
-                                // else check if the random barcode already used for the sample_name and building_blocks
-                                // if the random barcode is already in the vector, change add_value to false
-                                // otherqise add the random barcode to the random_barcodes vector
-                                if random_vec.contains(&random_barcode) {
-                                    add_value = false;
-                                    self.sequence_errors_clone.lock().unwrap().duplicated()
-                                } else {
-                                    random_vec.push(random_barcode.to_string())
-                                }
-                            }
-                        }
+                    if let Some(random_barcode) = seq_match_result.random_barcode_option.as_ref() {
+                        add_value = self.count_random_barcode(
+                            &sample_name,
+                            random_barcode.clone(),
+                            &barcode_string,
+                        );
                     }
                     // Add 1 count to the results hashmap
                     if add_value {
                         let mut results_hashmap = self.results_clone.lock().unwrap();
 
                         // If results hashmap does not already contain the sample_name, insert the sanmle_name -> barcodes -> 0
-                        if !results_hashmap.contains_key(&seq_match_result.sample_name) {
+                        if !results_hashmap.contains_key(&sample_name) {
                             let mut intermediate_hashmap = HashMap::new();
-                            intermediate_hashmap.insert(seq_match_result.barcode_string.clone(), 0);
-                            results_hashmap
-                                .insert(seq_match_result.sample_name.clone(), intermediate_hashmap);
+                            intermediate_hashmap.insert(barcode_string.clone(), 0);
+                            results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
                         }
 
                         // Insert 0 if the barcodes is not within the sample_name -> barcodes
                         // Then add one regardless
                         *results_hashmap
-                            .get_mut(&seq_match_result.sample_name)
+                            .get_mut(&sample_name)
                             .unwrap()
-                            .entry(seq_match_result.barcode_string.clone())
+                            .entry(barcode_string.clone())
                             .or_insert(0) += 1;
                         self.sequence_errors_clone.lock().unwrap().correct_match()
                     }
@@ -157,6 +126,45 @@ impl SequenceParser {
         }
         Ok(())
     }
+
+    fn count_random_barcode(
+        &mut self,
+        sample_name: &String,
+        random_barcode: String,
+        barcode_string: &String,
+    ) -> bool {
+        // Unlock the random_hashmap
+        let mut random_hashmap = self.random_barcodes_clone.lock().unwrap();
+
+        // If it does not already have the sample name, insert the sample name -> building_block -> random_barcodes
+        if !random_hashmap.contains_key(sample_name) {
+            let mut intermediate_hashmap = HashMap::new();
+            let intermediate_vec = vec![random_barcode];
+            intermediate_hashmap.insert(barcode_string.clone(), intermediate_vec);
+            random_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+        } else {
+            let barcodes_hashmap = random_hashmap.get_mut(sample_name).unwrap();
+            // If the random hashmap does not have the building blocks yet, insert building_block -> random_barcodes
+            if !barcodes_hashmap.contains_key(barcode_string) {
+                let intermediate_vec = vec![random_barcode];
+                barcodes_hashmap.insert(barcode_string.clone(), intermediate_vec);
+            } else {
+                let random_vec = barcodes_hashmap.get_mut(barcode_string).unwrap();
+                // else check if the random barcode already used for the sample_name and building_blocks
+                // if the random barcode is already in the vector, change add_value to false
+                // otherqise add the random barcode to the random_barcodes vector
+                if random_vec.contains(&random_barcode) {
+                    self.sequence_errors_clone.lock().unwrap().duplicated();
+                    return false;
+                } else {
+                    random_vec.push(random_barcode);
+                    return true;
+                }
+            }
+        }
+        return true;
+    }
+
     fn get_seqeunce(&mut self) {
         // Pop off the last sequence from the seq_clone vec
         if let Some(new_sequence) = self.seq_clone.lock().unwrap().pop() {
@@ -189,7 +197,62 @@ impl SequenceParser {
     }
     /// Does a regex search and captures the barcodes.  Converts the sample barcode to ID.  Returns a String with commas between Sample_ID and
     /// building block barcodes.  This is used as a key within the results vector, where the value can be used as the count
-    fn match_seq(&mut self) -> Result<(), Box<dyn Error>> {
+    fn match_seq(&mut self) -> Result<Option<SequenceMatchResult>, Box<dyn Error>> {
+        self.check_and_fix_consant_region()?;
+
+        // if the barcodes are found continue, else return None and record a constant region error
+        if let Some(barcodes) = self
+            .sequence_format_clone
+            .format_regex
+            .captures(&self.raw_sequence.sequence)
+        {
+            let mut match_results = SequenceMatchResult::new(
+                barcodes,
+                &self.barcode_groups,
+                &self.barcodes_seqs_option,
+                self.max_errors_clone.max_barcode_errors(),
+            )?;
+
+            if match_results.counted_barcode_error {
+                self.sequence_errors_clone.lock().unwrap().barcode_error();
+                return Ok(None);
+            }
+            // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
+            if match_results.sample_barcode_option.is_some() {
+                match_results.convert_sample_barcode(self.samples_clone.as_ref());
+            } else {
+                match_results.set_sample_name_to_unknown();
+            }
+            // If sample name conversion was not able to find a barcode and convert
+            if match_results.sample_name_option.is_none() {
+                // Fix the sample barcode with the known seqeunces
+                match_results.fix_sample_barcode(
+                    self.sample_seqs.as_ref().unwrap(),
+                    self.max_errors_clone.max_sample_errors(),
+                )?;
+                // If there wasn't a suitable fix
+                if match_results.sample_barcode_option.is_none() {
+                    // Record the error and finish looking within this sequence
+                    self.sequence_errors_clone
+                        .lock()
+                        .unwrap()
+                        .sample_barcode_error();
+                    return Ok(None);
+                }
+                // Convert the fixed sample sequence
+                match_results.convert_sample_barcode(self.samples_clone.as_ref());
+            }
+            Ok(Some(match_results))
+        } else {
+            // If the constant region was not found, record the error and return None
+            self.sequence_errors_clone
+                .lock()
+                .unwrap()
+                .constant_region_error();
+            Ok(None)
+        }
+    }
+    fn check_and_fix_consant_region(&mut self) -> Result<(), Box<dyn Error>> {
         if !self
             .sequence_format_clone
             .format_regex
@@ -200,144 +263,7 @@ impl SequenceParser {
                 self.max_errors_clone.max_constant_errors(),
             )?;
         }
-        // find the barcodes with the reges search
-        let barcode_search = self
-            .sequence_format_clone
-            .format_regex
-            .captures(&self.raw_sequence.sequence);
-
-        // if the barcodes are found continue, else return None and record a constant region error
-        if let Some(barcodes) = barcode_search {
-            // Look for sample conversion
-            let sample_barcode_match_option = barcodes.name("sample");
-            let sample_barcode_option;
-            // If there is a sample barcode included, save it to the sample barcode option variable
-            // Otherwise record None and it will be ignored
-            if let Some(sample_barcode) = sample_barcode_match_option {
-                sample_barcode_option = Some(sample_barcode.as_str().to_string())
-            } else {
-                sample_barcode_option = None
-            }
-
-            // look for random barcode
-            let random_barcode_match_option = barcodes.name("random");
-            let random_barcode_option;
-
-            // If there is a random barcode included, save it to the random barcode option variable
-            // Otherwise record None and it will be ignored
-            if let Some(random_barcode) = random_barcode_match_option {
-                random_barcode_option = Some(random_barcode.as_str().to_string())
-            } else {
-                random_barcode_option = None
-            }
-
-            // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
-            let sample_name_option;
-            if let Some(sample_barcode) = sample_barcode_option {
-                if let Some(sample) = self.samples_clone.as_ref().unwrap().get(&sample_barcode) {
-                    sample_name_option = Some(sample.to_string())
-                } else {
-                    let sample_seq_option = fix_error(
-                        &sample_barcode,
-                        self.sample_seqs.as_ref().unwrap(),
-                        self.max_errors_clone.max_sample_errors(),
-                    )?;
-                    if let Some(sample_seq_new) = sample_seq_option {
-                        sample_name_option = Some(
-                            self.samples_clone
-                                .as_ref()
-                                .unwrap()
-                                .get(&sample_seq_new)
-                                .unwrap()
-                                .to_string(),
-                        );
-                    } else {
-                        // if sample barcode cannot be fixed, record the error
-                        self.sequence_errors_clone
-                            .lock()
-                            .unwrap()
-                            .sample_barcode_error();
-                        self.seq_match_result_option = None;
-                        return Ok(());
-                    }
-                }
-            } else {
-                // If there is not a sample barcode, record the sample name as Unknown sample
-                sample_name_option = Some("Unknown_sample_name".to_string())
-            }
-            // If the sample barcode -> ID is found, add the building block suquences to the result string.  Otherwise, return None
-            if let Some(sample_name) = sample_name_option {
-                // if there is a building block conversion file used, convert
-                if let Some(barcodes_seqs) = &self.barcodes_seqs_option {
-                    let mut barcodes_string = String::new();
-                    // fore each building block, convert and add as comma separated to a key text for results hashmap
-                    for x in 0..self.sequence_format_clone.barcode_num {
-                        let mut barcodes_seq =
-                            barcodes[format!("barcode{}", x + 1).as_str()].to_string();
-                        // If the building block sequence does not exists within the conversion file, try and fix
-                        // If it cannnot fix the sequence, add to barcode_error
-                        if !barcodes_seqs[x].contains(&barcodes_seq) {
-                            let barcodes_seq_fix_option = fix_error(
-                                &barcodes_seq,
-                                &barcodes_seqs[x],
-                                self.max_errors_clone.max_barcode_errors(),
-                            )?;
-                            if let Some(barcodes_seq_fix) = barcodes_seq_fix_option {
-                                barcodes_seq = barcodes_seq_fix
-                            } else {
-                                self.sequence_errors_clone.lock().unwrap().barcode_error();
-                                self.seq_match_result_option = None;
-                                return Ok(());
-                            }
-                        }
-                        // If it is the start just push the barcodes DNA barcode, otherwise a comma and the barcodes DNA barcode
-                        // This is converted while writing to disk in case the memory size of the conversion would be too large
-                        // ie, 6 DNA nucleotides takes up less memory than a long SMIILES string
-                        if x != 0 {
-                            barcodes_string.push(',');
-                        }
-                        barcodes_string.push_str(&barcodes_seq);
-                    }
-                    // if all goes well with barcodes_conversion and sample conversion, return Some
-                    self.seq_match_result_option = Some(SequenceMatchResult::new(
-                        sample_name,
-                        barcodes_string,
-                        random_barcode_option,
-                    ));
-                    Ok(())
-                } else {
-                    // If there is not a building block conversion file, do not try and fix the barcode errors. Push the raw DNA barcode seqeunces
-                    let mut barcodes_string = barcodes["barcode1"].to_string();
-                    for x in 1..self.sequence_format_clone.barcode_num {
-                        let barcodes_num = format!("barcode{}", x + 1);
-                        barcodes_string.push(',');
-                        barcodes_string.push_str(&barcodes[barcodes_num.as_str()]);
-                    }
-                    self.seq_match_result_option = Some(SequenceMatchResult::new(
-                        sample_name,
-                        barcodes_string,
-                        random_barcode_option,
-                    ));
-                    Ok(())
-                }
-            } else {
-                // If the sample barcode was not found record the error and return None
-                self.sequence_errors_clone
-                    .lock()
-                    .unwrap()
-                    .sample_barcode_error();
-                self.seq_match_result_option = None;
-                Ok(())
-            }
-        } else {
-            // If the constant region was not found, record the error and return None
-            self.sequence_errors_clone
-                .lock()
-                .unwrap()
-                .constant_region_error();
-            self.seq_match_result_option = None;
-            Ok(())
-        }
+        Ok(())
     }
 }
 
@@ -401,21 +327,100 @@ impl RawSequence {
 }
 
 struct SequenceMatchResult {
-    sample_name: String,
-    barcode_string: String,
+    sample_barcode_option: Option<String>,
+    counted_barcodes: Vec<String>,
+    pub counted_barcode_error: bool,
+    sample_name_option: Option<String>,
     random_barcode_option: Option<String>,
 }
 
 impl SequenceMatchResult {
     pub fn new(
-        sample_name: String,
-        barcode_string: String,
-        random_barcode_option: Option<String>,
-    ) -> SequenceMatchResult {
-        SequenceMatchResult {
-            sample_name,
-            barcode_string,
+        barcodes: Captures,
+        barcode_groups: &[String],
+        barcode_seqs_option: &Option<Vec<Vec<String>>>,
+        counted_barcode_max_errors: usize,
+    ) -> Result<SequenceMatchResult, Box<dyn Error>> {
+        let sample_barcode_option;
+        if let Some(sample_barcode) = barcodes.name("sample") {
+            sample_barcode_option = Some(sample_barcode.as_str().to_string());
+        } else {
+            sample_barcode_option = None;
+        }
+        let mut counted_barcode_error = false;
+        let mut counted_barcodes = Vec::new();
+        for (index, barcode_group) in barcode_groups.iter().enumerate() {
+            let mut counted_barcode = barcodes.name(barcode_group).unwrap().as_str().to_string();
+            if let Some(barcode_seqs) = barcode_seqs_option {
+                if !barcode_seqs[index].contains(&counted_barcode) {
+                    let barcode_seq_fix_option = fix_error(
+                        &counted_barcode,
+                        &barcode_seqs[index],
+                        counted_barcode_max_errors,
+                    )?;
+                    if let Some(fixed_barcode) = barcode_seq_fix_option {
+                        counted_barcode = fixed_barcode;
+                    } else {
+                        counted_barcode_error = true;
+                        break;
+                    }
+                }
+            }
+            counted_barcodes.push(counted_barcode);
+        }
+        let random_barcode_option;
+        if let Some(random_barcode_match) = barcodes.name("random") {
+            random_barcode_option = Some(random_barcode_match.as_str().to_string())
+        } else {
+            random_barcode_option = None
+        }
+        Ok(SequenceMatchResult {
+            sample_barcode_option,
+            counted_barcodes,
+            counted_barcode_error,
+            sample_name_option: None,
             random_barcode_option,
+        })
+    }
+    pub fn convert_sample_barcode(
+        &mut self,
+        sample_barcodes_hash: Option<&HashMap<String, String>>,
+    ) {
+        if let Some(sample_barcode) = self.sample_barcode_option.as_ref() {
+            if let Some(sample_hash) = sample_barcodes_hash {
+                if let Some(sample_results) = sample_hash.get(sample_barcode) {
+                    self.sample_name_option = Some(sample_results.to_string())
+                }
+            }
+        }
+    }
+    pub fn fix_sample_barcode(
+        &mut self,
+        sample_barcodes: &[String],
+        max_error: usize,
+    ) -> Result<(), Box<dyn Error>> {
+        self.sample_barcode_option = fix_error(
+            self.sample_barcode_option
+                .as_ref()
+                .unwrap_or(&"".to_string()),
+            sample_barcodes,
+            max_error,
+        )?;
+        Ok(())
+    }
+    pub fn set_sample_name_to_unknown(&mut self) {
+        self.sample_name_option = Some("Unknown_sample_name".to_string())
+    }
+
+    pub fn barcode_string(&self) -> String {
+        self.counted_barcodes.join(",")
+    }
+
+    pub fn sample_name(&self) -> String {
+        if let Some(sample_name_real) = self.sample_name_option.as_ref() {
+            sample_name_real.to_string()
+        } else {
+            "Unknown_sample_name".to_string()
         }
     }
 }
