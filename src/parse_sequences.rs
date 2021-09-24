@@ -94,6 +94,8 @@ impl SequenceParser {
                         );
                         if already_found {
                             self.sequence_errors_clone.lock().unwrap().duplicated();
+                        } else {
+                            self.sequence_errors_clone.lock().unwrap().correct_match()
                         }
                     } else {
                         self.results_clone
