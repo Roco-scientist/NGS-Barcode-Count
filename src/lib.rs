@@ -17,6 +17,7 @@ use std::{
 
 use itertools::Itertools;
 
+// Errors associated with checking the fastq format to make sure it is correct
 custom_error! {FastqError
     NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
     Line2NotSeq = "The second line within the FASTQ file is not a sequence. Check the FASTQ format",
@@ -173,18 +174,49 @@ fn test_sequence(sequence: &str) -> LineType {
     LineType::Sequence
 }
 
-/// Writes counts result to CSV file
-pub fn output_counts(
+/// Outputs the results to a CSV file.  Calls works with a scheme whether or not it contains a random barcode.
+pub fn output_file(
     output_dir: String,
-    results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
+    results_arc: Arc<Mutex<crate::barcode_info::Results>>,
     sequence_format: crate::barcode_info::SequenceFormat,
     barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
     prefix: String,
     merge_output: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let results_hashmap = results.lock().unwrap(); // get the results
+    let results = results_arc.lock().unwrap(); // get the results
+    match results.format_type {
+        // If a random barcode is included use the output_random function.  This counts the number of random barcodes instead of having the added count already
+        crate::barcode_info::FormatType::RandomBarcode => output_random(
+            output_dir,
+            &results.random_hashmap,
+            sequence_format,
+            barcodes_hashmap_option,
+            prefix,
+            merge_output,
+        )?,
+        // If a random barcode is not included use the output_counts function
+        crate::barcode_info::FormatType::NoRandomBarcode => output_counts(
+            output_dir,
+            &results.count_hashmap,
+            sequence_format,
+            barcodes_hashmap_option,
+            prefix,
+            merge_output,
+        )?,
+    }
+    Ok(())
+}
 
-    let mut sample_ids = results_hashmap.keys().cloned().collect::<Vec<String>>();
+/// Writes counts result to CSV file
+fn output_counts(
+    output_dir: String,
+    count_hashmap: &HashMap<String, HashMap<String, u32>>,
+    sequence_format: crate::barcode_info::SequenceFormat,
+    barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
+    prefix: String,
+    merge_output: bool,
+) -> Result<(), Box<dyn Error>> {
+    let mut sample_ids = count_hashmap.keys().cloned().collect::<Vec<String>>();
     sample_ids.sort();
 
     // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
@@ -226,11 +258,11 @@ pub fn output_counts(
     let mut compounds_written = HashSet::new();
     for sample_id in &sample_ids {
         // get the sample results
-        let sample_counts_hash = results_hashmap.get(sample_id).unwrap();
+        let sample_counts_hash = count_hashmap.get(sample_id).unwrap();
 
         let file_name;
         // If no sample names are supplied, save as all counts, otherwise as sample name counts
-        if results_hashmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
+        if count_hashmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
             file_name = format!("{}{}", prefix, "_all_counts.csv");
         } else {
             // create the filename as the sample_id_counts.csv
@@ -269,7 +301,7 @@ pub fn output_counts(
                         for sample_id in &sample_ids {
                             merged_row.push(',');
                             merged_row.push_str(
-                                &results_hashmap
+                                &count_hashmap
                                     .get(sample_id)
                                     .unwrap()
                                     .get(code)
@@ -304,11 +336,161 @@ pub fn output_counts(
                         for sample_id in &sample_ids {
                             merged_row.push(',');
                             merged_row.push_str(
-                                &results_hashmap
+                                &count_hashmap
                                     .get(sample_id)
                                     .unwrap()
                                     .get(code)
                                     .unwrap_or(&0)
+                                    .to_string(),
+                            )
+                        }
+                        merged_row.push('\n');
+                        // write to the merged file
+                        merged_output_file.write_all(merged_row.as_bytes())?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Writes counts result to CSV file when a random barcode is inclduded in the scheme.  It finds the len() of the random barcode vec to associated the number of unique counts
+fn output_random(
+    output_dir: String,
+    random_hashmap: &HashMap<String, HashMap<String, Vec<String>>>,
+    sequence_format: crate::barcode_info::SequenceFormat,
+    barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
+    prefix: String,
+    merge_output: bool,
+) -> Result<(), Box<dyn Error>> {
+    let mut sample_ids = random_hashmap.keys().cloned().collect::<Vec<String>>();
+    sample_ids.sort();
+
+    // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
+    let mut header = String::new();
+    if sequence_format.barcode_num > 1 {
+        let mut header = "Barcode_1".to_string();
+        for num in 1..sequence_format.barcode_num {
+            header.push_str(&format!(",Barcode_{}", num + 1))
+        }
+    } else {
+        header.push_str("Barcode")
+    }
+    // create the directory variable to join the file to
+    let directory = Path::new(&output_dir);
+
+    // Create the merge file and push the header, if merged called within arguments
+    let merged_file_name = format!("{}{}", prefix, "_counts.all.csv");
+    let merged_output_path = directory.join(merged_file_name);
+    let mut merged_output_file_option: Option<File> = None;
+    // If merged called, create the header with the sample names as columns and write
+    if merge_output {
+        merged_output_file_option = Some(File::create(merged_output_path)?);
+        let mut merged_header = header.clone();
+        for sample_id in &sample_ids {
+            merged_header.push(',');
+            merged_header.push_str(sample_id);
+        }
+        merged_header.push('\n');
+        merged_output_file_option
+            .as_ref()
+            .unwrap()
+            .write_all(merged_header.as_bytes())?;
+    }
+
+    // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
+    header.push_str(",Count\n");
+
+    // Create a HashSet for if there is merging to check what compounds have been written to the merged file
+    let mut compounds_written = HashSet::new();
+    for sample_id in &sample_ids {
+        // get the sample results
+        let sample_random_hash = random_hashmap.get(sample_id).unwrap();
+
+        let file_name;
+        // If no sample names are supplied, save as all counts, otherwise as sample name counts
+        if random_hashmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
+            file_name = format!("{}{}", prefix, "_all_counts.csv");
+        } else {
+            // create the filename as the sample_id_counts.csv
+            file_name = format!("{}_{}{}", prefix, sample_id, "_counts.csv");
+        }
+        // join the filename with the directory to create the full path
+        let output_path = directory.join(file_name);
+        let mut output = File::create(output_path)?; // Create the output file
+
+        output.write_all(header.as_bytes())?; // Write the header to the file
+
+        // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
+        // If there is an included building block barcode file, it is converted here
+        if let Some(ref barcodes_hashmap) = barcodes_hashmap_option {
+            for (code, random_barcodes) in sample_random_hash.iter() {
+                // Convert the building block DNA barcodes and join them back to comma separated
+                let converted = code
+                    .split(',')
+                    .enumerate()
+                    .map(|(barcode_index, barcode)| {
+                        let actual_barcode_num = barcode_index + 1;
+                        let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
+                        return barcode_hash.get(barcode).unwrap().to_string();
+                    })
+                    .join(",");
+
+                // If merge output argument is called, pull data for the compound and write to merged file
+                if let Some(ref mut merged_output_file) = merged_output_file_option {
+                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
+                    if !compounds_written.contains(code) {
+                        // Add the compound to the hashset so that it is not repeated later
+                        compounds_written.insert(code);
+                        // Start a new row with the converted building block barcodes
+                        let mut merged_row = converted.clone();
+                        // For every sample, retrieve the count and add to the row with a comma
+                        for sample_id in &sample_ids {
+                            merged_row.push(',');
+                            merged_row.push_str(
+                                &random_hashmap
+                                    .get(sample_id)
+                                    .unwrap()
+                                    .get(code)
+                                    .unwrap_or(&Vec::new())
+                                    .len()
+                                    .to_string(),
+                            )
+                        }
+                        merged_row.push('\n');
+                        // write to the merged file
+                        merged_output_file.write_all(merged_row.as_bytes())?;
+                    }
+                }
+                // Create the row for the sample file and write
+                let row = format!("{},{}\n", converted, random_barcodes.len());
+                output.write_all(row.as_bytes())?;
+            }
+        } else {
+            // If there is no building block barcode conversion, write row with the DNA barcode instead
+            for (code, random_barcodes) in sample_random_hash.iter() {
+                let row = format!("{},{}\n", code, random_barcodes.len());
+                output.write_all(row.as_bytes())?;
+
+                // If merge output argument is called, pull data for the compound and write to merged file
+                if let Some(ref mut merged_output_file) = merged_output_file_option {
+                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
+                    if !compounds_written.contains(code) {
+                        // Add the compound to the hashset so that it is not repeated later
+                        compounds_written.insert(code);
+                        // Start a new row
+                        let mut merged_row = code.clone();
+                        // For every sample, retrieve the count and add to the row with a comma
+                        for sample_id in &sample_ids {
+                            merged_row.push(',');
+                            merged_row.push_str(
+                                &random_hashmap
+                                    .get(sample_id)
+                                    .unwrap()
+                                    .get(code)
+                                    .unwrap_or(&Vec::new())
+                                    .len()
                                     .to_string(),
                             )
                         }

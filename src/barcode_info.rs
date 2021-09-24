@@ -120,6 +120,7 @@ impl SequenceErrors {
     }
 }
 
+// Struct to keep the format information for the sequencing, ie barcodes, regex search etc.
 #[derive(Debug, Clone)]
 pub struct SequenceFormat {
     pub format_string: String,
@@ -131,6 +132,7 @@ pub struct SequenceFormat {
     // Not implemented yet
     pub multiple: bool,
     format_data: String,
+    pub random_barcode: bool,
 }
 
 impl SequenceFormat {
@@ -143,6 +145,7 @@ impl SequenceFormat {
             .collect::<String>(); // collect into a String
 
         let regex_string = build_regex_captures(&format_data)?; // Build the regex string from the input format file information
+        let random_barcode = regex_string.contains("random");
         let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
         let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
         let barcode_num = regex_string.matches("barcode").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
@@ -156,6 +159,7 @@ impl SequenceFormat {
             barcode_num,
             multiple: false,
             format_data,
+            random_barcode,
         })
     }
 
@@ -481,7 +485,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
     /// ```
-    pub fn max_constant_errors(&mut self) -> usize {
+    pub fn max_constant_errors(&self) -> usize {
         self.constant_region
     }
 
@@ -504,7 +508,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 3);
     /// ```
-    pub fn max_sample_errors(&mut self) -> usize {
+    pub fn max_sample_errors(&self) -> usize {
         self.sample_barcode
     }
 
@@ -527,7 +531,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), 2);
     /// ```
-    pub fn max_barcode_errors(&mut self) -> usize {
+    pub fn max_barcode_errors(&self) -> usize {
         self.barcode
     }
 
@@ -576,6 +580,116 @@ impl MaxSeqErrors {
     }
 }
 
+// An enum for whether or not the sequencing format contains a random barcode.  This changes how the barcodes are counted and which are kept
+pub enum FormatType {
+    RandomBarcode,
+    NoRandomBarcode,
+}
+
+// A struct which holds the count results, whether that is for a scheme which contains a random barcode or not
+pub struct Results {
+    pub random_hashmap: HashMap<String, HashMap<String, Vec<String>>>, // The counts for for schemes that contain random barcodes
+    pub count_hashmap: HashMap<String, HashMap<String, u32>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
+    pub format_type: FormatType, // Whether it is with a random barcode or not
+    empty_count_hash: HashMap<String, u32>, // An empty hashmap that is used a few times and therefor stored within the struct
+}
+
+impl Results {
+    /// Create a new Results struct
+    pub fn new(
+        samples_hashmap_option: &Option<HashMap<String, String>>,
+        random_barcode: bool,
+    ) -> Results {
+        // Record and keep the format type of whether or not the random barcode is included
+        let format_type;
+        if random_barcode {
+            format_type = FormatType::RandomBarcode
+        } else {
+            format_type = FormatType::NoRandomBarcode
+        }
+
+        let mut random_hashmap = HashMap::new(); // create the hashmap that is used to count with random barcode scheme
+        let mut count_hashmap = HashMap::new(); // create the hashmap that is used ot count when a random barcode is not used.  One or the other stays empty depending on the scheme
+
+        // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
+        let empty_random_hash: HashMap<String, Vec<String>> = HashMap::new();
+        let empty_count_hash: HashMap<String, u32> = HashMap::new();
+
+        // If sample name conversion was included, add all sample names to the hashmaps used to count
+        if let Some(samples_hashmap) = samples_hashmap_option {
+            for sample in samples_hashmap.keys() {
+                let sample_name = sample.to_string();
+                random_hashmap.insert(sample_name.clone(), empty_random_hash.clone());
+                count_hashmap.insert(sample_name, empty_count_hash.clone());
+            }
+        } else {
+            // If sample names are not included, insert unknown name into the hashmaps
+            random_hashmap.insert("Unknown_sample_name".to_string(), empty_random_hash.clone());
+            count_hashmap.insert("Unknown_sample_name".to_string(), empty_count_hash.clone());
+        }
+        // return the Results struct
+        Results {
+            random_hashmap,
+            count_hashmap,
+            format_type,
+            empty_count_hash,
+        }
+    }
+
+    /// Adds the random barcode connected to the barcode_ID that is counted and the sample.  When writing these unique barcodes are counted to get a count
+    pub fn add_random(
+        &mut self,
+        sample_name: &String,
+        random_barcode: String,
+        barcode_string: &String,
+    ) -> bool {
+        // Get the hashmap for the sample
+        let barcodes_hashmap_option = self.random_hashmap.get_mut(sample_name);
+        // If it is empty then insert the needed HashMap<Counted_barcode, Vec<RandomBarcodes>>
+        if barcodes_hashmap_option.is_none() {
+            // create the Vec<RandomBarcode>
+            let intermediate_vec = vec![random_barcode];
+            let mut intermediate_hash = HashMap::new();
+            // create the HashMap<barcode_id, <RandomBarcodes>>
+            intermediate_hash.insert(barcode_string.clone(), intermediate_vec);
+            // insert this into the random_hashmap connected to the sample_ID
+            self.random_hashmap
+                .insert(sample_name.clone(), intermediate_hash);
+        } else {
+            // If the barcodes_hashmap is not empty
+            let barcodes_hashmap = barcodes_hashmap_option.unwrap();
+            // but doesn't contain the barcode
+            if !barcodes_hashmap.contains_key(barcode_string) {
+                // insert the hashmap<barcode_id, Vec<random_barcodes>>
+                let intermediate_vec = vec![random_barcode];
+                barcodes_hashmap.insert(barcode_string.clone(), intermediate_vec);
+            } else {
+                // if the hashmap<sample_id, hashmap<barcode_id, vec<>> exists, check to see if the random barcode already was inserted
+                let random_vec = barcodes_hashmap.get_mut(barcode_string).unwrap();
+                if random_vec.contains(&random_barcode) {
+                    // If the random barcode already exists return true, otherwise false
+                    return true;
+                } else {
+                    random_vec.push(random_barcode);
+                    return false;
+                }
+            }
+        }
+        false
+    }
+
+    /// Adds to the count for the barcode_id connected to the sample. This is used when a random barcode is not included in the scheme
+    pub fn add_count(&mut self, sample_name: &String, barcode_string: &String) {
+        // Insert 0 if the barcodes are not within the sample_name -> barcodes
+        // Then add one regardless
+        *self
+            .count_hashmap
+            .get_mut(sample_name)
+            .unwrap_or(&mut self.empty_count_hash.clone())
+            .entry(barcode_string.to_string())
+            .or_insert(0) += 1;
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
