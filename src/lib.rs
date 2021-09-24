@@ -176,15 +176,19 @@ fn test_sequence(sequence: &str) -> LineType {
 /// Writes counts result to CSV file
 pub fn output_counts(
     output_dir: String,
-    results: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
+    results_arc: Arc<Mutex<crate::barcode_info::Results>>,
     sequence_format: crate::barcode_info::SequenceFormat,
     barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
     prefix: String,
     merge_output: bool,
 ) -> Result<(), Box<dyn Error>> {
-    let results_hashmap = results.lock().unwrap(); // get the results
+    let results = results_arc.lock().unwrap(); // get the results
 
-    let mut sample_ids = results_hashmap.keys().cloned().collect::<Vec<String>>();
+    let mut sample_ids = results
+        .count_hashmap
+        .keys()
+        .cloned()
+        .collect::<Vec<String>>();
     sample_ids.sort();
 
     // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
@@ -226,11 +230,11 @@ pub fn output_counts(
     let mut compounds_written = HashSet::new();
     for sample_id in &sample_ids {
         // get the sample results
-        let sample_counts_hash = results_hashmap.get(sample_id).unwrap();
+        let sample_counts_hash = results.count_hashmap.get(sample_id).unwrap();
 
         let file_name;
         // If no sample names are supplied, save as all counts, otherwise as sample name counts
-        if results_hashmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
+        if results.count_hashmap.keys().count() == 1 && sample_id == "Unknown_sample_name" {
             file_name = format!("{}{}", prefix, "_all_counts.csv");
         } else {
             // create the filename as the sample_id_counts.csv
@@ -269,7 +273,8 @@ pub fn output_counts(
                         for sample_id in &sample_ids {
                             merged_row.push(',');
                             merged_row.push_str(
-                                &results_hashmap
+                                &results
+                                    .count_hashmap
                                     .get(sample_id)
                                     .unwrap()
                                     .get(code)
@@ -304,7 +309,8 @@ pub fn output_counts(
                         for sample_id in &sample_ids {
                             merged_row.push(',');
                             merged_row.push_str(
-                                &results_hashmap
+                                &results
+                                    .count_hashmap
                                     .get(sample_id)
                                     .unwrap()
                                     .get(code)

@@ -13,17 +13,12 @@ type BarcodeID = String;
 type BarcodeBarcodeID = HashMap<CountedBarcode, BarcodeID>;
 type BarcodeNum = usize;
 type BarcodeNumBarcode = HashMap<BarcodeNum, BarcodeBarcodeID>;
-type RandomBarcodes = Vec<String>;
-type BarcodeRandomBarcode = HashMap<CountedBarcode, RandomBarcodes>;
-type SampleName = String;
-type RandomBarcodeHolder = HashMap<SampleName, BarcodeRandomBarcode>;
 
 pub struct SequenceParser {
     seq_clone: Arc<Mutex<Vec<String>>>,
     finished_clone: Arc<AtomicBool>,
     sequence_format_clone: crate::barcode_info::SequenceFormat,
-    results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
-    random_barcodes_clone: Arc<Mutex<RandomBarcodeHolder>>,
+    results_clone: Arc<Mutex<crate::barcode_info::Results>>,
     samples_clone: Option<HashMap<String, String>>,
     barcodes_clone: Option<BarcodeNumBarcode>,
     sequence_errors_clone: Arc<Mutex<crate::barcode_info::SequenceErrors>>,
@@ -39,8 +34,7 @@ impl SequenceParser {
         seq_clone: Arc<Mutex<Vec<String>>>,
         finished_clone: Arc<AtomicBool>,
         sequence_format_clone: crate::barcode_info::SequenceFormat,
-        results_clone: Arc<Mutex<HashMap<String, HashMap<String, u32>>>>,
-        random_barcodes_clone: Arc<Mutex<RandomBarcodeHolder>>,
+        results_clone: Arc<Mutex<crate::barcode_info::Results>>,
         samples_clone: Option<HashMap<String, String>>,
         barcodes_clone: Option<BarcodeNumBarcode>,
         sequence_errors_clone: Arc<Mutex<crate::barcode_info::SequenceErrors>>,
@@ -55,7 +49,6 @@ impl SequenceParser {
             finished_clone,
             sequence_format_clone,
             results_clone,
-            random_barcodes_clone,
             samples_clone,
             barcodes_clone,
             sequence_errors_clone,
@@ -91,78 +84,28 @@ impl SequenceParser {
                 if let Some(seq_match_result) = self.match_seq()? {
                     let barcode_string = seq_match_result.barcode_string();
                     // Alwasy add value unless random barcode is included and it has already been found for the sample and building blocks
-                    let mut add_value = true;
                     let sample_name = seq_match_result.sample_name();
                     // If there is a random barcode included
                     if let Some(random_barcode) = seq_match_result.random_barcode_option.as_ref() {
-                        add_value = self.count_random_barcode(
+                        let already_found = self.results_clone.lock().unwrap().add_random(
                             &sample_name,
                             random_barcode.clone(),
                             &barcode_string,
                         );
-                    }
-                    // Add 1 count to the results hashmap
-                    if add_value {
-                        let mut results_hashmap = self.results_clone.lock().unwrap();
-
-                        // If results hashmap does not already contain the sample_name, insert the sanmle_name -> barcodes -> 0
-                        if !results_hashmap.contains_key(&sample_name) {
-                            let mut intermediate_hashmap = HashMap::new();
-                            intermediate_hashmap.insert(barcode_string.clone(), 0);
-                            results_hashmap.insert(sample_name.clone(), intermediate_hashmap);
+                        if already_found {
+                            self.sequence_errors_clone.lock().unwrap().duplicated();
                         }
-
-                        // Insert 0 if the barcodes is not within the sample_name -> barcodes
-                        // Then add one regardless
-                        *results_hashmap
-                            .get_mut(&sample_name)
+                    } else {
+                        self.results_clone
+                            .lock()
                             .unwrap()
-                            .entry(barcode_string.clone())
-                            .or_insert(0) += 1;
+                            .add_count(&sample_name, &barcode_string);
                         self.sequence_errors_clone.lock().unwrap().correct_match()
                     }
                 }
             }
         }
         Ok(())
-    }
-
-    fn count_random_barcode(
-        &mut self,
-        sample_name: &String,
-        random_barcode: String,
-        barcode_string: &String,
-    ) -> bool {
-        // Unlock the random_hashmap
-        let mut random_hashmap = self.random_barcodes_clone.lock().unwrap();
-
-        // If it does not already have the sample name, insert the sample name -> building_block -> random_barcodes
-        if !random_hashmap.contains_key(sample_name) {
-            let mut intermediate_hashmap = HashMap::new();
-            let intermediate_vec = vec![random_barcode];
-            intermediate_hashmap.insert(barcode_string.clone(), intermediate_vec);
-            random_hashmap.insert(sample_name.clone(), intermediate_hashmap);
-        } else {
-            let barcodes_hashmap = random_hashmap.get_mut(sample_name).unwrap();
-            // If the random hashmap does not have the building blocks yet, insert building_block -> random_barcodes
-            if !barcodes_hashmap.contains_key(barcode_string) {
-                let intermediate_vec = vec![random_barcode];
-                barcodes_hashmap.insert(barcode_string.clone(), intermediate_vec);
-            } else {
-                let random_vec = barcodes_hashmap.get_mut(barcode_string).unwrap();
-                // else check if the random barcode already used for the sample_name and building_blocks
-                // if the random barcode is already in the vector, change add_value to false
-                // otherqise add the random barcode to the random_barcodes vector
-                if random_vec.contains(&random_barcode) {
-                    self.sequence_errors_clone.lock().unwrap().duplicated();
-                    return false;
-                } else {
-                    random_vec.push(random_barcode);
-                    return true;
-                }
-            }
-        }
-        return true;
     }
 
     fn get_seqeunce(&mut self) {

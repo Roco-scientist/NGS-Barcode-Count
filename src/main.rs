@@ -2,7 +2,6 @@ use chrono::Local;
 use clap::{App, Arg};
 // use rayon::prelude::*;
 use std::{
-    collections::HashMap,
     error::Error,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -22,12 +21,6 @@ fn main() {
         .unwrap_or_else(|err| panic!("sequence format error: {}", err));
     sequence_format.display_format();
 
-    // Create a results hashmap that will contain the counts.  This is passed between threads
-    let results = Arc::new(Mutex::new(HashMap::new()));
-    // Create a random_barcodes hashmap to keep track of the random barcodes.  This way if it already was found for the same sample and building blocks
-    // it will not be counted
-    let random_barcodes = Arc::new(Mutex::new(HashMap::new()));
-
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     let samples_hashmap_option;
     if let Some(ref samples) = args.sample_barcodes_option {
@@ -37,6 +30,12 @@ fn main() {
     } else {
         samples_hashmap_option = None
     }
+
+    // Create a results struct that will contain the counts.  This is passed between threads
+    let results = Arc::new(Mutex::new(barcode::barcode_info::Results::new(
+        &samples_hashmap_option,
+        sequence_format.random_barcode,
+    )));
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
     let barcodes_hashmap;
@@ -95,7 +94,6 @@ fn main() {
             let finished_clone = Arc::clone(&finished);
             let sequence_format_clone = sequence_format.clone();
             let results_clone = Arc::clone(&results);
-            let random_barcodes_clone = Arc::clone(&random_barcodes);
             let samples_clone = samples_hashmap_option.clone();
             let barcodes_clone = barcodes_hashmap.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
@@ -109,7 +107,6 @@ fn main() {
                     finished_clone,
                     sequence_format_clone,
                     results_clone,
-                    random_barcodes_clone,
                     samples_clone,
                     barcodes_clone,
                     sequence_errors_clone,

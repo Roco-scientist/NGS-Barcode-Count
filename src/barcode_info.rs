@@ -131,6 +131,7 @@ pub struct SequenceFormat {
     // Not implemented yet
     pub multiple: bool,
     format_data: String,
+    pub random_barcode: bool,
 }
 
 impl SequenceFormat {
@@ -143,6 +144,7 @@ impl SequenceFormat {
             .collect::<String>(); // collect into a String
 
         let regex_string = build_regex_captures(&format_data)?; // Build the regex string from the input format file information
+        let random_barcode = regex_string.contains("random");
         let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
         let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
         let barcode_num = regex_string.matches("barcode").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
@@ -156,6 +158,7 @@ impl SequenceFormat {
             barcode_num,
             multiple: false,
             format_data,
+            random_barcode,
         })
     }
 
@@ -576,6 +579,89 @@ impl MaxSeqErrors {
     }
 }
 
+pub enum FormatType {
+    RandomBarcode,
+    NoRandomBarcode,
+}
+
+pub struct Results {
+    pub random_hashmap: HashMap<String, HashMap<String, Vec<String>>>,
+    pub count_hashmap: HashMap<String, HashMap<String, u32>>,
+    pub format_type: FormatType,
+    empty_count_hash: HashMap<String, u32>,
+    empty_random_hash: HashMap<String, Vec<String>>,
+}
+
+impl Results {
+    pub fn new(
+        samples_hashmap_option: &Option<HashMap<String, String>>,
+        random_barcode: bool,
+    ) -> Results {
+        let format_type;
+        if random_barcode {
+            format_type = FormatType::RandomBarcode
+        } else {
+            format_type = FormatType::NoRandomBarcode
+        }
+        let mut random_hashmap = HashMap::new();
+        let mut count_hashmap = HashMap::new();
+        let empty_random_hash: HashMap<String, Vec<String>> = HashMap::new();
+        let empty_count_hash: HashMap<String, u32> = HashMap::new();
+        if let Some(samples_hashmap) = samples_hashmap_option {
+            for sample in samples_hashmap.keys() {
+                let sample_name = sample.to_string();
+                random_hashmap.insert(sample_name.clone(), empty_random_hash.clone());
+                count_hashmap.insert(sample_name, empty_count_hash.clone());
+            }
+        } else {
+            random_hashmap.insert("Unknown_sample_name".to_string(), empty_random_hash.clone());
+            count_hashmap.insert("Unknown_sample_name".to_string(), empty_count_hash.clone());
+        }
+        Results {
+            random_hashmap,
+            count_hashmap,
+            format_type,
+            empty_count_hash,
+            empty_random_hash,
+        }
+    }
+    pub fn add_random(
+        &mut self,
+        sample_name: &String,
+        random_barcode: String,
+        barcode_string: &String,
+    ) -> bool {
+        // If it does not already have the sample name, insert the sample name -> building_block -> random_barcodes
+        let barcodes_hashmap = self.random_hashmap.get_mut(sample_name).unwrap();
+        // If the random hashmap does not have the building blocks yet, insert building_block -> random_barcodes
+        if !barcodes_hashmap.contains_key(barcode_string) {
+            let intermediate_vec = vec![random_barcode];
+            barcodes_hashmap.insert(barcode_string.clone(), intermediate_vec);
+        } else {
+            let random_vec = barcodes_hashmap.get_mut(barcode_string).unwrap();
+            // else check if the random barcode already used for the sample_name and building_blocks
+            // if the random barcode is already in the vector, change add_value to false
+            // otherqise add the random barcode to the random_barcodes vector
+            if random_vec.contains(&random_barcode) {
+                return true;
+            } else {
+                random_vec.push(random_barcode);
+                return false;
+            }
+        }
+        false
+    }
+    pub fn add_count(&mut self, sample_name: &String, barcode_string: &String) {
+        // Insert 0 if the barcodes is not within the sample_name -> barcodes
+        // Then add one regardless
+        *self
+            .count_hashmap
+            .get_mut(sample_name)
+            .unwrap_or(&mut self.empty_count_hash.clone())
+            .entry(barcode_string.to_string())
+            .or_insert(0) += 1;
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
