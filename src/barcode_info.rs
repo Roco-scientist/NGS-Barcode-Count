@@ -617,7 +617,7 @@ impl Results {
 
         // If sample name conversion was included, add all sample names to the hashmaps used to count
         if let Some(samples_hashmap) = samples_hashmap_option {
-            for sample in samples_hashmap.keys() {
+            for sample in samples_hashmap.values() {
                 let sample_name = sample.to_string();
                 random_hashmap.insert(sample_name.clone(), empty_random_hash.clone());
                 count_hashmap.insert(sample_name, empty_count_hash.clone());
