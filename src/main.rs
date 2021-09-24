@@ -137,7 +137,7 @@ fn main() {
 
     println!("Writing counts");
     println!();
-    barcode::output_counts(
+    barcode::output_file(
         args.output_dir,
         results,
         sequence_format,
