@@ -290,8 +290,8 @@ impl Output {
 
     fn write_random(
         &mut self,
-        sample_id: &String,
-        sample_ids: &Vec<String>,
+        sample_id: &str,
+        sample_ids: &[String],
         output: &mut File,
     ) -> Result<(), Box<dyn Error>> {
         let sample_random_hash = self.results.random_hashmap.get(sample_id).unwrap();
@@ -342,8 +342,8 @@ impl Output {
 
     fn write_counts(
         &mut self,
-        sample_id: &String,
-        sample_ids: &Vec<String>,
+        sample_id: &str,
+        sample_ids: &[String],
         output: &mut File,
     ) -> Result<(), Box<dyn Error>> {
         let sample_counts_hash = self.results.count_hashmap.get(sample_id).unwrap();
