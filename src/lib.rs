@@ -222,7 +222,7 @@ fn output_counts(
     // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
     let mut header = String::new();
     if sequence_format.barcode_num > 1 {
-        let mut header = "Barcode_1".to_string();
+        header = "Barcode_1".to_string();
         for num in 1..sequence_format.barcode_num {
             header.push_str(&format!(",Barcode_{}", num + 1))
         }
@@ -370,7 +370,7 @@ fn output_random(
     // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
     let mut header = String::new();
     if sequence_format.barcode_num > 1 {
-        let mut header = "Barcode_1".to_string();
+        header = "Barcode_1".to_string();
         for num in 1..sequence_format.barcode_num {
             header.push_str(&format!(",Barcode_{}", num + 1))
         }
