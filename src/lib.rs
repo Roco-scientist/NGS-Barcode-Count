@@ -388,8 +388,6 @@ impl Output {
         }
         Ok(())
     }
-
-    fn no_convert_and_write() {}
 }
 
 fn convert_code(code: &str, barcodes_hashmap: &HashMap<usize, HashMap<String, String>>) -> String {
