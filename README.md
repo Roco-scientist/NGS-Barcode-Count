@@ -247,9 +247,9 @@ Sample barcode mismatches:   3270100
 Barcode mismatches:          5736687
 Duplicates:                  0
 
-Compute time: 74 minutes
+Compute time: 73 minutes
 
 Writing counts
 
-Total time: 74 minutes
+Total time: 79 minutes
 ```
