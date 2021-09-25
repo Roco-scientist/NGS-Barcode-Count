@@ -21,6 +21,12 @@ pub struct SequenceErrors {
     duplicates: u64,
 }
 
+impl Default for SequenceErrors {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SequenceErrors {
     /// Create a new sequence error struct.  Starts with 0 errors in all regions, then is added to later.
     ///
@@ -630,7 +636,7 @@ impl Results {
             }
         } else {
             // If sample names are not included, insert unknown name into the hashmaps
-            random_hashmap.insert("Unknown_sample_name".to_string(), empty_random_hash.clone());
+            random_hashmap.insert("Unknown_sample_name".to_string(), empty_random_hash);
             count_hashmap.insert("Unknown_sample_name".to_string(), empty_count_hash.clone());
         }
         // return the Results struct
@@ -645,43 +651,41 @@ impl Results {
     /// Adds the random barcode connected to the barcode_ID that is counted and the sample.  When writing these unique barcodes are counted to get a count
     pub fn add_random(
         &mut self,
-        sample_name: &String,
+        sample_name: &str,
         random_barcode: String,
-        barcode_string: &String,
+        barcode_string: &str,
     ) -> bool {
         // Get the hashmap for the sample
         let barcodes_hashmap_option = self.random_hashmap.get_mut(sample_name);
-        // If it is empty then insert the needed HashMap<Counted_barcode, Set<RandomBarcodes>>
-        if barcodes_hashmap_option.is_none() {
-            // create the Set<RandomBarcode>
-            let mut intermediate_set = HashSet::new();
-            intermediate_set.insert(random_barcode);
-            let mut intermediate_hash = HashMap::new();
-            // create the HashMap<barcode_id, Set<RandomBarcodes>>
-            intermediate_hash.insert(barcode_string.clone(), intermediate_set);
-            // insert this into the random_hashmap connected to the sample_ID
-            self.random_hashmap
-                .insert(sample_name.clone(), intermediate_hash);
-        } else {
+        if let Some(barcodes_hashmap) = barcodes_hashmap_option {
             // If the barcodes_hashmap is not empty
-            let barcodes_hashmap = barcodes_hashmap_option.unwrap();
             // but doesn't contain the barcode
             if !barcodes_hashmap.contains_key(barcode_string) {
                 // insert the hashmap<barcode_id, Set<random_barcodes>>
                 let mut intermediate_set = HashSet::new();
                 intermediate_set.insert(random_barcode);
-                barcodes_hashmap.insert(barcode_string.clone(), intermediate_set);
+                barcodes_hashmap.insert(barcode_string.to_string(), intermediate_set);
             } else {
                 // if the hashmap<sample_id, hashmap<barcode_id, Set<>> exists, check to see if the random barcode already was inserted
                 let random_set = barcodes_hashmap.get_mut(barcode_string).unwrap();
                 return random_set.insert(random_barcode);
             }
+        } else {
+            // create the Set<RandomBarcode>
+            let mut intermediate_set = HashSet::new();
+            intermediate_set.insert(random_barcode);
+            let mut intermediate_hash = HashMap::new();
+            // create the HashMap<barcode_id, Set<RandomBarcodes>>
+            intermediate_hash.insert(barcode_string.to_string(), intermediate_set);
+            // insert this into the random_hashmap connected to the sample_ID
+            self.random_hashmap
+                .insert(sample_name.to_string(), intermediate_hash);
         }
         true
     }
 
     /// Adds to the count for the barcode_id connected to the sample. This is used when a random barcode is not included in the scheme
-    pub fn add_count(&mut self, sample_name: &String, barcode_string: &String) {
+    pub fn add_count(&mut self, sample_name: &str, barcode_string: &str) {
         // Insert 0 if the barcodes are not within the sample_name -> barcodes
         // Then add one regardless
         *self
