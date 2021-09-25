@@ -241,14 +241,15 @@ On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able t
 Results below:
 ```
 Total sequences:             418770347
-Correctly matched sequences: 238628797
-Constant Region Mismatches:  173770206
-Sample Barcode Mismatches:   1828802
-Barcode Mismatches:          4542542
+Correctly matched sequences: 257807865
+Constant region mismatches:  151955695
+Sample barcode mismatches:   3270100
+Barcode mismatches:          5736687
 Duplicates:                  0
 
-Compute time: 75 minutes
+Compute time: 74 minutes
 
 Writing counts
-Total time: 81 minutes
+
+Total time: 74 minutes
 ```

@@ -87,15 +87,15 @@ impl SequenceParser {
                     let sample_name = seq_match_result.sample_name();
                     // If there is a random barcode included
                     if let Some(random_barcode) = seq_match_result.random_barcode_option.as_ref() {
-                        let already_found = self.results_clone.lock().unwrap().add_random(
+                        let added = self.results_clone.lock().unwrap().add_random(
                             &sample_name,
                             random_barcode.clone(),
                             &barcode_string,
                         );
-                        if already_found {
-                            self.sequence_errors_clone.lock().unwrap().duplicated();
-                        } else {
+                        if added {
                             self.sequence_errors_clone.lock().unwrap().correct_match()
+                        } else {
+                            self.sequence_errors_clone.lock().unwrap().duplicated();
                         }
                     } else {
                         self.results_clone
