@@ -297,85 +297,45 @@ impl Output {
         let sample_random_hash = self.results.random_hashmap.get(sample_id).unwrap();
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
         // If there is an included building block barcode file, it is converted here
-        if let Some(ref barcodes_hashmap) = self.barcodes_hashmap_option {
-            for (code, random_barcodes) in sample_random_hash.iter() {
+        for (code, random_barcodes) in sample_random_hash.iter() {
+            let written_barcodes;
+            if let Some(ref barcodes_hashmap) = self.barcodes_hashmap_option {
                 // Convert the building block DNA barcodes and join them back to comma separated
-                let converted = code
-                    .split(',')
-                    .enumerate()
-                    .map(|(barcode_index, barcode)| {
-                        let actual_barcode_num = barcode_index + 1;
-                        let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
-                        return barcode_hash.get(barcode).unwrap().to_string();
-                    })
-                    .join(",");
-
-                // If merge output argument is called, pull data for the compound and write to merged file
-                if let Some(ref mut merged_output_file) = self.merged_output_file_option {
-                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
-                    let new = self.compounds_written.insert(code.clone());
-                    if new {
-                        // Start a new row with the converted building block barcodes
-                        let mut merged_row = converted.clone();
-                        // For every sample, retrieve the count and add to the row with a comma
-                        for sample_id in sample_ids {
-                            merged_row.push(',');
-                            merged_row.push_str(
-                                &self
-                                    .results
-                                    .random_hashmap
-                                    .get(sample_id)
-                                    .unwrap()
-                                    .get(code)
-                                    .unwrap_or(&HashSet::new())
-                                    .len()
-                                    .to_string(),
-                            )
-                        }
-                        merged_row.push('\n');
-                        // write to the merged file
-                        merged_output_file.write_all(merged_row.as_bytes())?;
-                    }
-                }
-                // Create the row for the sample file and write
-                let row = format!("{},{}\n", converted, random_barcodes.len());
-                output.write_all(row.as_bytes())?;
+                written_barcodes = convert_code(code, barcodes_hashmap);
+            } else {
+                written_barcodes = code.clone();
             }
-        } else {
-            // If there is no building block barcode conversion, write row with the DNA barcode instead
-            for (code, random_barcodes) in sample_random_hash.iter() {
-                let row = format!("{},{}\n", code, random_barcodes.len());
-                output.write_all(row.as_bytes())?;
 
-                // If merge output argument is called, pull data for the compound and write to merged file
-                if let Some(ref mut merged_output_file) = self.merged_output_file_option {
-                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
-                    let new = self.compounds_written.insert(code.clone());
-                    if new {
-                        // Add the compound to the hashset so that it is not repeated later
-                        // Start a new row
-                        let mut merged_row = code.clone();
-                        // For every sample, retrieve the count and add to the row with a comma
-                        for sample_id in sample_ids {
-                            merged_row.push(',');
-                            merged_row.push_str(
-                                &self
-                                    .results
-                                    .random_hashmap
-                                    .get(sample_id)
-                                    .unwrap()
-                                    .get(code)
-                                    .unwrap_or(&HashSet::new())
-                                    .len()
-                                    .to_string(),
-                            )
-                        }
-                        merged_row.push('\n');
-                        // write to the merged file
-                        merged_output_file.write_all(merged_row.as_bytes())?;
+            // If merge output argument is called, pull data for the compound and write to merged file
+            if let Some(ref mut merged_output_file) = self.merged_output_file_option {
+                // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
+                let new = self.compounds_written.insert(code.clone());
+                if new {
+                    // Start a new row with the converted building block barcodes
+                    let mut merged_row = written_barcodes.clone();
+                    // For every sample, retrieve the count and add to the row with a comma
+                    for sample_id in sample_ids {
+                        merged_row.push(',');
+                        merged_row.push_str(
+                            &self
+                                .results
+                                .random_hashmap
+                                .get(sample_id)
+                                .unwrap()
+                                .get(code)
+                                .unwrap_or(&HashSet::new())
+                                .len()
+                                .to_string(),
+                        )
                     }
+                    merged_row.push('\n');
+                    // write to the merged file
+                    merged_output_file.write_all(merged_row.as_bytes())?;
                 }
             }
+            // Create the row for the sample file and write
+            let row = format!("{},{}\n", written_barcodes, random_barcodes.len());
+            output.write_all(row.as_bytes())?;
         }
         Ok(())
     }
@@ -387,83 +347,56 @@ impl Output {
         output: &mut File,
     ) -> Result<(), Box<dyn Error>> {
         let sample_counts_hash = self.results.count_hashmap.get(sample_id).unwrap();
-        if let Some(ref barcodes_hashmap) = self.barcodes_hashmap_option {
-            for (code, count) in sample_counts_hash.iter() {
+        for (code, count) in sample_counts_hash.iter() {
+            let written_barcodes;
+            if let Some(ref barcodes_hashmap) = self.barcodes_hashmap_option {
                 // Convert the building block DNA barcodes and join them back to comma separated
-                let converted = code
-                    .split(',')
-                    .enumerate()
-                    .map(|(barcode_index, barcode)| {
-                        let actual_barcode_num = barcode_index + 1;
-                        let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
-                        return barcode_hash.get(barcode).unwrap().to_string();
-                    })
-                    .join(",");
-
-                // If merge output argument is called, pull data for the compound and write to merged file
-                if let Some(ref mut merged_output_file) = self.merged_output_file_option {
-                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
-                    let new = self.compounds_written.insert(code.clone());
-                    if new {
-                        // Start a new row with the converted building block barcodes
-                        let mut merged_row = converted.clone();
-                        // For every sample, retrieve the count and add to the row with a comma
-                        for sample_id in sample_ids {
-                            merged_row.push(',');
-                            merged_row.push_str(
-                                &self
-                                    .results
-                                    .count_hashmap
-                                    .get(sample_id)
-                                    .unwrap()
-                                    .get(code)
-                                    .unwrap_or(&0)
-                                    .to_string(),
-                            )
-                        }
-                        merged_row.push('\n');
-                        // write to the merged file
-                        merged_output_file.write_all(merged_row.as_bytes())?;
-                    }
-                }
-                // Create the row for the sample file and write
-                let row = format!("{},{}\n", converted, count);
-                output.write_all(row.as_bytes())?;
+                written_barcodes = convert_code(code, barcodes_hashmap);
+            } else {
+                written_barcodes = code.clone();
             }
-        } else {
-            // If there is no building block barcode conversion, write row with the DNA barcode instead
-            for (code, count) in sample_counts_hash.iter() {
-                let row = format!("{},{}\n", code, count);
-                output.write_all(row.as_bytes())?;
 
-                // If merge output argument is called, pull data for the compound and write to merged file
-                if let Some(ref mut merged_output_file) = self.merged_output_file_option {
-                    // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
-                    let new = self.compounds_written.insert(code.clone());
-                    if new {
-                        // Start a new row
-                        let mut merged_row = code.clone();
-                        // For every sample, retrieve the count and add to the row with a comma
-                        for sample_id in sample_ids {
-                            merged_row.push(',');
-                            merged_row.push_str(
-                                &self
-                                    .results
-                                    .count_hashmap
-                                    .get(sample_id)
-                                    .unwrap()
-                                    .get(code)
-                                    .unwrap_or(&0)
-                                    .to_string(),
-                            )
-                        }
-                        merged_row.push('\n');
-                        // write to the merged file
-                        merged_output_file.write_all(merged_row.as_bytes())?;
+            // If merge output argument is called, pull data for the compound and write to merged file
+            if let Some(ref mut merged_output_file) = self.merged_output_file_option {
+                // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
+                let new = self.compounds_written.insert(code.clone());
+                if new {
+                    // Start a new row with the converted building block barcodes
+                    let mut merged_row = written_barcodes.clone();
+                    // For every sample, retrieve the count and add to the row with a comma
+                    for sample_id in sample_ids {
+                        merged_row.push(',');
+                        merged_row.push_str(
+                            &self
+                                .results
+                                .count_hashmap
+                                .get(sample_id)
+                                .unwrap()
+                                .get(code)
+                                .unwrap_or(&0)
+                                .to_string(),
+                        )
                     }
+                    merged_row.push('\n');
+                    // write to the merged file
+                    merged_output_file.write_all(merged_row.as_bytes())?;
                 }
             }
+            // Create the row for the sample file and write
+            let row = format!("{},{}\n", written_barcodes, count);
+            output.write_all(row.as_bytes())?;
         }
         Ok(())
     }
+}
+
+fn convert_code(code: &str, barcodes_hashmap: &HashMap<usize, HashMap<String, String>>) -> String {
+    code.split(',')
+        .enumerate()
+        .map(|(barcode_index, barcode)| {
+            let actual_barcode_num = barcode_index + 1;
+            let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
+            return barcode_hash.get(barcode).unwrap().to_string();
+        })
+        .join(",")
 }
