@@ -651,20 +651,8 @@ impl Results {
     ) -> bool {
         // Get the hashmap for the sample
         let barcodes_hashmap_option = self.random_hashmap.get_mut(sample_name);
-        // If it is empty then insert the needed HashMap<Counted_barcode, Set<RandomBarcodes>>
-        if barcodes_hashmap_option.is_none() {
-            // create the Set<RandomBarcode>
-            let mut intermediate_set = HashSet::new();
-            intermediate_set.insert(random_barcode);
-            let mut intermediate_hash = HashMap::new();
-            // create the HashMap<barcode_id, Set<RandomBarcodes>>
-            intermediate_hash.insert(barcode_string.to_string(), intermediate_set);
-            // insert this into the random_hashmap connected to the sample_ID
-            self.random_hashmap
-                .insert(sample_name.to_string(), intermediate_hash);
-        } else {
+        if let Some(barcodes_hashmap) = barcodes_hashmap_option {
             // If the barcodes_hashmap is not empty
-            let barcodes_hashmap = barcodes_hashmap_option.unwrap();
             // but doesn't contain the barcode
             if !barcodes_hashmap.contains_key(barcode_string) {
                 // insert the hashmap<barcode_id, Set<random_barcodes>>
@@ -676,6 +664,16 @@ impl Results {
                 let random_set = barcodes_hashmap.get_mut(barcode_string).unwrap();
                 return random_set.insert(random_barcode);
             }
+        } else {
+            // create the Set<RandomBarcode>
+            let mut intermediate_set = HashSet::new();
+            intermediate_set.insert(random_barcode);
+            let mut intermediate_hash = HashMap::new();
+            // create the HashMap<barcode_id, Set<RandomBarcodes>>
+            intermediate_hash.insert(barcode_string.to_string(), intermediate_set);
+            // insert this into the random_hashmap connected to the sample_ID
+            self.random_hashmap
+                .insert(sample_name.to_string(), intermediate_hash);
         }
         true
     }
