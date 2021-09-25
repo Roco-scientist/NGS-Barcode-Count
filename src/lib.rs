@@ -358,7 +358,7 @@ fn output_counts(
 /// Writes counts result to CSV file when a random barcode is inclduded in the scheme.  It finds the len() of the random barcode vec to associated the number of unique counts
 fn output_random(
     output_dir: String,
-    random_hashmap: &HashMap<String, HashMap<String, Vec<String>>>,
+    random_hashmap: &HashMap<String, HashMap<String, HashSet<String>>>,
     sequence_format: crate::barcode_info::SequenceFormat,
     barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
     prefix: String,
@@ -453,7 +453,7 @@ fn output_random(
                                     .get(sample_id)
                                     .unwrap()
                                     .get(code)
-                                    .unwrap_or(&Vec::new())
+                                    .unwrap_or(&HashSet::new())
                                     .len()
                                     .to_string(),
                             )
@@ -489,7 +489,7 @@ fn output_random(
                                     .get(sample_id)
                                     .unwrap()
                                     .get(code)
-                                    .unwrap_or(&Vec::new())
+                                    .unwrap_or(&HashSet::new())
                                     .len()
                                     .to_string(),
                             )

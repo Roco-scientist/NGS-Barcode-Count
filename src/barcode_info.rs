@@ -1,6 +1,10 @@
 use itertools::Itertools;
 use regex::Regex;
-use std::{collections::HashMap, error::Error, fs};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    fs,
+};
 
 // Struct to keep track of sequencing errors and correct matches.  This is displayed at the end of the algorithm for QC measures
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -588,7 +592,7 @@ pub enum FormatType {
 
 // A struct which holds the count results, whether that is for a scheme which contains a random barcode or not
 pub struct Results {
-    pub random_hashmap: HashMap<String, HashMap<String, Vec<String>>>, // The counts for for schemes that contain random barcodes
+    pub random_hashmap: HashMap<String, HashMap<String, HashSet<String>>>, // The counts for for schemes that contain random barcodes
     pub count_hashmap: HashMap<String, HashMap<String, u32>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
     pub format_type: FormatType, // Whether it is with a random barcode or not
     empty_count_hash: HashMap<String, u32>, // An empty hashmap that is used a few times and therefor stored within the struct
@@ -612,7 +616,7 @@ impl Results {
         let mut count_hashmap = HashMap::new(); // create the hashmap that is used ot count when a random barcode is not used.  One or the other stays empty depending on the scheme
 
         // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
-        let empty_random_hash: HashMap<String, Vec<String>> = HashMap::new();
+        let empty_random_hash: HashMap<String, HashSet<String>> = HashMap::new();
         let empty_count_hash: HashMap<String, u32> = HashMap::new();
 
         // If sample name conversion was included, add all sample names to the hashmaps used to count
@@ -645,13 +649,14 @@ impl Results {
     ) -> bool {
         // Get the hashmap for the sample
         let barcodes_hashmap_option = self.random_hashmap.get_mut(sample_name);
-        // If it is empty then insert the needed HashMap<Counted_barcode, Vec<RandomBarcodes>>
+        // If it is empty then insert the needed HashMap<Counted_barcode, Set<RandomBarcodes>>
         if barcodes_hashmap_option.is_none() {
-            // create the Vec<RandomBarcode>
-            let intermediate_vec = vec![random_barcode];
+            // create the Set<RandomBarcode>
+            let mut intermediate_set = HashSet::new();
+            intermediate_set.insert(random_barcode);
             let mut intermediate_hash = HashMap::new();
-            // create the HashMap<barcode_id, <RandomBarcodes>>
-            intermediate_hash.insert(barcode_string.clone(), intermediate_vec);
+            // create the HashMap<barcode_id, Set<RandomBarcodes>>
+            intermediate_hash.insert(barcode_string.clone(), intermediate_set);
             // insert this into the random_hashmap connected to the sample_ID
             self.random_hashmap
                 .insert(sample_name.clone(), intermediate_hash);
@@ -660,22 +665,17 @@ impl Results {
             let barcodes_hashmap = barcodes_hashmap_option.unwrap();
             // but doesn't contain the barcode
             if !barcodes_hashmap.contains_key(barcode_string) {
-                // insert the hashmap<barcode_id, Vec<random_barcodes>>
-                let intermediate_vec = vec![random_barcode];
-                barcodes_hashmap.insert(barcode_string.clone(), intermediate_vec);
+                // insert the hashmap<barcode_id, Set<random_barcodes>>
+                let mut intermediate_set = HashSet::new();
+                intermediate_set.insert(random_barcode);
+                barcodes_hashmap.insert(barcode_string.clone(), intermediate_set);
             } else {
-                // if the hashmap<sample_id, hashmap<barcode_id, vec<>> exists, check to see if the random barcode already was inserted
-                let random_vec = barcodes_hashmap.get_mut(barcode_string).unwrap();
-                if random_vec.contains(&random_barcode) {
-                    // If the random barcode already exists return true, otherwise false
-                    return true;
-                } else {
-                    random_vec.push(random_barcode);
-                    return false;
-                }
+                // if the hashmap<sample_id, hashmap<barcode_id, Set<>> exists, check to see if the random barcode already was inserted
+                let random_set = barcodes_hashmap.get_mut(barcode_string).unwrap();
+                return random_set.insert(random_barcode);
             }
         }
-        false
+        true
     }
 
     /// Adds to the count for the barcode_id connected to the sample. This is used when a random barcode is not included in the scheme
