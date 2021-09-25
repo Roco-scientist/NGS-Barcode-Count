@@ -21,6 +21,12 @@ pub struct SequenceErrors {
     duplicates: u64,
 }
 
+impl Default for SequenceErrors {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SequenceErrors {
     /// Create a new sequence error struct.  Starts with 0 errors in all regions, then is added to later.
     ///
