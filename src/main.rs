@@ -38,14 +38,14 @@ fn main() {
     )));
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
-    let barcodes_hashmap;
+    let barcodes_hashmap_option;
     if let Some(ref barcodes) = args.barcodes_option {
-        barcodes_hashmap = Some(
+        barcodes_hashmap_option = Some(
             barcode::barcode_info::barcode_file_conversion(barcodes, sequence_format.barcode_num)
                 .unwrap(),
         );
     } else {
-        barcodes_hashmap = None
+        barcodes_hashmap_option = None
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
@@ -95,7 +95,7 @@ fn main() {
             let sequence_format_clone = sequence_format.clone();
             let results_clone = Arc::clone(&results);
             let samples_clone = samples_hashmap_option.clone();
-            let barcodes_clone = barcodes_hashmap.clone();
+            let barcodes_clone = barcodes_hashmap_option.clone();
             let sequence_errors_clone = Arc::clone(&sequence_errors);
             let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
@@ -137,15 +137,17 @@ fn main() {
 
     println!("Writing counts");
     println!();
-    barcode::output_file(
-        args.output_dir,
+    let mut output = barcode::Output::new(
         results,
         sequence_format,
-        barcodes_hashmap,
+        barcodes_hashmap_option,
         args.prefix,
         args.merge_output,
     )
-    .unwrap();
+    .unwrap_or_else(|err| panic!("Output error: {}", err));
+    output
+        .write_files(args.output_dir)
+        .unwrap_or_else(|err| panic!("Writing error: {}", err));
     // Get the end time and print total time for the algorithm
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 3 {

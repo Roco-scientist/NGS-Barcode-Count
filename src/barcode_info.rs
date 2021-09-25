@@ -585,12 +585,14 @@ impl MaxSeqErrors {
 }
 
 // An enum for whether or not the sequencing format contains a random barcode.  This changes how the barcodes are counted and which are kept
+#[derive(Debug)]
 pub enum FormatType {
     RandomBarcode,
     NoRandomBarcode,
 }
 
 // A struct which holds the count results, whether that is for a scheme which contains a random barcode or not
+#[derive(Debug)]
 pub struct Results {
     pub random_hashmap: HashMap<String, HashMap<String, HashSet<String>>>, // The counts for for schemes that contain random barcodes
     pub count_hashmap: HashMap<String, HashMap<String, u32>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
