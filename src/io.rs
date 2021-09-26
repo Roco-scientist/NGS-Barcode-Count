@@ -1,9 +1,10 @@
+use chrono::{DateTime, Local};
 use custom_error::custom_error;
 use flate2::read::GzDecoder;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    fs::File,
+    fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::Path,
     sync::{
@@ -175,10 +176,10 @@ pub struct Output {
     results: crate::barcode_info::Results,
     sequence_format: crate::barcode_info::SequenceFormat,
     barcodes_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
-    prefix: String,
-    merge_output: bool,
     merged_output_file_option: Option<File>,
     compounds_written: HashSet<String>,
+    args: crate::Args,
+    output_files: Vec<String>,
 }
 
 impl Output {
@@ -186,22 +187,21 @@ impl Output {
         results_arc: Arc<Mutex<crate::barcode_info::Results>>,
         sequence_format: crate::barcode_info::SequenceFormat,
         barcodes_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
-        prefix: String,
-        merge_output: bool,
+        args: crate::Args,
     ) -> Result<Output, Box<dyn Error>> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
         Ok(Output {
             results,
             sequence_format,
             barcodes_hashmap_option,
-            prefix,
-            merge_output,
             merged_output_file_option: None,
             compounds_written: HashSet::new(),
+            args,
+            output_files: Vec::new(),
         })
     }
 
-    pub fn write_files(&mut self, output_dir: String) -> Result<(), Box<dyn Error>> {
+    pub fn write_files(&mut self) -> Result<(), Box<dyn Error>> {
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_ids = match self.results.format_type {
             crate::barcode_info::FormatType::RandomBarcode => self
@@ -220,13 +220,15 @@ impl Output {
         sample_ids.sort();
 
         // create the directory variable to join the file to
+        let output_dir = self.args.output_dir.clone();
         let directory = Path::new(&output_dir);
 
         let mut header = self.create_header();
         // If merged called, create the header with the sample names as columns and write
-        if self.merge_output {
+        if self.args.merge_output {
             // Create the merge file and push the header, if merged called within arguments
-            let merged_file_name = format!("{}{}", self.prefix, "_counts.all.csv");
+            let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
+            self.output_files.push(merged_file_name.clone());
             let merged_output_path = directory.join(merged_file_name);
 
             self.merged_output_file_option = Some(File::create(merged_output_path)?);
@@ -249,11 +251,12 @@ impl Output {
             let file_name;
             // If no sample names are supplied, save as all counts, otherwise as sample name counts
             if sample_ids.len() == 1 && sample_id == "Unknown_sample_name" {
-                file_name = format!("{}{}", self.prefix, "_all_counts.csv");
+                file_name = format!("{}{}", self.args.prefix, "_all_counts.csv");
             } else {
                 // create the filename as the sample_id_counts.csv
-                file_name = format!("{}_{}{}", self.prefix, sample_id, "_counts.csv");
+                file_name = format!("{}_{}{}", self.args.prefix, sample_id, "_counts.csv");
             }
+            self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
             let output_path = directory.join(file_name);
             let mut output = File::create(output_path)?; // Create the output file
@@ -383,6 +386,44 @@ impl Output {
             let row = format!("{},{}\n", written_barcodes, count);
             output.write_all(row.as_bytes())?;
         }
+        Ok(())
+    }
+    pub fn write_stats(&self, start_time: DateTime<Local>) -> Result<(), Box<dyn Error>> {
+        let today = Local::today().format("%Y-%m-%d").to_string();
+        let output_dir = self.args.output_dir.clone();
+        let directory = Path::new(&output_dir);
+        let stat_filename = directory.join(format!("{}_barcode_stats.txt", &today));
+        let mut stat_file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(stat_filename)?;
+        stat_file.write_all(
+            format!(
+                "Start: {:?}\nFinish: {:?}\n\n",
+                start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
+                Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+            )
+            .as_bytes(),
+        )?;
+        stat_file.write_all(
+            format!(
+                "-Input files-\nFastq: {}\nFormat: {}\nSamples: {}\nBarcodes: {}\n\n",
+                self.args.fastq,
+                self.args.format,
+                self.args
+                    .sample_barcodes_option
+                    .as_ref()
+                    .unwrap_or(&"None".to_string()),
+                self.args
+                    .barcodes_option
+                    .as_ref()
+                    .unwrap_or(&"None".to_string())
+            )
+            .as_bytes(),
+        )?;
+        stat_file
+            .write_all(format!("Output files: {}\n\n", self.output_files.join(", ")).as_bytes())?;
         Ok(())
     }
 }
