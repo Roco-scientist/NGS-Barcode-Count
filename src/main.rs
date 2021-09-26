@@ -80,7 +80,7 @@ fn main() {
         let exit_clone = Arc::clone(&exit);
         let fastq = args.fastq.clone();
         s.spawn(move |_| {
-            barcode::read_fastq(fastq, seq_clone, exit_clone).unwrap_or_else(|err| {
+            barcode::io::read_fastq(fastq, seq_clone, exit_clone).unwrap_or_else(|err| {
                 finished_clone.store(true, Ordering::Relaxed);
                 panic!("Error: {}", err)
             });
@@ -137,7 +137,7 @@ fn main() {
 
     println!("Writing counts");
     println!();
-    let mut output = barcode::Output::new(
+    let mut output = barcode::io::Output::new(
         results,
         sequence_format,
         barcodes_hashmap_option,

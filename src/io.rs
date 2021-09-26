@@ -1,6 +1,3 @@
-pub mod barcode_info;
-pub mod parse_sequences;
-
 use custom_error::custom_error;
 use flate2::read::GzDecoder;
 use std::{
