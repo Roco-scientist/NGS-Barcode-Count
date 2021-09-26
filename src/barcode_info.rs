@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fs,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex,
     },
 };
@@ -14,15 +14,15 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct SequenceErrors {
     // errors within the constant region
-    constant_region: Arc<AtomicUsize>,
+    constant_region: Arc<AtomicU32>,
     // errors within the sample barcode
-    sample_barcode: Arc<AtomicUsize>,
+    sample_barcode: Arc<AtomicU32>,
     // erors within the counted barcode
-    barcode: Arc<AtomicUsize>,
+    barcode: Arc<AtomicU32>,
     // total matched
-    matched: Arc<AtomicUsize>,
+    matched: Arc<AtomicU32>,
     // total random barcode duplicates
-    duplicates: Arc<AtomicUsize>,
+    duplicates: Arc<AtomicU32>,
 }
 
 impl Default for SequenceErrors {
@@ -42,11 +42,11 @@ impl SequenceErrors {
     /// ```
     pub fn new() -> SequenceErrors {
         SequenceErrors {
-            constant_region: Arc::new(AtomicUsize::new(0)),
-            sample_barcode: Arc::new(AtomicUsize::new(0)),
-            barcode: Arc::new(AtomicUsize::new(0)),
-            matched: Arc::new(AtomicUsize::new(0)),
-            duplicates: Arc::new(AtomicUsize::new(0)),
+            constant_region: Arc::new(AtomicU32::new(0)),
+            sample_barcode: Arc::new(AtomicU32::new(0)),
+            barcode: Arc::new(AtomicU32::new(0)),
+            matched: Arc::new(AtomicU32::new(0)),
+            duplicates: Arc::new(AtomicU32::new(0)),
         }
     }
 
@@ -126,11 +126,15 @@ impl SequenceErrors {
     /// sequence_errors.display();
     /// ```
     pub fn display(&mut self) {
-        println!(
+        println!("{}", self.display_string());
+        println!()
+    }
+
+    pub fn display_string(&mut self) -> String {
+        format!(
             "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}",
             self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed)
-        );
-        println!()
+        )
     }
 
     pub fn arc_clone(&self) -> SequenceErrors {
@@ -214,7 +218,7 @@ impl SequenceFormat {
     }
 
     /// Returns a Vec of the size of all counted barcodes within the seqeunce format
-    pub fn barcode_lengths(&self) -> Result<Vec<usize>, Box<dyn Error>> {
+    pub fn barcode_lengths(&self) -> Result<Vec<u8>, Box<dyn Error>> {
         let barcode_search = Regex::new(r"(\{\d+\})")?; // Create a search that finds the '{#}'
         let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the number
         let mut barcode_lengths = Vec::new(); // Create a Vec that will contain the counted barcode lengths
@@ -227,7 +231,7 @@ impl SequenceFormat {
                 .find(group_str)
                 .unwrap()
                 .as_str()
-                .parse::<usize>()?;
+                .parse::<u8>()?;
             // And add to the vector
             barcode_lengths.push(digits)
         }
@@ -235,7 +239,7 @@ impl SequenceFormat {
     }
 
     /// Returns the sample barcode length found in the format file string
-    pub fn sample_length_option(&self) -> Result<Option<usize>, Box<dyn Error>> {
+    pub fn sample_length_option(&self) -> Result<Option<u8>, Box<dyn Error>> {
         let sample_search = Regex::new(r"(\[\d+\])")?; // Create a search that finds the '[#]'
         let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the numeric value
 
@@ -247,7 +251,7 @@ impl SequenceFormat {
                 .find(sample_str)
                 .unwrap()
                 .as_str()
-                .parse::<usize>()?;
+                .parse::<u8>()?;
             Ok(Some(digits))
         } else {
             Ok(None)
@@ -255,9 +259,10 @@ impl SequenceFormat {
     }
 
     /// Returns the amount of nucleotides within the constant regions from the format file
-    pub fn constant_region_length(&self) -> usize {
+    pub fn constant_region_length(&self) -> u8 {
         // Get the full length of the format_string and subtract the amount of 'N's found to get the constant nucleotide count
-        self.format_string.len() - self.format_string.matches('N').count()
+        let diff = self.format_string.len() - self.format_string.matches('N').count();
+        diff as u8
     }
 }
 
@@ -267,7 +272,7 @@ impl SequenceFormat {
 ///
 /// ```
 /// use barcode::barcode_info::build_format_string;
-/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
+/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT";
 ///
 /// assert_eq!(build_format_string(&format_data).unwrap(),  "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string())
 /// ```
@@ -279,7 +284,7 @@ pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> 
         let group_str = group.as_str();
         let digits_option = digit_search.find(group_str);
         if let Some(digit) = digits_option {
-            let digit_value = digit.as_str().parse::<usize>()?;
+            let digit_value = digit.as_str().parse::<u8>()?;
             for _ in 0..digit_value {
                 final_format.push('N')
             }
@@ -308,7 +313,7 @@ pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>>
         let group_str = group.as_str();
         let digits_option = digit_search.find(group_str);
         if let Some(digit) = digits_option {
-            let digit_value = digit.as_str().parse::<usize>()?;
+            let digit_value = digit.as_str().parse::<u8>()?;
             for _ in 0..digit_value {
                 if group_str.contains('[') {
                     final_format.push('S')
@@ -364,7 +369,7 @@ pub fn build_regex_captures(format_data: &str) -> Result<String, Box<dyn Error>>
                 .get(0)
                 .unwrap()
                 .as_str()
-                .parse::<usize>()
+                .parse::<u8>()
                 .unwrap();
             let mut capture_group = format!("(?P<{}>.", group_name);
             capture_group.push('{');
@@ -417,7 +422,7 @@ pub fn sample_barcode_file_conversion(
 pub fn barcode_file_conversion(
     barcode_path: &str,
     barcode_num: usize,
-) -> Result<HashMap<usize, HashMap<String, String>>, Box<dyn Error>> {
+) -> Result<Vec<HashMap<String, String>>, Box<dyn Error>> {
     // read in the sample barcode file
     let barcode_vecs = fs::read_to_string(barcode_path)?
         .lines() // split the lines
@@ -430,32 +435,22 @@ pub fn barcode_file_conversion(
                 .unwrap_or(("".to_string(), "".to_string(), "".to_string()))
         }) // comma split the line into a tuple with the first being the key and the last the value
         .collect::<Vec<(String, String, String)>>();
-    let mut barcode_data = HashMap::new();
-    let mut barcode_num_contained = Vec::new();
+    let mut barcode_data = Vec::new();
+    for _ in 0..barcode_num {
+        barcode_data.push(HashMap::new());
+    }
+    let mut barcode_num_contained = HashSet::new();
     for (barcode, id, barcode_num) in barcode_vecs {
         let barcode_num_usize = barcode_num.parse::<usize>().unwrap_or_else(|err| {
             panic!("Third column of barcode file contains something other than an integer: {}\nError: {}", barcode_num, err)
-        });
-        if !barcode_num_contained.contains(&barcode_num_usize) {
-            barcode_num_contained.push(barcode_num_usize)
-        };
-        if let std::collections::hash_map::Entry::Vacant(e) = barcode_data.entry(barcode_num_usize)
-        {
-            let mut intermediate_hash = HashMap::new();
-            intermediate_hash.insert(barcode, id);
-            e.insert(intermediate_hash);
-        } else {
-            barcode_data
-                .get_mut(&barcode_num_usize)
-                .unwrap()
-                .insert(barcode, id);
-        }
+        }) - 1;
+        barcode_num_contained.insert(barcode_num_usize);
+        barcode_data[barcode_num_usize].insert(barcode, id);
     }
     let mut missing_barcode_num = Vec::new();
     for x in 0..barcode_num {
-        let actual_num = x + 1;
-        if !barcode_num_contained.contains(&actual_num) {
-            missing_barcode_num.push(actual_num)
+        if !barcode_num_contained.contains(&x) {
+            missing_barcode_num.push(x)
         }
     }
     if !missing_barcode_num.is_empty() {
@@ -471,14 +466,14 @@ pub fn barcode_file_conversion(
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaxSeqErrors {
     // errors within the constant region
-    constant_region: usize,
-    constant_region_size: usize,
+    constant_region: u8,
+    constant_region_size: u8,
     // errors within the sample barcode
-    sample_barcode: usize,
-    sample_size: usize,
+    sample_barcode: u8,
+    sample_size: u8,
     // erors within the counted barcode
-    barcode: Vec<usize>,
-    barcode_sizes: Vec<usize>,
+    barcode: Vec<u8>,
+    barcode_sizes: Vec<u8>,
 }
 
 impl MaxSeqErrors {
@@ -497,12 +492,12 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// ```
     pub fn new(
-        sample_errors_option: Option<usize>,
-        sample_barcode_size_option: Option<usize>,
-        barcode_errors_option: Option<usize>,
-        barcode_sizes: Vec<usize>,
-        constant_errors_option: Option<usize>,
-        constant_region_size: usize,
+        sample_errors_option: Option<u8>,
+        sample_barcode_size_option: Option<u8>,
+        barcode_errors_option: Option<u8>,
+        barcode_sizes: Vec<u8>,
+        constant_errors_option: Option<u8>,
+        constant_region_size: u8,
     ) -> Result<MaxSeqErrors, Box<dyn Error>> {
         let max_sample_errors;
         // start with a sample size of 0 in case there is no sample barcode.  If there is then mutate
@@ -568,7 +563,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
     /// ```
-    pub fn max_constant_errors(&self) -> usize {
+    pub fn max_constant_errors(&self) -> u8 {
         self.constant_region
     }
 
@@ -591,7 +586,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 3);
     /// ```
-    pub fn max_sample_errors(&self) -> usize {
+    pub fn max_sample_errors(&self) -> u8 {
         self.sample_barcode
     }
 
@@ -614,7 +609,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![2,2,2]);
     /// ```
-    pub fn max_barcode_errors(&self) -> &[usize] {
+    pub fn max_barcode_errors(&self) -> &[u8] {
         &self.barcode
     }
 
@@ -634,6 +629,16 @@ impl MaxSeqErrors {
     /// max_sequence_errors.display();
     /// ```
     pub fn display(&mut self) {
+        println!(
+            "
+            \n########## Barcode Info ###################################\n\
+            {}###########################################################",
+            self.display_string()
+        );
+        println!();
+    }
+
+    pub fn display_string(&self) -> String {
         let barcode_size_info;
         let barcode_error_info;
         if self.barcode_sizes.len() > 1 {
@@ -649,9 +654,8 @@ impl MaxSeqErrors {
                 self.barcode.first().unwrap()
             );
         }
-        println!(
-            "
-            \n########## Barcode Info ###################################\n\
+        format!(
+            "\
             Constant region size: {}\n\
             Maximum mismatches allowed per sequence: {}\n\
             -----------------------------------------------------------\n\
@@ -660,15 +664,14 @@ impl MaxSeqErrors {
             -----------------------------------------------------------\n\
             {}\n\
             {}\n\
-            ###########################################################",
+            ",
             self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
             barcode_size_info,
             barcode_error_info
-        );
-        println!();
+        )
     }
 }
 
@@ -683,9 +686,9 @@ pub enum FormatType {
 #[derive(Debug)]
 pub struct Results {
     pub random_hashmap: HashMap<String, HashMap<String, HashSet<String>>>, // The counts for for schemes that contain random barcodes
-    pub count_hashmap: HashMap<String, HashMap<String, usize>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
+    pub count_hashmap: HashMap<String, HashMap<String, u32>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
     pub format_type: FormatType, // Whether it is with a random barcode or not
-    empty_count_hash: HashMap<String, usize>, // An empty hashmap that is used a few times and therefor stored within the struct
+    empty_count_hash: HashMap<String, u32>, // An empty hashmap that is used a few times and therefor stored within the struct
 }
 
 impl Results {
@@ -707,7 +710,7 @@ impl Results {
 
         // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
         let empty_random_hash: HashMap<String, HashSet<String>> = HashMap::new();
-        let empty_count_hash: HashMap<String, usize> = HashMap::new();
+        let empty_count_hash: HashMap<String, u32> = HashMap::new();
 
         // If sample name conversion was included, add all sample names to the hashmaps used to count
         if let Some(samples_hashmap) = samples_hashmap_option {
@@ -918,7 +921,7 @@ mod tests {
     fn barcode_file_conversion_test() {
         let barcodes = barcode_file_conversion(&"barcode.example.csv".to_string(), 3).unwrap();
         let mut barcode_comparison = HashMap::new();
-        for barcode_num in [1usize, 2, 3] {
+        for barcode_num in [1, 2, 3] {
             if barcode_num == 1 {
                 let start_hash: HashMap<String, String> = [
                     ("CAGAGAC".to_string(), "Barcode_name_1".to_string()),
