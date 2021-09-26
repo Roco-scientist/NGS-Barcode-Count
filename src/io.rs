@@ -8,7 +8,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::Path,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex,
     },
 };
@@ -33,6 +33,7 @@ pub fn read_fastq(
     fastq: String,
     seq_clone: Arc<Mutex<Vec<String>>>,
     exit_clone: Arc<AtomicBool>,
+    total_reads_arc: Arc<AtomicU32>,
 ) -> Result<(), Box<dyn Error>> {
     let fastq_file = File::open(fastq.clone())?; // open file
 
@@ -71,6 +72,7 @@ pub fn read_fastq(
     }
     // Display the final total read count
     fastq_line_reader.display_total_reads();
+    total_reads_arc.store(fastq_line_reader.total_reads, Ordering::Relaxed);
     println!();
     Ok(())
 }
@@ -80,7 +82,7 @@ struct FastqLineReader {
     test_first_line: bool, // whether or not to keep testing line 1 as a sequence or metadata
     test_fastq_format: bool, // whether or not to test line 2, which should be a sequence
     line_num: u8,          // the current line number 1-4.  Resets back to 1
-    total_reads: u64,      // total sequences read within the fastq file
+    total_reads: u32,      // total sequences read within the fastq file
     seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
     exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
@@ -172,6 +174,7 @@ fn test_sequence(sequence: &str) -> LineType {
     LineType::Sequence
 }
 
+/// A struct setup to output results and stat information into files
 pub struct Output {
     results: crate::barcode_info::Results,
     sequence_format: crate::barcode_info::SequenceFormat,
@@ -201,6 +204,7 @@ impl Output {
         })
     }
 
+    /// Sets up and writes the results file.  Works for either with or without a random barcode
     pub fn write_files(&mut self) -> Result<(), Box<dyn Error>> {
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_ids = match self.results.format_type {
@@ -274,6 +278,7 @@ impl Output {
         Ok(())
     }
 
+    /// Creates the file header string for column headers
     fn create_header(&self) -> String {
         // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
         let mut header = String::new();
@@ -288,6 +293,7 @@ impl Output {
         header
     }
 
+    /// Writes the files for when a random barcode is included
     fn write_random(
         &mut self,
         sample_id: &str,
@@ -340,6 +346,7 @@ impl Output {
         Ok(())
     }
 
+    /// Writes the files for when a random barcode is not included
     fn write_counts(
         &mut self,
         sample_id: &str,
@@ -388,24 +395,42 @@ impl Output {
         }
         Ok(())
     }
-    pub fn write_stats(&self, start_time: DateTime<Local>) -> Result<(), Box<dyn Error>> {
-        let today = Local::today().format("%Y-%m-%d").to_string();
+    pub fn write_stats(
+        &self,
+        start_time: DateTime<Local>,
+        max_sequence_errors: crate::barcode_info::MaxSeqErrors,
+        mut seq_errors: crate::barcode_info::SequenceErrors,
+        total_reads: Arc<AtomicU32>,
+    ) -> Result<(), Box<dyn Error>> {
+        // Create the stat file name
         let output_dir = self.args.output_dir.clone();
         let directory = Path::new(&output_dir);
+        let today = Local::today().format("%Y-%m-%d").to_string();
         let stat_filename = directory.join(format!("{}_barcode_stats.txt", &today));
+        // Make the stat file and make it an appending function
         let mut stat_file = OpenOptions::new()
             .write(true)
             .append(true)
             .create(true)
             .open(stat_filename)?;
+
+        // Get the total time the program took to run
+        let now = Local::now();
+        let diff = now - start_time;
+        // Write the time information to the stat file
         stat_file.write_all(
             format!(
-                "Start: {:?}\nFinish: {:?}\n\n",
+                "Start: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
                 start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
-                Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+                now.format("%Y-%m-%d %H:%M:%S").to_string(),
+                diff.num_hours(),
+                diff.num_minutes(),
+                diff.num_seconds(),
+                diff.num_milliseconds()
             )
             .as_bytes(),
         )?;
+        // Write the input file information
         stat_file.write_all(
             format!(
                 "-Input files-\nFastq: {}\nFormat: {}\nSamples: {}\nBarcodes: {}\n\n",
@@ -422,12 +447,33 @@ impl Output {
             )
             .as_bytes(),
         )?;
+        // Record the files that were created
         stat_file
             .write_all(format!("Output files: {}\n\n", self.output_files.join(", ")).as_bytes())?;
+        // Record the barcode information
+        stat_file.write_all(
+            format!(
+                "-Barcode info-\n{}\n\n",
+                max_sequence_errors.display_string()
+            )
+            .as_bytes(),
+        )?;
+        // Record the total reads and errors
+        stat_file.write_all(
+            format!(
+                "-Results-\nTotal sequences:             {}\n{}\n\n",
+                total_reads.load(Ordering::Relaxed),
+                seq_errors.display_string()
+            )
+            .as_bytes(),
+        )?;
+        // Close the writing with dashes so that it is separated from the next analysis if it is done on the same day
+        stat_file.write_all("--------------------------------------------------------------------------------------------------\n\n\n".as_bytes())?;
         Ok(())
     }
 }
 
+/// Converst the DNA sequence from counted barcodes to the ID
 fn convert_code(code: &str, barcodes_hashmap: &[HashMap<String, String>]) -> String {
     code.split(',')
         .enumerate()

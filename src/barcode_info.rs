@@ -126,11 +126,15 @@ impl SequenceErrors {
     /// sequence_errors.display();
     /// ```
     pub fn display(&mut self) {
-        println!(
+        println!("{}", self.display_string());
+        println!()
+    }
+
+    pub fn display_string(&mut self) -> String {
+        format!(
             "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}",
             self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed)
-        );
-        println!()
+        )
     }
 
     pub fn arc_clone(&self) -> SequenceErrors {
@@ -625,6 +629,16 @@ impl MaxSeqErrors {
     /// max_sequence_errors.display();
     /// ```
     pub fn display(&mut self) {
+        println!(
+            "
+            \n########## Barcode Info ###################################\n\
+            {}###########################################################",
+            self.display_string()
+        );
+        println!();
+    }
+
+    pub fn display_string(&self) -> String {
         let barcode_size_info;
         let barcode_error_info;
         if self.barcode_sizes.len() > 1 {
@@ -640,9 +654,8 @@ impl MaxSeqErrors {
                 self.barcode.first().unwrap()
             );
         }
-        println!(
-            "
-            \n########## Barcode Info ###################################\n\
+        format!(
+            "\
             Constant region size: {}\n\
             Maximum mismatches allowed per sequence: {}\n\
             -----------------------------------------------------------\n\
@@ -651,15 +664,14 @@ impl MaxSeqErrors {
             -----------------------------------------------------------\n\
             {}\n\
             {}\n\
-            ###########################################################",
+            ",
             self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
             barcode_size_info,
             barcode_error_info
-        );
-        println!();
+        )
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex,
     },
     time::Instant,
@@ -64,6 +64,7 @@ fn main() {
     // Display region sizes and errors allowed
     max_errors.display();
 
+    let total_reads_arc = Arc::new(AtomicU32::new(0));
     // Start the multithreading scope
     rayon::scope(|s| {
         // Create a sequence vec which will have sequences entered by the reading thread, and sequences removed by the processing threads
@@ -76,8 +77,9 @@ fn main() {
         let finished_clone = Arc::clone(&finished);
         let exit_clone = Arc::clone(&exit);
         let fastq = args.fastq.clone();
+        let total_reads_arc_clone = Arc::clone(&total_reads_arc);
         s.spawn(move |_| {
-            barcode::io::read_fastq(fastq, seq_clone, exit_clone).unwrap_or_else(|err| {
+            barcode::io::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone).unwrap_or_else(|err| {
                 finished_clone.store(true, Ordering::Relaxed);
                 panic!("Error: {}", err)
             });
@@ -140,7 +142,7 @@ fn main() {
         .unwrap_or_else(|err| panic!("Writing error: {}", err));
     // Get the end time and print total time for the algorithm
     output
-        .write_stats(start_time)
+        .write_stats(start_time, max_errors, sequence_errors, total_reads_arc)
         .unwrap_or_else(|err| panic!("Writing stats error: {}", err));
     let elapsed_time = start.elapsed();
     if elapsed_time.as_secs() < 3 {
