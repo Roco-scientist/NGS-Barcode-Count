@@ -134,6 +134,7 @@ impl SequenceErrors {
 #[derive(Debug, Clone)]
 pub struct SequenceFormat {
     pub format_string: String,
+    regions_string: String,
     // Not implemented yet
     pub format_string_multiple: Option<Vec<String>>,
     pub format_regex: Regex,
@@ -158,11 +159,13 @@ impl SequenceFormat {
         let random_barcode = regex_string.contains("random");
         let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
         let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
+        let regions_string = build_regions_string(&format_data)?; // Create the string which indicates where the barcodes are located
         let barcode_num = regex_string.matches("barcode").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
 
         // Create and return the SequenceFormat struct
         Ok(SequenceFormat {
             format_string,
+            regions_string,
             format_string_multiple: None,
             format_regex,
             regex_string,
@@ -175,7 +178,24 @@ impl SequenceFormat {
 
     /// Displays the sequence format information with 'N's replacing all barcodes
     pub fn display_format(&self) {
-        println!("Format: {}", self.format_string);
+        let mut key = String::new();
+        let mut new_char = HashSet::new();
+        for key_char in self.regions_string.chars() {
+            if new_char.insert(key_char) {
+                let key_info = match key_char {
+                    'S' => "\nS: Sample barcode",
+                    'B' => "\nB: Counted barcode",
+                    'C' => "\nC: Constant region",
+                    'R' => "\nR: Random barcode",
+                    _ => "",
+                };
+                key.push_str(key_info);
+            }
+        }
+        println!(
+            "Format\n{}\n{}{}",
+            self.format_string, self.regions_string, key
+        );
         // println!();
     }
 
@@ -227,7 +247,7 @@ impl SequenceFormat {
     }
 }
 
-/// Builds the catpure groups from the file format
+/// Builds the format string from the file format
 ///
 /// # Example
 ///
@@ -251,6 +271,43 @@ pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> 
             }
         } else {
             final_format.push_str(group_str)
+        }
+    }
+    Ok(final_format)
+}
+
+/// Builds the regions string from the file format
+///
+/// # Example
+///
+/// ```
+/// use barcode::barcode_info::build_regions_string;
+/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT";
+///
+/// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRRRRRCC".to_string())
+/// ```
+pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>> {
+    let digit_search = Regex::new(r"\d+")?;
+    let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|[ATGCN]+")?;
+    let mut final_format = String::new();
+    for group in barcode_search.find_iter(format_data) {
+        let group_str = group.as_str();
+        let digits_option = digit_search.find(group_str);
+        if let Some(digit) = digits_option {
+            let digit_value = digit.as_str().parse::<usize>()?;
+            for _ in 0..digit_value {
+                if group_str.contains('[') {
+                    final_format.push('S')
+                } else if group_str.contains('{') {
+                    final_format.push('B')
+                } else if group_str.contains('(') {
+                    final_format.push('R')
+                }
+            }
+        } else {
+            for _ in 0..group_str.chars().count() {
+                final_format.push('C')
+            }
         }
     }
     Ok(final_format)
