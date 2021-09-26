@@ -134,6 +134,7 @@ impl SequenceErrors {
 #[derive(Debug, Clone)]
 pub struct SequenceFormat {
     pub format_string: String,
+    regions_string: String,
     // Not implemented yet
     pub format_string_multiple: Option<Vec<String>>,
     pub format_regex: Regex,
@@ -158,11 +159,13 @@ impl SequenceFormat {
         let random_barcode = regex_string.contains("random");
         let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
         let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
+        let regions_string = build_regions_string(&format_data)?; // Create the string which indicates where the barcodes are located
         let barcode_num = regex_string.matches("barcode").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
 
         // Create and return the SequenceFormat struct
         Ok(SequenceFormat {
             format_string,
+            regions_string,
             format_string_multiple: None,
             format_regex,
             regex_string,
@@ -175,7 +178,24 @@ impl SequenceFormat {
 
     /// Displays the sequence format information with 'N's replacing all barcodes
     pub fn display_format(&self) {
-        println!("Format: {}", self.format_string);
+        let mut key = String::new();
+        let mut new_char = HashSet::new();
+        for key_char in self.regions_string.chars() {
+            if new_char.insert(key_char) {
+                let key_info = match key_char {
+                    'S' => "\nS: Sample barcode",
+                    'B' => "\nB: Counted barcode",
+                    'C' => "\nC: Constant region",
+                    'R' => "\nR: Random barcode",
+                    _ => "",
+                };
+                key.push_str(key_info);
+            }
+        }
+        println!(
+            "Format\n{}\n{}{}",
+            self.format_string, self.regions_string, key
+        );
         // println!();
     }
 
@@ -227,7 +247,7 @@ impl SequenceFormat {
     }
 }
 
-/// Builds the catpure groups from the file format
+/// Builds the format string from the file format
 ///
 /// # Example
 ///
@@ -251,6 +271,43 @@ pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> 
             }
         } else {
             final_format.push_str(group_str)
+        }
+    }
+    Ok(final_format)
+}
+
+/// Builds the regions string from the file format
+///
+/// # Example
+///
+/// ```
+/// use barcode::barcode_info::build_regions_string;
+/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT";
+///
+/// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRRRRRCC".to_string())
+/// ```
+pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>> {
+    let digit_search = Regex::new(r"\d+")?;
+    let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|[ATGCN]+")?;
+    let mut final_format = String::new();
+    for group in barcode_search.find_iter(format_data) {
+        let group_str = group.as_str();
+        let digits_option = digit_search.find(group_str);
+        if let Some(digit) = digits_option {
+            let digit_value = digit.as_str().parse::<usize>()?;
+            for _ in 0..digit_value {
+                if group_str.contains('[') {
+                    final_format.push('S')
+                } else if group_str.contains('{') {
+                    final_format.push('B')
+                } else if group_str.contains('(') {
+                    final_format.push('R')
+                }
+            }
+        } else {
+            for _ in 0..group_str.chars().count() {
+                final_format.push('C')
+            }
         }
     }
     Ok(final_format)
@@ -406,7 +463,7 @@ pub struct MaxSeqErrors {
     sample_barcode: usize,
     sample_size: usize,
     // erors within the counted barcode
-    barcode: usize,
+    barcode: Vec<usize>,
     barcode_sizes: Vec<usize>,
 }
 
@@ -449,12 +506,14 @@ impl MaxSeqErrors {
             max_sample_errors = 0;
         }
 
-        let max_barcode_errors;
+        let mut max_barcode_errors = Vec::new();
         // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
-        if let Some(barcode_errors) = barcode_errors_option {
-            max_barcode_errors = barcode_errors
-        } else {
-            max_barcode_errors = barcode_sizes.iter().max().unwrap() / 5;
+        for barcode_size in &barcode_sizes {
+            if let Some(barcode_errors) = barcode_errors_option {
+                max_barcode_errors.push(barcode_errors);
+            } else {
+                max_barcode_errors.push(barcode_size / 5);
+            }
         }
 
         let max_constant_errors;
@@ -541,8 +600,8 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), 2);
     /// ```
-    pub fn max_barcode_errors(&self) -> usize {
-        self.barcode
+    pub fn max_barcode_errors(&self) -> &[usize] {
+        &self.barcode
     }
 
     /// Print to stdout all maximum sequencing errors
@@ -562,10 +621,19 @@ impl MaxSeqErrors {
     /// ```
     pub fn display(&mut self) {
         let barcode_size_info;
+        let barcode_error_info;
         if self.barcode_sizes.len() > 1 {
-            barcode_size_info = format!("Barcode sizes: {:?}", self.barcode_sizes)
+            barcode_size_info = format!("Barcode sizes: {:?}", self.barcode_sizes);
+            barcode_error_info = format!(
+                "Maximum mismatches allowed per barcode sequence: {:?}",
+                self.barcode
+            );
         } else {
-            barcode_size_info = format!("Barcode size: {}", self.barcode_sizes.first().unwrap())
+            barcode_size_info = format!("Barcode size: {}", self.barcode_sizes.first().unwrap());
+            barcode_error_info = format!(
+                "Maximum mismatches allowed per barcode sequence: {}",
+                self.barcode.first().unwrap()
+            );
         }
         println!(
             "
@@ -577,14 +645,14 @@ impl MaxSeqErrors {
             Maximum mismatches allowed per sequence: {}\n\
             -----------------------------------------------------------\n\
             {}\n\
-            Maximum mismatches allowed per barcode sequence: {}\n\
+            {}\n\
             ###########################################################",
             self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
             barcode_size_info,
-            self.barcode
+            barcode_error_info
         );
         println!();
     }
