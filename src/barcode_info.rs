@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fs,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc, Mutex,
     },
 };
@@ -14,15 +14,15 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct SequenceErrors {
     // errors within the constant region
-    constant_region: Arc<AtomicU64>,
+    constant_region: Arc<AtomicUsize>,
     // errors within the sample barcode
-    sample_barcode: Arc<AtomicU64>,
+    sample_barcode: Arc<AtomicUsize>,
     // erors within the counted barcode
-    barcode: Arc<AtomicU64>,
+    barcode: Arc<AtomicUsize>,
     // total matched
-    matched: Arc<AtomicU64>,
+    matched: Arc<AtomicUsize>,
     // total random barcode duplicates
-    duplicates: Arc<AtomicU64>,
+    duplicates: Arc<AtomicUsize>,
 }
 
 impl Default for SequenceErrors {
@@ -42,11 +42,11 @@ impl SequenceErrors {
     /// ```
     pub fn new() -> SequenceErrors {
         SequenceErrors {
-            constant_region: Arc::new(AtomicU64::new(0)),
-            sample_barcode: Arc::new(AtomicU64::new(0)),
-            barcode: Arc::new(AtomicU64::new(0)),
-            matched: Arc::new(AtomicU64::new(0)),
-            duplicates: Arc::new(AtomicU64::new(0)),
+            constant_region: Arc::new(AtomicUsize::new(0)),
+            sample_barcode: Arc::new(AtomicUsize::new(0)),
+            barcode: Arc::new(AtomicUsize::new(0)),
+            matched: Arc::new(AtomicUsize::new(0)),
+            duplicates: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -683,9 +683,9 @@ pub enum FormatType {
 #[derive(Debug)]
 pub struct Results {
     pub random_hashmap: HashMap<String, HashMap<String, HashSet<String>>>, // The counts for for schemes that contain random barcodes
-    pub count_hashmap: HashMap<String, HashMap<String, u32>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
+    pub count_hashmap: HashMap<String, HashMap<String, usize>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
     pub format_type: FormatType, // Whether it is with a random barcode or not
-    empty_count_hash: HashMap<String, u32>, // An empty hashmap that is used a few times and therefor stored within the struct
+    empty_count_hash: HashMap<String, usize>, // An empty hashmap that is used a few times and therefor stored within the struct
 }
 
 impl Results {
@@ -707,7 +707,7 @@ impl Results {
 
         // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
         let empty_random_hash: HashMap<String, HashSet<String>> = HashMap::new();
-        let empty_count_hash: HashMap<String, u32> = HashMap::new();
+        let empty_count_hash: HashMap<String, usize> = HashMap::new();
 
         // If sample name conversion was included, add all sample names to the hashmaps used to count
         if let Some(samples_hashmap) = samples_hashmap_option {
