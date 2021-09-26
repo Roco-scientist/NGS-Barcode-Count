@@ -4,21 +4,25 @@ use std::{
     collections::{HashMap, HashSet},
     error::Error,
     fs,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc, Mutex,
+    },
 };
 
 // Struct to keep track of sequencing errors and correct matches.  This is displayed at the end of the algorithm for QC measures
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct SequenceErrors {
     // errors within the constant region
-    constant_region: u64,
+    constant_region: Arc<AtomicU64>,
     // errors within the sample barcode
-    sample_barcode: u64,
+    sample_barcode: Arc<AtomicU64>,
     // erors within the counted barcode
-    barcode: u64,
+    barcode: Arc<AtomicU64>,
     // total matched
-    matched: u64,
+    matched: Arc<AtomicU64>,
     // total random barcode duplicates
-    duplicates: u64,
+    duplicates: Arc<AtomicU64>,
 }
 
 impl Default for SequenceErrors {
@@ -38,11 +42,11 @@ impl SequenceErrors {
     /// ```
     pub fn new() -> SequenceErrors {
         SequenceErrors {
-            constant_region: 0,
-            sample_barcode: 0,
-            barcode: 0,
-            matched: 0,
-            duplicates: 0,
+            constant_region: Arc::new(AtomicU64::new(0)),
+            sample_barcode: Arc::new(AtomicU64::new(0)),
+            barcode: Arc::new(AtomicU64::new(0)),
+            matched: Arc::new(AtomicU64::new(0)),
+            duplicates: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -56,7 +60,7 @@ impl SequenceErrors {
     /// sequence_errors.constant_region_error();
     /// ```
     pub fn constant_region_error(&mut self) {
-        self.constant_region += 1;
+        self.constant_region.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Add one to sample barcode error
@@ -69,7 +73,7 @@ impl SequenceErrors {
     /// sequence_errors.sample_barcode_error();
     /// ```
     pub fn sample_barcode_error(&mut self) {
-        self.sample_barcode += 1;
+        self.sample_barcode.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Add one to barcode error
@@ -82,7 +86,7 @@ impl SequenceErrors {
     /// sequence_errors.barcode_error();
     /// ```
     pub fn barcode_error(&mut self) {
-        self.barcode += 1;
+        self.barcode.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Add one to correct match
@@ -95,7 +99,7 @@ impl SequenceErrors {
     /// sequence_errors.correct_match();
     /// ```
     pub fn correct_match(&mut self) {
-        self.matched += 1;
+        self.matched.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Add one to duplicates
@@ -108,7 +112,7 @@ impl SequenceErrors {
     /// sequence_errors.duplicated();
     /// ```
     pub fn duplicated(&mut self) {
-        self.duplicates += 1;
+        self.duplicates.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Print to stdout all sequencing error counts
@@ -124,9 +128,19 @@ impl SequenceErrors {
     pub fn display(&mut self) {
         println!(
             "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}",
-            self.matched, self.constant_region, self.sample_barcode, self.barcode, self.duplicates
+            self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed)
         );
         println!()
+    }
+
+    pub fn arc_clone(&self) -> SequenceErrors {
+        SequenceErrors {
+            constant_region: Arc::clone(&self.constant_region),
+            sample_barcode: Arc::clone(&self.sample_barcode),
+            barcode: Arc::clone(&self.barcode),
+            matched: Arc::clone(&self.matched),
+            duplicates: Arc::clone(&self.duplicates),
+        }
     }
 }
 
@@ -284,7 +298,7 @@ pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> 
 /// use barcode::barcode_info::build_regions_string;
 /// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT";
 ///
-/// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRRRRRCC".to_string())
+/// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRCCCCCC".to_string())
 /// ```
 pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>> {
     let digit_search = Regex::new(r"\d+")?;
@@ -594,11 +608,11 @@ impl MaxSeqErrors {
     /// let constant_errors_option = None;
     /// let constant_region_size = 30;
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
-    /// assert_eq!(max_sequence_errors.max_barcode_errors(), 1);
+    /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![1,1,1]);
     /// let barcode_sizes = vec![8,8,8];
     /// let barcode_errors_option = Some(2);
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
-    /// assert_eq!(max_sequence_errors.max_barcode_errors(), 2);
+    /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![2,2,2]);
     /// ```
     pub fn max_barcode_errors(&self) -> &[usize] {
         &self.barcode
@@ -764,6 +778,38 @@ impl Results {
             .or_insert(0) += 1;
     }
 }
+
+pub struct SharedMutData {
+    pub seq: Arc<Mutex<Vec<String>>>,
+    pub finished: Arc<AtomicBool>,
+    pub results: Arc<Mutex<crate::barcode_info::Results>>,
+}
+
+impl SharedMutData {
+    pub fn new(
+        seq: Arc<Mutex<Vec<String>>>,
+        finished: Arc<AtomicBool>,
+        results: Arc<Mutex<crate::barcode_info::Results>>,
+    ) -> SharedMutData {
+        SharedMutData {
+            seq,
+            finished,
+            results,
+        }
+    }
+
+    pub fn arc_clone(&self) -> SharedMutData {
+        let seq = Arc::clone(&self.seq);
+        let finished = Arc::clone(&self.finished);
+        let results = Arc::clone(&self.results);
+        SharedMutData {
+            seq,
+            finished,
+            results,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -792,7 +838,7 @@ mod tests {
                 constant_region_size: 30,
                 sample_barcode: 2,
                 sample_size: 10,
-                barcode: 1,
+                barcode: vec![1, 1, 1],
                 barcode_sizes: vec![8, 8, 8],
             }
         )

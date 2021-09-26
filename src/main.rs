@@ -49,7 +49,7 @@ fn main() {
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
-    let sequence_errors = Arc::new(Mutex::new(barcode::barcode_info::SequenceErrors::new()));
+    let mut sequence_errors = barcode::barcode_info::SequenceErrors::new();
 
     // Create a passed exit passed variable to stop reading when a thread has panicked
     let exit = Arc::new(AtomicBool::new(false));
@@ -80,36 +80,34 @@ fn main() {
         let exit_clone = Arc::clone(&exit);
         let fastq = args.fastq.clone();
         s.spawn(move |_| {
-            barcode::read_fastq(fastq, seq_clone, exit_clone).unwrap_or_else(|err| {
+            barcode::io::read_fastq(fastq, seq_clone, exit_clone).unwrap_or_else(|err| {
                 finished_clone.store(true, Ordering::Relaxed);
                 panic!("Error: {}", err)
             });
             finished_clone.store(true, Ordering::Relaxed);
         });
 
+        let shared_mut =
+            barcode::barcode_info::SharedMutData::new(seq, finished, Arc::clone(&results));
         // Create processing threads.  One less than the total threads because of the single reading thread
         for _ in 1..args.threads {
             // Clone all variables needed to pass into each thread
-            let seq_clone = Arc::clone(&seq);
-            let finished_clone = Arc::clone(&finished);
+            let shared_mut_clone = shared_mut.arc_clone();
+            let sequence_errors_clone = sequence_errors.arc_clone();
             let sequence_format_clone = sequence_format.clone();
-            let results_clone = Arc::clone(&results);
             let samples_clone = samples_hashmap_option.clone();
             let barcodes_clone = barcodes_hashmap_option.clone();
-            let sequence_errors_clone = Arc::clone(&sequence_errors);
             let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
 
             // Create a processing thread
             s.spawn(move |_| {
                 let mut parser = barcode::parse_sequences::SequenceParser::new(
-                    seq_clone,
-                    finished_clone,
+                    shared_mut_clone,
+                    sequence_errors_clone,
                     sequence_format_clone,
-                    results_clone,
                     samples_clone,
                     barcodes_clone,
-                    sequence_errors_clone,
                     max_errors_clone,
                 );
                 parser.parse().unwrap_or_else(|err| {
@@ -121,7 +119,7 @@ fn main() {
     });
 
     // Print sequencing error counts to stdout
-    sequence_errors.lock().unwrap().display();
+    sequence_errors.display();
 
     // Get the end time and print compute time for the algorithm
     let elapsed_time = start.elapsed();
@@ -137,7 +135,7 @@ fn main() {
 
     println!("Writing counts");
     println!();
-    let mut output = barcode::Output::new(
+    let mut output = barcode::io::Output::new(
         results,
         sequence_format,
         barcodes_hashmap_option,
@@ -180,7 +178,7 @@ impl Args {
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
-        .version("0.5.2")
+        .version("0.5.3")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts barcodes located in sequencing data")
         .arg(

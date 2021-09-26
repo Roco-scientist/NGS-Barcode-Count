@@ -1,12 +1,5 @@
 use regex::Captures;
-use std::{
-    collections::HashMap,
-    error::Error,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-};
+use std::{collections::HashMap, error::Error, sync::atomic::Ordering};
 
 type CountedBarcode = String;
 type BarcodeID = String;
@@ -15,13 +8,11 @@ type BarcodeNum = usize;
 type BarcodeNumBarcode = HashMap<BarcodeNum, BarcodeBarcodeID>;
 
 pub struct SequenceParser {
-    seq_clone: Arc<Mutex<Vec<String>>>,
-    finished_clone: Arc<AtomicBool>,
+    shared_mut_clone: crate::barcode_info::SharedMutData,
+    sequence_errors_clone: crate::barcode_info::SequenceErrors,
     sequence_format_clone: crate::barcode_info::SequenceFormat,
-    results_clone: Arc<Mutex<crate::barcode_info::Results>>,
     samples_clone: Option<HashMap<String, String>>,
     barcodes_clone: Option<BarcodeNumBarcode>,
-    sequence_errors_clone: Arc<Mutex<crate::barcode_info::SequenceErrors>>,
     max_errors_clone: crate::barcode_info::MaxSeqErrors,
     sample_seqs: Option<Vec<String>>,
     barcodes_seqs_option: Option<Vec<Vec<String>>>,
@@ -31,13 +22,11 @@ pub struct SequenceParser {
 
 impl SequenceParser {
     pub fn new(
-        seq_clone: Arc<Mutex<Vec<String>>>,
-        finished_clone: Arc<AtomicBool>,
+        shared_mut_clone: crate::barcode_info::SharedMutData,
+        sequence_errors_clone: crate::barcode_info::SequenceErrors,
         sequence_format_clone: crate::barcode_info::SequenceFormat,
-        results_clone: Arc<Mutex<crate::barcode_info::Results>>,
         samples_clone: Option<HashMap<String, String>>,
         barcodes_clone: Option<BarcodeNumBarcode>,
-        sequence_errors_clone: Arc<Mutex<crate::barcode_info::SequenceErrors>>,
         max_errors_clone: crate::barcode_info::MaxSeqErrors,
     ) -> SequenceParser {
         let mut barcode_groups = Vec::new();
@@ -45,13 +34,11 @@ impl SequenceParser {
             barcode_groups.push(format!("barcode{}", x + 1))
         }
         SequenceParser {
-            seq_clone,
-            finished_clone,
+            shared_mut_clone,
+            sequence_errors_clone,
             sequence_format_clone,
-            results_clone,
             samples_clone,
             barcodes_clone,
-            sequence_errors_clone,
             max_errors_clone,
             sample_seqs: None,
             barcodes_seqs_option: None,
@@ -64,17 +51,17 @@ impl SequenceParser {
         // Get a vec of all possible building block barcodes for error correction
         self.get_barcode_seqs();
 
-        // Loop until there are no sequences left to parse.  These are fed into seq_clone vec by the reader thread
+        // Loop until there are no sequences left to parse.  These are fed into seq vec by the reader thread
         loop {
-            // If there are no sequences in seq_clone, pause, unless the reader thread is finished
-            while self.seq_clone.lock().unwrap().is_empty() {
-                if self.finished_clone.load(Ordering::Relaxed) {
+            // If there are no sequences in seq, pause, unless the reader thread is finished
+            while self.shared_mut_clone.seq.lock().unwrap().is_empty() {
+                if self.shared_mut_clone.finished.load(Ordering::Relaxed) {
                     break;
                 }
             }
             // If thre are no sequences and the reader thread is finished, break out of the loop
-            if self.seq_clone.lock().unwrap().is_empty()
-                && self.finished_clone.load(Ordering::Relaxed)
+            if self.shared_mut_clone.seq.lock().unwrap().is_empty()
+                && self.shared_mut_clone.finished.load(Ordering::Relaxed)
             {
                 break;
             }
@@ -87,22 +74,23 @@ impl SequenceParser {
                     let sample_name = seq_match_result.sample_name();
                     // If there is a random barcode included
                     if let Some(random_barcode) = seq_match_result.random_barcode_option.as_ref() {
-                        let added = self.results_clone.lock().unwrap().add_random(
+                        let added = self.shared_mut_clone.results.lock().unwrap().add_random(
                             &sample_name,
                             random_barcode.clone(),
                             &barcode_string,
                         );
                         if added {
-                            self.sequence_errors_clone.lock().unwrap().correct_match()
+                            self.sequence_errors_clone.correct_match()
                         } else {
-                            self.sequence_errors_clone.lock().unwrap().duplicated();
+                            self.sequence_errors_clone.duplicated();
                         }
                     } else {
-                        self.results_clone
+                        self.shared_mut_clone
+                            .results
                             .lock()
                             .unwrap()
                             .add_count(&sample_name, &barcode_string);
-                        self.sequence_errors_clone.lock().unwrap().correct_match()
+                        self.sequence_errors_clone.correct_match()
                     }
                 }
             }
@@ -111,8 +99,8 @@ impl SequenceParser {
     }
 
     fn get_seqeunce(&mut self) {
-        // Pop off the last sequence from the seq_clone vec
-        if let Some(new_sequence) = self.seq_clone.lock().unwrap().pop() {
+        // Pop off the last sequence from the seq vec
+        if let Some(new_sequence) = self.shared_mut_clone.seq.lock().unwrap().pop() {
             self.raw_sequence = RawSequence::new(new_sequence)
         } else {
             self.raw_sequence = RawSequence::new("".to_string())
@@ -159,7 +147,7 @@ impl SequenceParser {
             )?;
 
             if match_results.counted_barcode_error {
-                self.sequence_errors_clone.lock().unwrap().barcode_error();
+                self.sequence_errors_clone.barcode_error();
                 return Ok(None);
             }
             // If sample barcode is in the sample conversion file, convert. Otherwise try and fix the error
@@ -178,10 +166,7 @@ impl SequenceParser {
                 // If there wasn't a suitable fix
                 if match_results.sample_barcode_option.is_none() {
                     // Record the error and finish looking within this sequence
-                    self.sequence_errors_clone
-                        .lock()
-                        .unwrap()
-                        .sample_barcode_error();
+                    self.sequence_errors_clone.sample_barcode_error();
                     return Ok(None);
                 }
                 // Convert the fixed sample sequence
@@ -190,10 +175,7 @@ impl SequenceParser {
             Ok(Some(match_results))
         } else {
             // If the constant region was not found, record the error and return None
-            self.sequence_errors_clone
-                .lock()
-                .unwrap()
-                .constant_region_error();
+            self.sequence_errors_clone.constant_region_error();
             Ok(None)
         }
     }
@@ -378,7 +360,7 @@ impl SequenceMatchResult {
 /// ```
 /// use barcode::parse_sequences::fix_error;
 ///
-/// let barcode = "AGTAG".to_string();
+/// let barcode = "AGTAG";
 ///
 /// let possible_barcodes_one_match = vec!["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()]; // only the first has a single mismatch
 /// let possible_barcodes_two_match = vec!["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()]; // first and second have a single mismatch
