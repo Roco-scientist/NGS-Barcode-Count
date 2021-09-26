@@ -49,7 +49,7 @@ fn main() {
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
-    let sequence_errors = Arc::new(Mutex::new(barcode::barcode_info::SequenceErrors::new()));
+    let mut sequence_errors = barcode::barcode_info::SequenceErrors::new();
 
     // Create a passed exit passed variable to stop reading when a thread has panicked
     let exit = Arc::new(AtomicBool::new(false));
@@ -87,16 +87,13 @@ fn main() {
             finished_clone.store(true, Ordering::Relaxed);
         });
 
-        let shared_mut = barcode::barcode_info::SharedMutData::new(
-            seq,
-            finished,
-            Arc::clone(&results),
-            Arc::clone(&sequence_errors),
-        );
+        let shared_mut =
+            barcode::barcode_info::SharedMutData::new(seq, finished, Arc::clone(&results));
         // Create processing threads.  One less than the total threads because of the single reading thread
         for _ in 1..args.threads {
             // Clone all variables needed to pass into each thread
             let shared_mut_clone = shared_mut.clone();
+            let sequence_errors_clone = sequence_errors.clone();
             let sequence_format_clone = sequence_format.clone();
             let samples_clone = samples_hashmap_option.clone();
             let barcodes_clone = barcodes_hashmap_option.clone();
@@ -107,6 +104,7 @@ fn main() {
             s.spawn(move |_| {
                 let mut parser = barcode::parse_sequences::SequenceParser::new(
                     shared_mut_clone,
+                    sequence_errors_clone,
                     sequence_format_clone,
                     samples_clone,
                     barcodes_clone,
@@ -121,7 +119,7 @@ fn main() {
     });
 
     // Print sequencing error counts to stdout
-    sequence_errors.lock().unwrap().display();
+    sequence_errors.display();
 
     // Get the end time and print compute time for the algorithm
     let elapsed_time = start.elapsed();
