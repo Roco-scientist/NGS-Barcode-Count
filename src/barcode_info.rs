@@ -133,7 +133,7 @@ impl SequenceErrors {
         println!()
     }
 
-    pub fn clone(&self) -> SequenceErrors {
+    pub fn arc_clone(&self) -> SequenceErrors {
         SequenceErrors {
             constant_region: Arc::clone(&self.constant_region),
             sample_barcode: Arc::clone(&self.sample_barcode),
@@ -798,7 +798,7 @@ impl SharedMutData {
         }
     }
 
-    pub fn clone(&self) -> SharedMutData {
+    pub fn arc_clone(&self) -> SharedMutData {
         let seq = Arc::clone(&self.seq);
         let finished = Arc::clone(&self.finished);
         let results = Arc::clone(&self.results);

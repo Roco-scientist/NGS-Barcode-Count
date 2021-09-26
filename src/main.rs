@@ -92,8 +92,8 @@ fn main() {
         // Create processing threads.  One less than the total threads because of the single reading thread
         for _ in 1..args.threads {
             // Clone all variables needed to pass into each thread
-            let shared_mut_clone = shared_mut.clone();
-            let sequence_errors_clone = sequence_errors.clone();
+            let shared_mut_clone = shared_mut.arc_clone();
+            let sequence_errors_clone = sequence_errors.arc_clone();
             let sequence_format_clone = sequence_format.clone();
             let samples_clone = samples_hashmap_option.clone();
             let barcodes_clone = barcodes_hashmap_option.clone();
@@ -178,7 +178,7 @@ impl Args {
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
-        .version("0.5.2")
+        .version("0.5.3")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts barcodes located in sequencing data")
         .arg(
