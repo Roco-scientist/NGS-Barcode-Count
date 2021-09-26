@@ -284,7 +284,7 @@ pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> 
 /// use barcode::barcode_info::build_regions_string;
 /// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT";
 ///
-/// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRRRRRCC".to_string())
+/// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRCCCCCC".to_string())
 /// ```
 pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>> {
     let digit_search = Regex::new(r"\d+")?;
@@ -594,11 +594,11 @@ impl MaxSeqErrors {
     /// let constant_errors_option = None;
     /// let constant_region_size = 30;
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
-    /// assert_eq!(max_sequence_errors.max_barcode_errors(), 1);
+    /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![1,1,1]);
     /// let barcode_sizes = vec![8,8,8];
     /// let barcode_errors_option = Some(2);
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
-    /// assert_eq!(max_sequence_errors.max_barcode_errors(), 2);
+    /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![2,2,2]);
     /// ```
     pub fn max_barcode_errors(&self) -> &[usize] {
         &self.barcode
@@ -792,7 +792,7 @@ mod tests {
                 constant_region_size: 30,
                 sample_barcode: 2,
                 sample_size: 10,
-                barcode: 1,
+                barcode: vec![1, 1, 1],
                 barcode_sizes: vec![8, 8, 8],
             }
         )

@@ -378,7 +378,7 @@ impl SequenceMatchResult {
 /// ```
 /// use barcode::parse_sequences::fix_error;
 ///
-/// let barcode = "AGTAG".to_string();
+/// let barcode = "AGTAG";
 ///
 /// let possible_barcodes_one_match = vec!["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()]; // only the first has a single mismatch
 /// let possible_barcodes_two_match = vec!["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()]; // first and second have a single mismatch
