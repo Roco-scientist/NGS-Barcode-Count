@@ -17,6 +17,7 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 <li><a href=#files-needed>Files Needed</a></li>
 <li><a href=#run>Run</a></li>
 <li><a href=#test-results>Test Results</a></li>
+<li><a href=#notes>Notes</a></li>
 </ul>
 
 ## Installation
@@ -247,9 +248,15 @@ Sample barcode mismatches:   3270100
 Barcode mismatches:          5736687
 Duplicates:                  0
 
-Compute time: 73 minutes
+Compute time: 71 minutes
 
 Writing counts
 
-Total time: 79 minutes
+Total time: 77 minutes
 ```
+
+## Notes
+In order to remain memory efficient, there are limits on how large each number can get<br>
+Any count: u32 with a max of 4,294,967,295 <br>
+Barcode lengths, each error max, number of barcodes in a single sequence: u8 with a max of 255 <br><br>
+If larger values are needed, edit the script and replace the u32 with u64 or u8 with u16 etc.
