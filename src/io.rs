@@ -174,7 +174,7 @@ fn test_sequence(sequence: &str) -> LineType {
 pub struct Output {
     results: crate::barcode_info::Results,
     sequence_format: crate::barcode_info::SequenceFormat,
-    barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
+    barcodes_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
     prefix: String,
     merge_output: bool,
     merged_output_file_option: Option<File>,
@@ -185,7 +185,7 @@ impl Output {
     pub fn new(
         results_arc: Arc<Mutex<crate::barcode_info::Results>>,
         sequence_format: crate::barcode_info::SequenceFormat,
-        barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
+        barcodes_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
         prefix: String,
         merge_output: bool,
     ) -> Result<Output, Box<dyn Error>> {
@@ -387,11 +387,11 @@ impl Output {
     }
 }
 
-fn convert_code(code: &str, barcodes_hashmap: &HashMap<usize, HashMap<String, String>>) -> String {
+fn convert_code(code: &str, barcodes_hashmap: &HashMap<u8, HashMap<String, String>>) -> String {
     code.split(',')
         .enumerate()
         .map(|(barcode_index, barcode)| {
-            let actual_barcode_num = barcode_index + 1;
+            let actual_barcode_num = barcode_index as u8 + 1;
             let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
             return barcode_hash.get(barcode).unwrap().to_string();
         })

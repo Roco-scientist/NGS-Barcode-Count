@@ -167,9 +167,9 @@ struct Args {
     threads: u8, // Number of threads to use.  Defaults to number of threads on the machine
     prefix: String, // Prefix string for the output files
     merge_output: bool, // Whether or not to create an additional output file that merges all samples
-    barcodes_errors_option: Option<usize>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
-    sample_errors_option: Option<usize>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
-    constant_errors_option: Option<usize>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
+    barcodes_errors_option: Option<u8>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
+    sample_errors_option: Option<u8>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
+    constant_errors_option: Option<u8>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
 }
 
 impl Args {
@@ -278,21 +278,21 @@ impl Args {
 
         let barcodes_errors_option;
         if let Some(barcodes) = args.value_of("barcodes_errors") {
-            barcodes_errors_option = Some(barcodes.parse::<usize>()?)
+            barcodes_errors_option = Some(barcodes.parse::<u8>()?)
         } else {
             barcodes_errors_option = None
         }
 
         let sample_errors_option;
         if let Some(sample) = args.value_of("sample_errors") {
-            sample_errors_option = Some(sample.parse::<usize>()?)
+            sample_errors_option = Some(sample.parse::<u8>()?)
         } else {
             sample_errors_option = None
         }
 
         let constant_errors_option;
         if let Some(constant) = args.value_of("constant_errors") {
-            constant_errors_option = Some(constant.parse::<usize>()?)
+            constant_errors_option = Some(constant.parse::<u8>()?)
         } else {
             constant_errors_option = None
         }
