@@ -406,7 +406,7 @@ pub struct MaxSeqErrors {
     sample_barcode: usize,
     sample_size: usize,
     // erors within the counted barcode
-    barcode: usize,
+    barcode: Vec<usize>,
     barcode_sizes: Vec<usize>,
 }
 
@@ -449,12 +449,14 @@ impl MaxSeqErrors {
             max_sample_errors = 0;
         }
 
-        let max_barcode_errors;
+        let mut max_barcode_errors = Vec::new();
         // If max error was set by input arguments, use that value, otherwise calculate 20% of barcode size for max error
-        if let Some(barcode_errors) = barcode_errors_option {
-            max_barcode_errors = barcode_errors
-        } else {
-            max_barcode_errors = barcode_sizes.iter().max().unwrap() / 5;
+        for barcode_size in &barcode_sizes {
+            if let Some(barcode_errors) = barcode_errors_option {
+                max_barcode_errors.push(barcode_errors);
+            } else {
+                max_barcode_errors.push(barcode_size / 5);
+            }
         }
 
         let max_constant_errors;
@@ -541,8 +543,8 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), 2);
     /// ```
-    pub fn max_barcode_errors(&self) -> usize {
-        self.barcode
+    pub fn max_barcode_errors(&self) -> &[usize] {
+        &self.barcode
     }
 
     /// Print to stdout all maximum sequencing errors
@@ -562,10 +564,19 @@ impl MaxSeqErrors {
     /// ```
     pub fn display(&mut self) {
         let barcode_size_info;
+        let barcode_error_info;
         if self.barcode_sizes.len() > 1 {
-            barcode_size_info = format!("Barcode sizes: {:?}", self.barcode_sizes)
+            barcode_size_info = format!("Barcode sizes: {:?}", self.barcode_sizes);
+            barcode_error_info = format!(
+                "Maximum mismatches allowed per barcode sequence: {:?}",
+                self.barcode
+            );
         } else {
-            barcode_size_info = format!("Barcode size: {}", self.barcode_sizes.first().unwrap())
+            barcode_size_info = format!("Barcode size: {}", self.barcode_sizes.first().unwrap());
+            barcode_error_info = format!(
+                "Maximum mismatches allowed per barcode sequence: {}",
+                self.barcode.first().unwrap()
+            );
         }
         println!(
             "
@@ -577,14 +588,14 @@ impl MaxSeqErrors {
             Maximum mismatches allowed per sequence: {}\n\
             -----------------------------------------------------------\n\
             {}\n\
-            Maximum mismatches allowed per barcode sequence: {}\n\
+            {}\n\
             ###########################################################",
             self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
             barcode_size_info,
-            self.barcode
+            barcode_error_info
         );
         println!();
     }

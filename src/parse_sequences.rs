@@ -284,7 +284,7 @@ impl SequenceMatchResult {
         barcodes: Captures,
         barcode_groups: &[String],
         barcode_seqs_option: &Option<Vec<Vec<String>>>,
-        counted_barcode_max_errors: usize,
+        counted_barcode_max_errors: &[usize],
     ) -> Result<SequenceMatchResult, Box<dyn Error>> {
         let sample_barcode_option;
         if let Some(sample_barcode) = barcodes.name("sample") {
@@ -301,7 +301,7 @@ impl SequenceMatchResult {
                     let barcode_seq_fix_option = fix_error(
                         &counted_barcode,
                         &barcode_seqs[index],
-                        counted_barcode_max_errors,
+                        counted_barcode_max_errors[index],
                     )?;
                     if let Some(fixed_barcode) = barcode_seq_fix_option {
                         counted_barcode = fixed_barcode;
