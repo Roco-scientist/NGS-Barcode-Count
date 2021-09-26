@@ -87,29 +87,29 @@ fn main() {
             finished_clone.store(true, Ordering::Relaxed);
         });
 
+        let shared_mut = barcode::barcode_info::SharedMutData::new(
+            seq,
+            finished,
+            Arc::clone(&results),
+            Arc::clone(&sequence_errors),
+        );
         // Create processing threads.  One less than the total threads because of the single reading thread
         for _ in 1..args.threads {
             // Clone all variables needed to pass into each thread
-            let seq_clone = Arc::clone(&seq);
-            let finished_clone = Arc::clone(&finished);
+            let shared_mut_clone = shared_mut.clone();
             let sequence_format_clone = sequence_format.clone();
-            let results_clone = Arc::clone(&results);
             let samples_clone = samples_hashmap_option.clone();
             let barcodes_clone = barcodes_hashmap_option.clone();
-            let sequence_errors_clone = Arc::clone(&sequence_errors);
             let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
 
             // Create a processing thread
             s.spawn(move |_| {
                 let mut parser = barcode::parse_sequences::SequenceParser::new(
-                    seq_clone,
-                    finished_clone,
+                    shared_mut_clone,
                     sequence_format_clone,
-                    results_clone,
                     samples_clone,
                     barcodes_clone,
-                    sequence_errors_clone,
                     max_errors_clone,
                 );
                 parser.parse().unwrap_or_else(|err| {
