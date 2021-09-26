@@ -4,8 +4,7 @@ use std::{collections::HashMap, error::Error, sync::atomic::Ordering};
 type CountedBarcode = String;
 type BarcodeID = String;
 type BarcodeBarcodeID = HashMap<CountedBarcode, BarcodeID>;
-type BarcodeNum = u8;
-type BarcodeNumBarcode = HashMap<BarcodeNum, BarcodeBarcodeID>;
+type BarcodeNumBarcode = Vec<BarcodeBarcodeID>;
 
 pub struct SequenceParser {
     shared_mut_clone: crate::barcode_info::SharedMutData,
@@ -114,17 +113,14 @@ impl SequenceParser {
     }
     fn get_barcode_seqs(&mut self) {
         if let Some(ref barcodes) = self.barcodes_clone {
-            let mut barcodes_vec = Vec::new();
-            let mut barcodes_keys = barcodes.keys().collect::<Vec<&u8>>();
-            barcodes_keys.sort();
-            for key in barcodes_keys {
-                let barcodes_data = barcodes.get(key).unwrap();
-                let barcodes = barcodes_data
-                    .keys()
-                    .map(|key| key.to_string())
-                    .collect::<Vec<String>>();
-                barcodes_vec.push(barcodes);
-            }
+            let barcodes_vec = barcodes
+                .iter()
+                .map(|hash| {
+                    hash.keys()
+                        .map(|key| key.to_string())
+                        .collect::<Vec<String>>()
+                })
+                .collect::<Vec<Vec<String>>>();
             self.barcodes_seqs_option = Some(barcodes_vec);
         }
     }

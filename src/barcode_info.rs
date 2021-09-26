@@ -153,7 +153,7 @@ pub struct SequenceFormat {
     pub format_string_multiple: Option<Vec<String>>,
     pub format_regex: Regex,
     pub regex_string: String,
-    pub barcode_num: u8,
+    pub barcode_num: usize,
     // Not implemented yet
     pub multiple: bool,
     format_data: String,
@@ -174,7 +174,7 @@ impl SequenceFormat {
         let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
         let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
         let regions_string = build_regions_string(&format_data)?; // Create the string which indicates where the barcodes are located
-        let barcode_num = regex_string.matches("barcode").count() as u8; // Count the number of barcodes.  This is used later for retrieving barcodes etc.
+        let barcode_num = regex_string.matches("barcode").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
 
         // Create and return the SequenceFormat struct
         Ok(SequenceFormat {
@@ -417,8 +417,8 @@ pub fn sample_barcode_file_conversion(
 /// panics if not all integers for barcode numbers is within this columns
 pub fn barcode_file_conversion(
     barcode_path: &str,
-    barcode_num: u8,
-) -> Result<HashMap<u8, HashMap<String, String>>, Box<dyn Error>> {
+    barcode_num: usize,
+) -> Result<Vec<HashMap<String, String>>, Box<dyn Error>> {
     // read in the sample barcode file
     let barcode_vecs = fs::read_to_string(barcode_path)?
         .lines() // split the lines
@@ -431,31 +431,22 @@ pub fn barcode_file_conversion(
                 .unwrap_or(("".to_string(), "".to_string(), "".to_string()))
         }) // comma split the line into a tuple with the first being the key and the last the value
         .collect::<Vec<(String, String, String)>>();
-    let mut barcode_data = HashMap::new();
-    let mut barcode_num_contained = Vec::new();
+    let mut barcode_data = Vec::new();
+    for _ in 0..barcode_num {
+        barcode_data.push(HashMap::new());
+    }
+    let mut barcode_num_contained = HashSet::new();
     for (barcode, id, barcode_num) in barcode_vecs {
-        let barcode_num_u8 = barcode_num.parse::<u8>().unwrap_or_else(|err| {
+        let barcode_num_usize = barcode_num.parse::<usize>().unwrap_or_else(|err| {
             panic!("Third column of barcode file contains something other than an integer: {}\nError: {}", barcode_num, err)
-        });
-        if !barcode_num_contained.contains(&barcode_num_u8) {
-            barcode_num_contained.push(barcode_num_u8)
-        };
-        if let std::collections::hash_map::Entry::Vacant(e) = barcode_data.entry(barcode_num_u8) {
-            let mut intermediate_hash = HashMap::new();
-            intermediate_hash.insert(barcode, id);
-            e.insert(intermediate_hash);
-        } else {
-            barcode_data
-                .get_mut(&barcode_num_u8)
-                .unwrap()
-                .insert(barcode, id);
-        }
+        }) - 1;
+        barcode_num_contained.insert(barcode_num_usize);
+        barcode_data[barcode_num_usize].insert(barcode, id);
     }
     let mut missing_barcode_num = Vec::new();
     for x in 0..barcode_num {
-        let actual_num = x + 1;
-        if !barcode_num_contained.contains(&actual_num) {
-            missing_barcode_num.push(actual_num)
+        if !barcode_num_contained.contains(&x) {
+            missing_barcode_num.push(x)
         }
     }
     if !missing_barcode_num.is_empty() {

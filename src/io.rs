@@ -175,7 +175,7 @@ fn test_sequence(sequence: &str) -> LineType {
 pub struct Output {
     results: crate::barcode_info::Results,
     sequence_format: crate::barcode_info::SequenceFormat,
-    barcodes_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
+    barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
     merged_output_file_option: Option<File>,
     compounds_written: HashSet<String>,
     args: crate::Args,
@@ -186,7 +186,7 @@ impl Output {
     pub fn new(
         results_arc: Arc<Mutex<crate::barcode_info::Results>>,
         sequence_format: crate::barcode_info::SequenceFormat,
-        barcodes_hashmap_option: Option<HashMap<u8, HashMap<String, String>>>,
+        barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
         args: crate::Args,
     ) -> Result<Output, Box<dyn Error>> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
@@ -428,12 +428,11 @@ impl Output {
     }
 }
 
-fn convert_code(code: &str, barcodes_hashmap: &HashMap<u8, HashMap<String, String>>) -> String {
+fn convert_code(code: &str, barcodes_hashmap: &[HashMap<String, String>]) -> String {
     code.split(',')
         .enumerate()
         .map(|(barcode_index, barcode)| {
-            let actual_barcode_num = barcode_index as u8 + 1;
-            let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
+            let barcode_hash = &barcodes_hashmap[barcode_index];
             return barcode_hash.get(barcode).unwrap().to_string();
         })
         .join(",")
