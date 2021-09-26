@@ -28,7 +28,7 @@ impl Args {
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
-        .version("0.5.3")
+        .version("0.6.0")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts barcodes located in sequencing data")
         .arg(
