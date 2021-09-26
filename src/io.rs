@@ -1,13 +1,14 @@
+use chrono::{DateTime, Local};
 use custom_error::custom_error;
 use flate2::read::GzDecoder;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    fs::File,
+    fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::Path,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex,
     },
 };
@@ -32,6 +33,7 @@ pub fn read_fastq(
     fastq: String,
     seq_clone: Arc<Mutex<Vec<String>>>,
     exit_clone: Arc<AtomicBool>,
+    total_reads_arc: Arc<AtomicU32>,
 ) -> Result<(), Box<dyn Error>> {
     let fastq_file = File::open(fastq.clone())?; // open file
 
@@ -70,6 +72,7 @@ pub fn read_fastq(
     }
     // Display the final total read count
     fastq_line_reader.display_total_reads();
+    total_reads_arc.store(fastq_line_reader.total_reads, Ordering::Relaxed);
     println!();
     Ok(())
 }
@@ -79,7 +82,7 @@ struct FastqLineReader {
     test_first_line: bool, // whether or not to keep testing line 1 as a sequence or metadata
     test_fastq_format: bool, // whether or not to test line 2, which should be a sequence
     line_num: u8,          // the current line number 1-4.  Resets back to 1
-    total_reads: u64,      // total sequences read within the fastq file
+    total_reads: u32,      // total sequences read within the fastq file
     seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
     exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
@@ -171,37 +174,38 @@ fn test_sequence(sequence: &str) -> LineType {
     LineType::Sequence
 }
 
+/// A struct setup to output results and stat information into files
 pub struct Output {
     results: crate::barcode_info::Results,
     sequence_format: crate::barcode_info::SequenceFormat,
-    barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
-    prefix: String,
-    merge_output: bool,
+    barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
     merged_output_file_option: Option<File>,
     compounds_written: HashSet<String>,
+    args: crate::Args,
+    output_files: Vec<String>,
 }
 
 impl Output {
     pub fn new(
         results_arc: Arc<Mutex<crate::barcode_info::Results>>,
         sequence_format: crate::barcode_info::SequenceFormat,
-        barcodes_hashmap_option: Option<HashMap<usize, HashMap<String, String>>>,
-        prefix: String,
-        merge_output: bool,
+        barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
+        args: crate::Args,
     ) -> Result<Output, Box<dyn Error>> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
         Ok(Output {
             results,
             sequence_format,
             barcodes_hashmap_option,
-            prefix,
-            merge_output,
             merged_output_file_option: None,
             compounds_written: HashSet::new(),
+            args,
+            output_files: Vec::new(),
         })
     }
 
-    pub fn write_files(&mut self, output_dir: String) -> Result<(), Box<dyn Error>> {
+    /// Sets up and writes the results file.  Works for either with or without a random barcode
+    pub fn write_files(&mut self) -> Result<(), Box<dyn Error>> {
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_ids = match self.results.format_type {
             crate::barcode_info::FormatType::RandomBarcode => self
@@ -220,13 +224,15 @@ impl Output {
         sample_ids.sort();
 
         // create the directory variable to join the file to
+        let output_dir = self.args.output_dir.clone();
         let directory = Path::new(&output_dir);
 
         let mut header = self.create_header();
         // If merged called, create the header with the sample names as columns and write
-        if self.merge_output {
+        if self.args.merge_output {
             // Create the merge file and push the header, if merged called within arguments
-            let merged_file_name = format!("{}{}", self.prefix, "_counts.all.csv");
+            let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
+            self.output_files.push(merged_file_name.clone());
             let merged_output_path = directory.join(merged_file_name);
 
             self.merged_output_file_option = Some(File::create(merged_output_path)?);
@@ -249,11 +255,12 @@ impl Output {
             let file_name;
             // If no sample names are supplied, save as all counts, otherwise as sample name counts
             if sample_ids.len() == 1 && sample_id == "Unknown_sample_name" {
-                file_name = format!("{}{}", self.prefix, "_all_counts.csv");
+                file_name = format!("{}{}", self.args.prefix, "_all_counts.csv");
             } else {
                 // create the filename as the sample_id_counts.csv
-                file_name = format!("{}_{}{}", self.prefix, sample_id, "_counts.csv");
+                file_name = format!("{}_{}{}", self.args.prefix, sample_id, "_counts.csv");
             }
+            self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
             let output_path = directory.join(file_name);
             let mut output = File::create(output_path)?; // Create the output file
@@ -271,6 +278,7 @@ impl Output {
         Ok(())
     }
 
+    /// Creates the file header string for column headers
     fn create_header(&self) -> String {
         // Create a comma separated header.  First columns are the barcodes, 'Barcode_#'.  The last header is 'Count'
         let mut header = String::new();
@@ -285,6 +293,7 @@ impl Output {
         header
     }
 
+    /// Writes the files for when a random barcode is included
     fn write_random(
         &mut self,
         sample_id: &str,
@@ -337,6 +346,7 @@ impl Output {
         Ok(())
     }
 
+    /// Writes the files for when a random barcode is not included
     fn write_counts(
         &mut self,
         sample_id: &str,
@@ -385,14 +395,90 @@ impl Output {
         }
         Ok(())
     }
+    pub fn write_stats(
+        &self,
+        start_time: DateTime<Local>,
+        max_sequence_errors: crate::barcode_info::MaxSeqErrors,
+        mut seq_errors: crate::barcode_info::SequenceErrors,
+        total_reads: Arc<AtomicU32>,
+    ) -> Result<(), Box<dyn Error>> {
+        // Create the stat file name
+        let output_dir = self.args.output_dir.clone();
+        let directory = Path::new(&output_dir);
+        let today = Local::today().format("%Y-%m-%d").to_string();
+        let stat_filename = directory.join(format!("{}_barcode_stats.txt", &today));
+        // Make the stat file and make it an appending function
+        let mut stat_file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(stat_filename)?;
+
+        // Get the total time the program took to run
+        let now = Local::now();
+        let diff = now - start_time;
+        // Write the time information to the stat file
+        stat_file.write_all(
+            format!(
+                "Start: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
+                start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
+                now.format("%Y-%m-%d %H:%M:%S").to_string(),
+                diff.num_hours(),
+                diff.num_minutes(),
+                diff.num_seconds(),
+                diff.num_milliseconds()
+            )
+            .as_bytes(),
+        )?;
+        // Write the input file information
+        stat_file.write_all(
+            format!(
+                "-Input files-\nFastq: {}\nFormat: {}\nSamples: {}\nBarcodes: {}\n\n",
+                self.args.fastq,
+                self.args.format,
+                self.args
+                    .sample_barcodes_option
+                    .as_ref()
+                    .unwrap_or(&"None".to_string()),
+                self.args
+                    .barcodes_option
+                    .as_ref()
+                    .unwrap_or(&"None".to_string())
+            )
+            .as_bytes(),
+        )?;
+        // Record the files that were created
+        stat_file
+            .write_all(format!("Output files: {}\n\n", self.output_files.join(", ")).as_bytes())?;
+        // Record the barcode information
+        stat_file.write_all(
+            format!(
+                "-Barcode info-\n{}\n\n",
+                max_sequence_errors.display_string()
+            )
+            .as_bytes(),
+        )?;
+        // Record the total reads and errors
+        stat_file.write_all(
+            format!(
+                "-Results-\nTotal sequences:             {}\n{}\n\n",
+                total_reads.load(Ordering::Relaxed),
+                seq_errors.display_string()
+            )
+            .as_bytes(),
+        )?;
+        // Close the writing with dashes so that it is separated from the next analysis if it is done on the same day
+        stat_file.write_all("--------------------------------------------------------------------------------------------------\n\n\n".as_bytes())?;
+        Ok(())
+    }
 }
 
-fn convert_code(code: &str, barcodes_hashmap: &HashMap<usize, HashMap<String, String>>) -> String {
+/// Converst the DNA sequence from counted barcodes to the ID
+fn convert_code(code: &str, barcodes_hashmap: &[HashMap<String, String>]) -> String {
     code.split(',')
         .enumerate()
         .map(|(barcode_index, barcode)| {
-            let actual_barcode_num = barcode_index + 1;
-            let barcode_hash = barcodes_hashmap.get(&actual_barcode_num).unwrap();
+            let barcode_hash = &barcodes_hashmap[barcode_index];
             return barcode_hash.get(barcode).unwrap().to_string();
         })
         .join(",")

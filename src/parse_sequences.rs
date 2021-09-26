@@ -4,8 +4,7 @@ use std::{collections::HashMap, error::Error, sync::atomic::Ordering};
 type CountedBarcode = String;
 type BarcodeID = String;
 type BarcodeBarcodeID = HashMap<CountedBarcode, BarcodeID>;
-type BarcodeNum = usize;
-type BarcodeNumBarcode = HashMap<BarcodeNum, BarcodeBarcodeID>;
+type BarcodeNumBarcode = Vec<BarcodeBarcodeID>;
 
 pub struct SequenceParser {
     shared_mut_clone: crate::barcode_info::SharedMutData,
@@ -114,17 +113,14 @@ impl SequenceParser {
     }
     fn get_barcode_seqs(&mut self) {
         if let Some(ref barcodes) = self.barcodes_clone {
-            let mut barcodes_vec = Vec::new();
-            let mut barcodes_keys = barcodes.keys().collect::<Vec<&usize>>();
-            barcodes_keys.sort();
-            for key in barcodes_keys {
-                let barcodes_data = barcodes.get(key).unwrap();
-                let barcodes = barcodes_data
-                    .keys()
-                    .map(|key| key.to_string())
-                    .collect::<Vec<String>>();
-                barcodes_vec.push(barcodes);
-            }
+            let barcodes_vec = barcodes
+                .iter()
+                .map(|hash| {
+                    hash.keys()
+                        .map(|key| key.to_string())
+                        .collect::<Vec<String>>()
+                })
+                .collect::<Vec<Vec<String>>>();
             self.barcodes_seqs_option = Some(barcodes_vec);
         }
     }
@@ -221,7 +217,7 @@ impl RawSequence {
     pub fn fix_constant_region(
         &mut self,
         format_string: &str,
-        max_constant_errors: usize,
+        max_constant_errors: u8,
     ) -> Result<(), Box<dyn Error>> {
         // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
         // Get the length difference between what was sequenced and the barcode region with constant regions
@@ -266,7 +262,7 @@ impl SequenceMatchResult {
         barcodes: Captures,
         barcode_groups: &[String],
         barcode_seqs_option: &Option<Vec<Vec<String>>>,
-        counted_barcode_max_errors: &[usize],
+        counted_barcode_max_errors: &[u8],
     ) -> Result<SequenceMatchResult, Box<dyn Error>> {
         let sample_barcode_option;
         if let Some(sample_barcode) = barcodes.name("sample") {
@@ -324,7 +320,7 @@ impl SequenceMatchResult {
     pub fn fix_sample_barcode(
         &mut self,
         sample_barcodes: &[String],
-        max_error: usize,
+        max_error: u8,
     ) -> Result<(), Box<dyn Error>> {
         self.sample_barcode_option = fix_error(
             self.sample_barcode_option
@@ -376,7 +372,7 @@ impl SequenceMatchResult {
 pub fn fix_error(
     mismatch_seq: &str,
     possible_seqs: &[String],
-    mismatches: usize,
+    mismatches: u8,
 ) -> Result<Option<String>, Box<dyn Error>> {
     let mut best_match = None; // start the best match with None
     let mut best_mismatch_count = mismatches + 1; // Add 1 and start the best.  This allows a match with the same mismatches as required
