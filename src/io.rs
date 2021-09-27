@@ -416,17 +416,17 @@ impl Output {
 
         // Get the total time the program took to run
         let now = Local::now();
-        let diff = now - start_time;
+        let elapsed_time = now - start_time;
         // Write the time information to the stat file
         stat_file.write_all(
             format!(
                 "Start: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
                 start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
                 now.format("%Y-%m-%d %H:%M:%S").to_string(),
-                diff.num_hours(),
-                diff.num_minutes(),
-                diff.num_seconds(),
-                diff.num_milliseconds()
+                elapsed_time.num_hours(),
+                elapsed_time.num_minutes() % 60,
+                elapsed_time.num_seconds() % 60,
+                elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
             )
             .as_bytes(),
         )?;

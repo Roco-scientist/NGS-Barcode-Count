@@ -123,9 +123,9 @@ fn main() {
     println!(
         "Compute time: {} hours, {} minutes, {}.{} seconds",
         elapsed_time.num_hours(),
-        elapsed_time.num_minutes(),
-        elapsed_time.num_seconds(),
-        elapsed_time.num_milliseconds()
+        elapsed_time.num_minutes() % 60,
+        elapsed_time.num_seconds() % 60,
+        elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
     );
     println!();
 
@@ -147,8 +147,8 @@ fn main() {
     println!(
         "Total time: {} hours, {} minutes, {}.{} seconds",
         elapsed_time.num_hours(),
-        elapsed_time.num_minutes(),
-        elapsed_time.num_seconds(),
-        elapsed_time.num_milliseconds()
+        elapsed_time.num_minutes() % 60,
+        elapsed_time.num_seconds() % 60,
+        elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
     );
 }
