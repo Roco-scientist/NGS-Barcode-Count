@@ -1,5 +1,9 @@
 use regex::Captures;
-use std::{collections::HashMap, error::Error, sync::atomic::Ordering};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    sync::atomic::Ordering,
+};
 
 type CountedBarcode = String;
 type BarcodeID = String;
@@ -14,7 +18,8 @@ pub struct SequenceParser {
     barcodes_clone: Option<BarcodeNumBarcode>,
     max_errors_clone: crate::barcode_info::MaxSeqErrors,
     sample_seqs: Option<Vec<String>>,
-    barcodes_seqs_option: Option<Vec<Vec<String>>>,
+    barcodes_seqs_option: Option<Vec<HashSet<String>>>,
+    barcodes_seqs_fix_option: Option<Vec<Vec<String>>>,
     raw_sequence: RawSequence,
     barcode_groups: Vec<String>,
 }
@@ -41,6 +46,7 @@ impl SequenceParser {
             max_errors_clone,
             sample_seqs: None,
             barcodes_seqs_option: None,
+            barcodes_seqs_fix_option: None,
             raw_sequence: RawSequence::new("".to_string()),
             barcode_groups,
         }
@@ -49,6 +55,7 @@ impl SequenceParser {
         self.get_sample_seqs();
         // Get a vec of all possible building block barcodes for error correction
         self.get_barcode_seqs();
+        self.get_barcode_seqs_fix();
 
         // Loop until there are no sequences left to parse.  These are fed into seq vec by the reader thread
         loop {
@@ -118,10 +125,24 @@ impl SequenceParser {
                 .map(|hash| {
                     hash.keys()
                         .map(|key| key.to_string())
+                        .collect::<HashSet<String>>()
+                })
+                .collect::<Vec<HashSet<String>>>();
+            self.barcodes_seqs_option = Some(barcodes_vec);
+        }
+    }
+
+    fn get_barcode_seqs_fix(&mut self) {
+        if let Some(ref barcodes) = self.barcodes_clone {
+            let barcodes_vec = barcodes
+                .iter()
+                .map(|hash| {
+                    hash.keys()
+                        .map(|key| key.to_string())
                         .collect::<Vec<String>>()
                 })
                 .collect::<Vec<Vec<String>>>();
-            self.barcodes_seqs_option = Some(barcodes_vec);
+            self.barcodes_seqs_fix_option = Some(barcodes_vec);
         }
     }
     /// Does a regex search and captures the barcodes.  Converts the sample barcode to ID.  Returns a String with commas between Sample_ID and
@@ -139,6 +160,7 @@ impl SequenceParser {
                 barcodes,
                 &self.barcode_groups,
                 &self.barcodes_seqs_option,
+                &self.barcodes_seqs_fix_option,
                 self.max_errors_clone.max_barcode_errors(),
             )?;
 
@@ -261,7 +283,8 @@ impl SequenceMatchResult {
     pub fn new(
         barcodes: Captures,
         barcode_groups: &[String],
-        barcode_seqs_option: &Option<Vec<Vec<String>>>,
+        barcode_seqs_option: &Option<Vec<HashSet<String>>>,
+        barcodes_seqs_fix_option: &Option<Vec<Vec<String>>>,
         counted_barcode_max_errors: &[u8],
     ) -> Result<SequenceMatchResult, Box<dyn Error>> {
         let sample_barcode_option;
@@ -278,7 +301,7 @@ impl SequenceMatchResult {
                 if !barcode_seqs[index].contains(&counted_barcode) {
                     let barcode_seq_fix_option = fix_error(
                         &counted_barcode,
-                        &barcode_seqs[index],
+                        &barcodes_seqs_fix_option.as_ref().unwrap()[index],
                         counted_barcode_max_errors[index],
                     )?;
                     if let Some(fixed_barcode) = barcode_seq_fix_option {
