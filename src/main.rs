@@ -1,15 +1,12 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
-        Arc, Mutex,
-    },
-    time::Instant,
+use chrono::Local;
+use std::sync::{
+    atomic::{AtomicBool, AtomicU32, Ordering},
+    Arc, Mutex,
 };
 
 fn main() {
     // Start a clock to measure how long the algorithm takes
-    let start = Instant::now();
-    let start_time = chrono::Local::now();
+    let start_time = Local::now();
 
     // get the argument inputs
     let args = barcode::Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
@@ -79,10 +76,11 @@ fn main() {
         let fastq = args.fastq.clone();
         let total_reads_arc_clone = Arc::clone(&total_reads_arc);
         s.spawn(move |_| {
-            barcode::io::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone).unwrap_or_else(|err| {
-                finished_clone.store(true, Ordering::Relaxed);
-                panic!("Error: {}", err)
-            });
+            barcode::io::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone)
+                .unwrap_or_else(|err| {
+                    finished_clone.store(true, Ordering::Relaxed);
+                    panic!("Error: {}", err)
+                });
             finished_clone.store(true, Ordering::Relaxed);
         });
 
@@ -121,15 +119,14 @@ fn main() {
     sequence_errors.display();
 
     // Get the end time and print compute time for the algorithm
-    let elapsed_time = start.elapsed();
-    if elapsed_time.as_secs() < 3 {
-        println!("Compute time: {} milliseconds", elapsed_time.as_millis());
-    } else if elapsed_time.as_secs() > 600 {
-        println!("Compute time: {} minutes", elapsed_time.as_secs() / 60)
-    } else {
-        println!("Compute time: {} seconds", elapsed_time.as_secs())
-    }
-
+    let elapsed_time = Local::now() - start_time;
+    println!(
+        "Compute time: {} hours, {} minutes, {}.{} seconds",
+        elapsed_time.num_hours(),
+        elapsed_time.num_minutes() % 60,
+        elapsed_time.num_seconds() % 60,
+        elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
+    );
     println!();
 
     println!("Writing counts");
@@ -144,12 +141,14 @@ fn main() {
     output
         .write_stats(start_time, max_errors, sequence_errors, total_reads_arc)
         .unwrap_or_else(|err| panic!("Writing stats error: {}", err));
-    let elapsed_time = start.elapsed();
-    if elapsed_time.as_secs() < 3 {
-        println!("Total time: {} milliseconds", elapsed_time.as_millis());
-    } else if elapsed_time.as_secs() > 600 {
-        println!("Total time: {} minutes", elapsed_time.as_secs() / 60)
-    } else {
-        println!("Total time: {} seconds", elapsed_time.as_secs())
-    }
+
+    // Get the end time and print total time for the algorithm
+    let elapsed_time = Local::now() - start_time;
+    println!(
+        "Total time: {} hours, {} minutes, {}.{} seconds",
+        elapsed_time.num_hours(),
+        elapsed_time.num_minutes() % 60,
+        elapsed_time.num_seconds() % 60,
+        elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
+    );
 }
