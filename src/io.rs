@@ -71,7 +71,7 @@ pub fn read_fastq(
         }
     }
     // Display the final total read count
-    fastq_line_reader.display_total_reads();
+    fastq_line_reader.display_total_reads()?;
     total_reads_arc.store(fastq_line_reader.total_reads, Ordering::Relaxed);
     println!();
     Ok(())
@@ -134,7 +134,7 @@ impl FastqLineReader {
             // Add to read count to print numnber of sequences read by this thread
             self.total_reads += 1;
             if self.total_reads % 1000 == 0 {
-                self.display_total_reads();
+                self.display_total_reads()?;
             }
         }
 
@@ -147,8 +147,10 @@ impl FastqLineReader {
     }
 
     /// Displays the total reads so far.  Used while reading to incrementally display, then used after finished reading the file to display total sequences that were read
-    pub fn display_total_reads(&self) {
+    pub fn display_total_reads(&self) -> Result<(), Box<dyn Error>> {
         print!("Total sequences:             {}\r", self.total_reads);
+        std::io::stdout().flush()?;
+        Ok(())
     }
 }
 

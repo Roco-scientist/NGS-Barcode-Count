@@ -1,5 +1,9 @@
 use regex::Captures;
-use std::{collections::HashMap, error::Error, sync::atomic::Ordering};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    sync::atomic::Ordering,
+};
 
 type CountedBarcode = String;
 type BarcodeID = String;
@@ -14,7 +18,7 @@ pub struct SequenceParser {
     barcodes_clone: Option<BarcodeNumBarcode>,
     max_errors_clone: crate::barcode_info::MaxSeqErrors,
     sample_seqs: Option<Vec<String>>,
-    barcodes_seqs_option: Option<Vec<Vec<String>>>,
+    barcodes_seqs_option: Option<Vec<HashSet<String>>>,
     raw_sequence: RawSequence,
     barcode_groups: Vec<String>,
 }
@@ -118,12 +122,13 @@ impl SequenceParser {
                 .map(|hash| {
                     hash.keys()
                         .map(|key| key.to_string())
-                        .collect::<Vec<String>>()
+                        .collect::<HashSet<String>>()
                 })
-                .collect::<Vec<Vec<String>>>();
+                .collect::<Vec<HashSet<String>>>();
             self.barcodes_seqs_option = Some(barcodes_vec);
         }
     }
+
     /// Does a regex search and captures the barcodes.  Converts the sample barcode to ID.  Returns a String with commas between Sample_ID and
     /// building block barcodes.  This is used as a key within the results vector, where the value can be used as the count
     fn match_seq(&mut self) -> Result<Option<SequenceMatchResult>, Box<dyn Error>> {
@@ -261,7 +266,7 @@ impl SequenceMatchResult {
     pub fn new(
         barcodes: Captures,
         barcode_groups: &[String],
-        barcode_seqs_option: &Option<Vec<Vec<String>>>,
+        barcode_seqs_option: &Option<Vec<HashSet<String>>>,
         counted_barcode_max_errors: &[u8],
     ) -> Result<SequenceMatchResult, Box<dyn Error>> {
         let sample_barcode_option;
@@ -276,7 +281,7 @@ impl SequenceMatchResult {
             let mut counted_barcode = barcodes.name(barcode_group).unwrap().as_str().to_string();
             if let Some(barcode_seqs) = barcode_seqs_option {
                 if !barcode_seqs[index].contains(&counted_barcode) {
-                    let barcode_seq_fix_option = fix_error(
+                    let barcode_seq_fix_option = fix_error_barcode(
                         &counted_barcode,
                         &barcode_seqs[index],
                         counted_barcode_max_errors[index],
@@ -372,6 +377,49 @@ impl SequenceMatchResult {
 pub fn fix_error(
     mismatch_seq: &str,
     possible_seqs: &[String],
+    mismatches: u8,
+) -> Result<Option<String>, Box<dyn Error>> {
+    let mut best_match = None; // start the best match with None
+    let mut best_mismatch_count = mismatches + 1; // Add 1 and start the best.  This allows a match with the same mismatches as required
+    let mut keep = true; // An initiated variable to check if there is more than one best match
+
+    // Iterate through possible matches
+    for true_seq in possible_seqs {
+        // Initiate the number of mismatches for the current iterated possible sequece match
+        let mut mismatches = 0;
+
+        // Iterate through the nucleotides of the possible match and the sequence to be fixed finding how many mismatches
+        // If the mismatches exceed the current best mismatched, end this early
+        for (possible_char, current_char) in true_seq.chars().zip(mismatch_seq.chars()) {
+            if possible_char != current_char && current_char != 'N' && possible_char != 'N' {
+                mismatches += 1;
+            }
+            if mismatches > best_mismatch_count {
+                break;
+            }
+        }
+        // If there are more than one best match, don't keep
+        if mismatches == best_mismatch_count {
+            keep = false
+        }
+        // If this is the best match, keep and reset best mismatches to this value
+        if mismatches < best_mismatch_count {
+            keep = true;
+            best_mismatch_count = mismatches;
+            best_match = Some(true_seq.to_string());
+        }
+    }
+    // If there is one best match and it is some, return it.  Otherwise return None
+    if keep && best_match.is_some() {
+        Ok(best_match)
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn fix_error_barcode(
+    mismatch_seq: &str,
+    possible_seqs: &HashSet<String>,
     mismatches: u8,
 ) -> Result<Option<String>, Box<dyn Error>> {
     let mut best_match = None; // start the best match with None
