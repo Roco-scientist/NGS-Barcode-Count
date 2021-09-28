@@ -22,6 +22,7 @@ fn main() {
         barcode_conversions
             .sample_barcode_file_conversion(samples)
             .unwrap();
+        barcode_conversions.get_sample_seqs();
     }
 
     // Create a results struct that will contain the counts.  This is passed between threads
@@ -34,7 +35,8 @@ fn main() {
     if let Some(ref barcodes) = args.barcodes_option {
         barcode_conversions
             .barcode_file_conversion(barcodes, sequence_format.barcode_num)
-            .unwrap()
+            .unwrap();
+        barcode_conversions.get_barcode_seqs();
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
@@ -87,10 +89,10 @@ fn main() {
             let shared_mut_clone = shared_mut.arc_clone();
             let sequence_errors_clone = sequence_errors.arc_clone();
             let sequence_format_clone = sequence_format.clone();
-            let samples_clone = barcode_conversions.samples_barcode_hash.clone();
-            let barcodes_clone = barcode_conversions.counted_barcodes_hash.clone();
             let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
+            let sample_seqs_clone = barcode_conversions.sample_seqs.clone();
+            let counted_barcode_seqs_clone = barcode_conversions.counted_barcode_seqs.clone();
 
             // Create a processing thread
             s.spawn(move |_| {
@@ -98,9 +100,9 @@ fn main() {
                     shared_mut_clone,
                     sequence_errors_clone,
                     sequence_format_clone,
-                    samples_clone,
-                    barcodes_clone,
                     max_errors_clone,
+                    sample_seqs_clone,
+                    counted_barcode_seqs_clone,
                 );
                 parser.parse().unwrap_or_else(|err| {
                     exit_clone.store(true, Ordering::Relaxed);

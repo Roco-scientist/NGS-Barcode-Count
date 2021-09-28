@@ -484,6 +484,29 @@ impl BarcodeConversions {
         }
         Ok(())
     }
+    /// Creates a hashmap of all sample barcode sequences in order to compare for sequencing errors
+    pub fn get_sample_seqs(&mut self) {
+        if !self.samples_barcode_hash.is_empty() {
+            for sample_barcode in self.samples_barcode_hash.keys() {
+                self.sample_seqs.insert(sample_barcode.to_string());
+            }
+        }
+    }
+
+    /// Creates a hashmap of all counted barcode sequences in order to compare for sequencing errors
+    pub fn get_barcode_seqs(&mut self) {
+        if !self.counted_barcodes_hash.is_empty() {
+            self.counted_barcode_seqs = self
+                .counted_barcodes_hash
+                .iter()
+                .map(|hash| {
+                    hash.keys()
+                        .map(|key| key.to_string())
+                        .collect::<HashSet<String>>()
+                }) // creates a hashset for each sequential barcode, then collects into a vector with the index being each sequential counted barcode
+                .collect::<Vec<HashSet<String>>>();
+        }
+    }
 }
 
 // Struct of how many sequencing errrors are allowed
