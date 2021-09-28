@@ -228,6 +228,7 @@ impl Output {
                 .collect::<Vec<String>>(),
         };
 
+        // If there was a sample conversion file, sort the barcodes by the sample IDs so that the columns for the merged file are in order
         if let Some(samples_hashmap) = &self.samples_hashmap_option {
             sample_barcodes
                 .sort_by_key(|barcode| samples_hashmap.get(barcode).unwrap_or(&unknown_sample))
@@ -249,6 +250,7 @@ impl Output {
                 self.merged_output_file_option = Some(File::create(merged_output_path)?);
                 let mut merged_header = header.clone();
                 for sample_barcode in &sample_barcodes {
+                    // Get the sample name from the sample barcode
                     let sample_name = sample_barcodes_hash
                         .get(sample_barcode)
                         .unwrap_or(&unknown_sample);
