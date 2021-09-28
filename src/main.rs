@@ -131,9 +131,14 @@ fn main() {
 
     println!("Writing counts");
     println!();
-    let mut output =
-        barcode::io::Output::new(results, sequence_format, barcodes_hashmap_option, args)
-            .unwrap_or_else(|err| panic!("Output error: {}", err));
+    let mut output = barcode::io::Output::new(
+        results,
+        sequence_format,
+        barcodes_hashmap_option,
+        samples_hashmap_option,
+        args,
+    )
+    .unwrap_or_else(|err| panic!("Output error: {}", err));
     output
         .write_files()
         .unwrap_or_else(|err| panic!("Writing error: {}", err));

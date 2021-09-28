@@ -181,6 +181,7 @@ pub struct Output {
     results: crate::barcode_info::Results,
     sequence_format: crate::barcode_info::SequenceFormat,
     barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
+    samples_hashmap_option: Option<HashMap<String, String>>,
     merged_output_file_option: Option<File>,
     compounds_written: HashSet<String>,
     args: crate::Args,
@@ -192,6 +193,7 @@ impl Output {
         results_arc: Arc<Mutex<crate::barcode_info::Results>>,
         sequence_format: crate::barcode_info::SequenceFormat,
         barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
+        samples_hashmap_option: Option<HashMap<String, String>>,
         args: crate::Args,
     ) -> Result<Output, Box<dyn Error>> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
@@ -199,6 +201,7 @@ impl Output {
             results,
             sequence_format,
             barcodes_hashmap_option,
+            samples_hashmap_option,
             merged_output_file_option: None,
             compounds_written: HashSet::new(),
             args,
@@ -208,8 +211,9 @@ impl Output {
 
     /// Sets up and writes the results file.  Works for either with or without a random barcode
     pub fn write_files(&mut self) -> Result<(), Box<dyn Error>> {
+        let unknown_sample = "Unknown_sample_name".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
-        let mut sample_ids = match self.results.format_type {
+        let sample_barcodes = match self.results.format_type {
             crate::barcode_info::FormatType::RandomBarcode => self
                 .results
                 .random_hashmap
@@ -223,7 +227,6 @@ impl Output {
                 .cloned()
                 .collect::<Vec<String>>(),
         };
-        sample_ids.sort();
 
         // create the directory variable to join the file to
         let output_dir = self.args.output_dir.clone();
@@ -232,35 +235,44 @@ impl Output {
         let mut header = self.create_header();
         // If merged called, create the header with the sample names as columns and write
         if self.args.merge_output {
-            // Create the merge file and push the header, if merged called within arguments
-            let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
-            self.output_files.push(merged_file_name.clone());
-            let merged_output_path = directory.join(merged_file_name);
+            if let Some(sample_barcodes_hash) = &self.samples_hashmap_option {
+                // Create the merge file and push the header, if merged called within arguments
+                let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
+                self.output_files.push(merged_file_name.clone());
+                let merged_output_path = directory.join(merged_file_name);
 
-            self.merged_output_file_option = Some(File::create(merged_output_path)?);
-            let mut merged_header = header.clone();
-            for sample_id in &sample_ids {
-                merged_header.push(',');
-                merged_header.push_str(sample_id);
+                self.merged_output_file_option = Some(File::create(merged_output_path)?);
+                let mut merged_header = header.clone();
+                for sample_barcode in &sample_barcodes {
+                    let sample_name = sample_barcodes_hash
+                        .get(sample_barcode)
+                        .unwrap_or(&unknown_sample);
+                    merged_header.push(',');
+                    merged_header.push_str(sample_name);
+                }
+                merged_header.push('\n');
+                self.merged_output_file_option
+                    .as_ref()
+                    .unwrap()
+                    .write_all(merged_header.as_bytes())?;
+            } else {
+                eprintln!("Merged file cannot be created without multiple sample barcodes");
+                println!()
             }
-            merged_header.push('\n');
-            self.merged_output_file_option
-                .as_ref()
-                .unwrap()
-                .write_all(merged_header.as_bytes())?;
         }
 
         // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
         header.push_str(",Count\n");
 
-        for sample_id in &sample_ids {
+        for sample_barcode in &sample_barcodes {
             let file_name;
-            // If no sample names are supplied, save as all counts, otherwise as sample name counts
-            if sample_ids.len() == 1 && sample_id == "Unknown_sample_name" {
-                file_name = format!("{}{}", self.args.prefix, "_all_counts.csv");
+            if let Some(sample_barcode_hash) = &self.samples_hashmap_option {
+                let sample_name = sample_barcode_hash
+                    .get(sample_barcode)
+                    .unwrap_or(&unknown_sample);
+                file_name = format!("{}_{}{}", self.args.prefix, sample_name, "_counts.csv");
             } else {
-                // create the filename as the sample_id_counts.csv
-                file_name = format!("{}_{}{}", self.args.prefix, sample_id, "_counts.csv");
+                file_name = format!("{}{}", self.args.prefix, "_all_counts.csv");
             }
             self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
@@ -270,10 +282,10 @@ impl Output {
             output.write_all(header.as_bytes())?; // Write the header to the file
             match self.results.format_type {
                 crate::barcode_info::FormatType::RandomBarcode => {
-                    self.write_random(sample_id, &sample_ids, &mut output)?
+                    self.write_random(sample_barcode, &sample_barcodes, &mut output)?
                 }
                 crate::barcode_info::FormatType::NoRandomBarcode => {
-                    self.write_counts(sample_id, &sample_ids, &mut output)?
+                    self.write_counts(sample_barcode, &sample_barcodes, &mut output)?
                 }
             }
         }
@@ -298,11 +310,11 @@ impl Output {
     /// Writes the files for when a random barcode is included
     fn write_random(
         &mut self,
-        sample_id: &str,
-        sample_ids: &[String],
+        sample_barcode: &str,
+        sample_barcodes: &[String],
         output: &mut File,
     ) -> Result<(), Box<dyn Error>> {
-        let sample_random_hash = self.results.random_hashmap.get(sample_id).unwrap();
+        let sample_random_hash = self.results.random_hashmap.get(sample_barcode).unwrap();
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
         // If there is an included building block barcode file, it is converted here
         for (code, random_barcodes) in sample_random_hash.iter() {
@@ -322,13 +334,13 @@ impl Output {
                     // Start a new row with the converted building block barcodes
                     let mut merged_row = written_barcodes.clone();
                     // For every sample, retrieve the count and add to the row with a comma
-                    for sample_id in sample_ids {
+                    for sample_barcode in sample_barcodes {
                         merged_row.push(',');
                         merged_row.push_str(
                             &self
                                 .results
                                 .random_hashmap
-                                .get(sample_id)
+                                .get(sample_barcode)
                                 .unwrap()
                                 .get(code)
                                 .unwrap_or(&HashSet::new())
@@ -351,11 +363,11 @@ impl Output {
     /// Writes the files for when a random barcode is not included
     fn write_counts(
         &mut self,
-        sample_id: &str,
-        sample_ids: &[String],
+        sample_barcode: &str,
+        sample_barcodes: &[String],
         output: &mut File,
     ) -> Result<(), Box<dyn Error>> {
-        let sample_counts_hash = self.results.count_hashmap.get(sample_id).unwrap();
+        let sample_counts_hash = self.results.count_hashmap.get(sample_barcode).unwrap();
         for (code, count) in sample_counts_hash.iter() {
             let written_barcodes;
             if let Some(ref barcodes_hashmap) = self.barcodes_hashmap_option {
@@ -373,13 +385,13 @@ impl Output {
                     // Start a new row with the converted building block barcodes
                     let mut merged_row = written_barcodes.clone();
                     // For every sample, retrieve the count and add to the row with a comma
-                    for sample_id in sample_ids {
+                    for sample_barcode in sample_barcodes {
                         merged_row.push(',');
                         merged_row.push_str(
                             &self
                                 .results
                                 .count_hashmap
-                                .get(sample_id)
+                                .get(sample_barcode)
                                 .unwrap()
                                 .get(code)
                                 .unwrap_or(&0)
@@ -484,4 +496,15 @@ fn convert_code(code: &str, barcodes_hashmap: &[HashMap<String, String>]) -> Str
             return barcode_hash.get(barcode).unwrap().to_string();
         })
         .join(",")
+}
+
+pub fn convert_sample_barcode(
+    sample_barcode: &str,
+    sample_barcodes_hash: &HashMap<String, String>,
+) -> String {
+    if let Some(sample_results) = sample_barcodes_hash.get(sample_barcode) {
+        sample_results.to_string()
+    } else {
+        "Unknown_sample_name".to_string()
+    }
 }
