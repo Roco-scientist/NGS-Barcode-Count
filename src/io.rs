@@ -213,7 +213,7 @@ impl Output {
     pub fn write_files(&mut self) -> Result<(), Box<dyn Error>> {
         let unknown_sample = "Unknown_sample_name".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
-        let sample_barcodes = match self.results.format_type {
+        let mut sample_barcodes = match self.results.format_type {
             crate::barcode_info::FormatType::RandomBarcode => self
                 .results
                 .random_hashmap
@@ -227,6 +227,11 @@ impl Output {
                 .cloned()
                 .collect::<Vec<String>>(),
         };
+
+        if let Some(samples_hashmap) = &self.samples_hashmap_option {
+            sample_barcodes
+                .sort_by_key(|barcode| samples_hashmap.get(barcode).unwrap_or(&unknown_sample))
+        }
 
         // create the directory variable to join the file to
         let output_dir = self.args.output_dir.clone();
