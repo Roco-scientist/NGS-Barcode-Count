@@ -853,79 +853,9 @@ mod tests {
     }
 
     #[test]
-    fn seq_errors_test() {
-        let mut sequence_errors = SequenceErrors::new();
-        assert_eq!(
-            sequence_errors,
-            SequenceErrors {
-                constant_region: 0,
-                sample_barcode: 0,
-                barcode: 0,
-                matched: 0,
-                duplicates: 0,
-            }
-        );
-        sequence_errors.correct_match();
-        assert_eq!(
-            sequence_errors,
-            SequenceErrors {
-                constant_region: 0,
-                sample_barcode: 0,
-                barcode: 0,
-                matched: 1,
-                duplicates: 0,
-            }
-        );
-        sequence_errors.constant_region_error();
-        assert_eq!(
-            sequence_errors,
-            SequenceErrors {
-                constant_region: 1,
-                sample_barcode: 0,
-                barcode: 0,
-                matched: 1,
-                duplicates: 0,
-            }
-        );
-        sequence_errors.sample_barcode_error();
-        assert_eq!(
-            sequence_errors,
-            SequenceErrors {
-                constant_region: 1,
-                sample_barcode: 1,
-                barcode: 0,
-                matched: 1,
-                duplicates: 0,
-            }
-        );
-        sequence_errors.barcode_error();
-        assert_eq!(
-            sequence_errors,
-            SequenceErrors {
-                constant_region: 1,
-                sample_barcode: 1,
-                barcode: 1,
-                matched: 1,
-                duplicates: 0,
-            }
-        );
-        sequence_errors.duplicated();
-        assert_eq!(
-            sequence_errors,
-            SequenceErrors {
-                constant_region: 1,
-                sample_barcode: 1,
-                barcode: 1,
-                matched: 1,
-                duplicates: 1,
-            }
-        );
-    }
-
-    #[test]
     fn barcode_file_conversion_test() {
         let barcodes = barcode_file_conversion(&"barcode.example.csv".to_string(), 3).unwrap();
-        let mut barcode_comparison = HashMap::new();
+        let mut barcode_comparison = Vec::new();
         for barcode_num in [1, 2, 3] {
             if barcode_num == 1 {
                 let start_hash: HashMap<String, String> = [
@@ -935,7 +865,7 @@ mod tests {
                 .iter()
                 .cloned()
                 .collect();
-                barcode_comparison.insert(barcode_num, start_hash);
+                barcode_comparison.push(start_hash);
             }
             if barcode_num == 2 {
                 let start_hash: HashMap<String, String> = [
@@ -945,7 +875,7 @@ mod tests {
                 .iter()
                 .cloned()
                 .collect();
-                barcode_comparison.insert(barcode_num, start_hash);
+                barcode_comparison.push(start_hash);
             }
             if barcode_num == 3 {
                 let start_hash: HashMap<String, String> = [
@@ -955,7 +885,7 @@ mod tests {
                 .iter()
                 .cloned()
                 .collect();
-                barcode_comparison.insert(barcode_num, start_hash);
+                barcode_comparison.push(start_hash);
             }
         }
         assert_eq!(barcodes, barcode_comparison);

@@ -348,10 +348,10 @@ impl SequenceMatchResult {
 ///
 /// let barcode = "AGTAG";
 ///
-/// let possible_barcodes_one_match: HashSet<String> = ["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()].iter().clone().collect(); // only the first has a single mismatch
-/// let possible_barcodes_two_match: HashSet<String> = ["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()].iter().clone().collect(); // first and second have a single mismatch
+/// let possible_barcodes_one_match: std::collections::HashSet<String> = ["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // only the first has a single mismatch
+/// let possible_barcodes_two_match: std::collections::HashSet<String> = ["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // first and second have a single mismatch
 ///
-/// let max_mismatches = barcode.chars().count() / 5; // allow up to 20% mismatches
+/// let max_mismatches = barcode.chars().count() as u8 / 5; // allow up to 20% mismatches
 ///
 /// let fixed_error_one = fix_error(barcode, &possible_barcodes_one_match, max_mismatches).unwrap();
 /// let fixed_error_two = fix_error(barcode, &possible_barcodes_two_match, max_mismatches).unwrap();
