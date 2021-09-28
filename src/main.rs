@@ -15,31 +15,26 @@ fn main() {
         .unwrap_or_else(|err| panic!("sequence format error: {}", err));
     sequence_format.display_format();
 
+    // Start getting the barcode conversion with the BarcodeConversions struct
+    let mut barcode_conversions = barcode::barcode_info::BarcodeConversions::new();
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
-    let samples_hashmap_option;
     if let Some(ref samples) = args.sample_barcodes_option {
-        let samples_hashmap =
-            barcode::barcode_info::sample_barcode_file_conversion(samples).unwrap();
-        samples_hashmap_option = Some(samples_hashmap);
-    } else {
-        samples_hashmap_option = None
+        barcode_conversions
+            .sample_barcode_file_conversion(samples)
+            .unwrap();
     }
 
     // Create a results struct that will contain the counts.  This is passed between threads
     let results = Arc::new(Mutex::new(barcode::barcode_info::Results::new(
-        &samples_hashmap_option,
+        &barcode_conversions.samples_barcode_hash,
         sequence_format.random_barcode,
     )));
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
-    let barcodes_hashmap_option;
     if let Some(ref barcodes) = args.barcodes_option {
-        barcodes_hashmap_option = Some(
-            barcode::barcode_info::barcode_file_conversion(barcodes, sequence_format.barcode_num)
-                .unwrap(),
-        );
-    } else {
-        barcodes_hashmap_option = None
+        barcode_conversions
+            .barcode_file_conversion(barcodes, sequence_format.barcode_num)
+            .unwrap()
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
@@ -92,8 +87,8 @@ fn main() {
             let shared_mut_clone = shared_mut.arc_clone();
             let sequence_errors_clone = sequence_errors.arc_clone();
             let sequence_format_clone = sequence_format.clone();
-            let samples_clone = samples_hashmap_option.clone();
-            let barcodes_clone = barcodes_hashmap_option.clone();
+            let samples_clone = barcode_conversions.samples_barcode_hash.clone();
+            let barcodes_clone = barcode_conversions.counted_barcodes_hash.clone();
             let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
 
@@ -134,8 +129,8 @@ fn main() {
     let mut output = barcode::io::Output::new(
         results,
         sequence_format,
-        barcodes_hashmap_option,
-        samples_hashmap_option,
+        barcode_conversions.counted_barcodes_hash,
+        barcode_conversions.samples_barcode_hash,
         args,
     )
     .unwrap_or_else(|err| panic!("Output error: {}", err));

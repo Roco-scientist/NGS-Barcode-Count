@@ -389,77 +389,101 @@ pub fn build_regex_captures(format_data: &str) -> Result<String, Box<dyn Error>>
     Ok(final_format)
 }
 
-/// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
-/// and the second needs to be the ID
-pub fn sample_barcode_file_conversion(
-    barcode_path: &str,
-) -> Result<HashMap<String, String>, Box<dyn Error>> {
-    let mut barcode_data = HashMap::new();
-    // read in the sample barcode file
-    for (barcode, sample_id) in fs::read_to_string(barcode_path)?
-        .lines() // split the lines
-        .skip(1) // skip the first line which should be the header
-        .map(|line| {
-            line.split(',')
-                .take(2) // take only the first two values, or columns
-                .map(|value| value.to_string())
-                .collect_tuple()
-                .unwrap_or(("".to_string(), "".to_string()))
-        })
-    {
-        barcode_data.insert(barcode, sample_id);
-    }
-    Ok(barcode_data)
+pub struct BarcodeConversions {
+    pub samples_barcode_hash: HashMap<String, String>,
+    pub sample_seqs: HashSet<String>,
+    pub counted_barcodes_hash: Vec<HashMap<String, String>>,
+    pub counted_barcode_seqs: Vec<HashSet<String>>,
 }
 
-/// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
-/// the second needs to be the ID, and the third needs to be the barcode index location
-///
-/// # Panics
-///
-/// This panics if the third column of the barcode conversion file does not contain integers.  Also
-/// panics if not all integers for barcode numbers is within this columns
-pub fn barcode_file_conversion(
-    barcode_path: &str,
-    barcode_num: usize,
-) -> Result<Vec<HashMap<String, String>>, Box<dyn Error>> {
-    // read in the sample barcode file
-    let barcode_vecs = fs::read_to_string(barcode_path)?
-        .lines() // split the lines
-        .skip(1) // skip the first line which should be the header
-        .map(|line| {
-            line.split(',')
-                .take(3) // take only the first three values, or columns
-                .map(|value| value.to_string())
-                .collect_tuple()
-                .unwrap_or(("".to_string(), "".to_string(), "".to_string()))
-        }) // comma split the line into a tuple with the first being the key and the last the value
-        .collect::<Vec<(String, String, String)>>();
-    let mut barcode_data = Vec::new();
-    for _ in 0..barcode_num {
-        barcode_data.push(HashMap::new());
+impl Default for BarcodeConversions {
+    fn default() -> Self {
+        Self::new()
     }
-    let mut barcode_num_contained = HashSet::new();
-    for (barcode, id, barcode_num) in barcode_vecs {
-        let barcode_num_usize = barcode_num.parse::<usize>().unwrap_or_else(|err| {
-            panic!("Third column of barcode file contains something other than an integer: {}\nError: {}", barcode_num, err)
-        }) - 1;
-        barcode_num_contained.insert(barcode_num_usize);
-        barcode_data[barcode_num_usize].insert(barcode, id);
-    }
-    let mut missing_barcode_num = Vec::new();
-    for x in 0..barcode_num {
-        if !barcode_num_contained.contains(&x) {
-            missing_barcode_num.push(x)
+}
+
+impl BarcodeConversions {
+    pub fn new() -> BarcodeConversions {
+        BarcodeConversions {
+            samples_barcode_hash: HashMap::new(),
+            sample_seqs: HashSet::new(),
+            counted_barcodes_hash: Vec::new(),
+            counted_barcode_seqs: Vec::new(),
         }
     }
-    if !missing_barcode_num.is_empty() {
-        panic!(
-            "Barcode conversion file missing barcode numers {:?} in the third column",
-            missing_barcode_num
-        )
+
+    /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
+    /// and the second needs to be the ID
+    pub fn sample_barcode_file_conversion(
+        &mut self,
+        barcode_path: &str,
+    ) -> Result<(), Box<dyn Error>> {
+        // read in the sample barcode file
+        for (barcode, sample_id) in fs::read_to_string(barcode_path)?
+            .lines() // split the lines
+            .skip(1) // skip the first line which should be the header
+            .map(|line| {
+                line.split(',')
+                    .take(2) // take only the first two values, or columns
+                    .map(|value| value.to_string())
+                    .collect_tuple()
+                    .unwrap_or(("".to_string(), "".to_string()))
+            })
+        {
+            self.samples_barcode_hash.insert(barcode, sample_id);
+        }
+        Ok(())
     }
-    Ok(barcode_data)
+
+    /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
+    /// the second needs to be the ID, and the third needs to be the barcode index location
+    ///
+    /// # Panics
+    ///
+    /// This panics if the third column of the barcode conversion file does not contain integers.  Also
+    /// panics if not all integers for barcode numbers is within this columns
+    pub fn barcode_file_conversion(
+        &mut self,
+        barcode_path: &str,
+        barcode_num: usize,
+    ) -> Result<(), Box<dyn Error>> {
+        // read in the sample barcode file
+        let barcode_vecs = fs::read_to_string(barcode_path)?
+            .lines() // split the lines
+            .skip(1) // skip the first line which should be the header
+            .map(|line| {
+                line.split(',')
+                    .take(3) // take only the first three values, or columns
+                    .map(|value| value.to_string())
+                    .collect_tuple()
+                    .unwrap_or(("".to_string(), "".to_string(), "".to_string()))
+            }) // comma split the line into a tuple with the first being the key and the last the value
+            .collect::<Vec<(String, String, String)>>();
+        for _ in 0..barcode_num {
+            self.counted_barcodes_hash.push(HashMap::new());
+        }
+        let mut barcode_num_contained = HashSet::new();
+        for (barcode, id, barcode_num) in barcode_vecs {
+            let barcode_num_usize = barcode_num.parse::<usize>().unwrap_or_else(|err| {
+            panic!("Third column of barcode file contains something other than an integer: {}\nError: {}", barcode_num, err)
+        }) - 1;
+            barcode_num_contained.insert(barcode_num_usize);
+            self.counted_barcodes_hash[barcode_num_usize].insert(barcode, id);
+        }
+        let mut missing_barcode_num = Vec::new();
+        for x in 0..barcode_num {
+            if !barcode_num_contained.contains(&x) {
+                missing_barcode_num.push(x)
+            }
+        }
+        if !missing_barcode_num.is_empty() {
+            panic!(
+                "Barcode conversion file missing barcode numers {:?} in the third column",
+                missing_barcode_num
+            )
+        }
+        Ok(())
+    }
 }
 
 // Struct of how many sequencing errrors are allowed
@@ -693,10 +717,7 @@ pub struct Results {
 
 impl Results {
     /// Create a new Results struct
-    pub fn new(
-        samples_hashmap_option: &Option<HashMap<String, String>>,
-        random_barcode: bool,
-    ) -> Results {
+    pub fn new(samples_barcode_hash: &HashMap<String, String>, random_barcode: bool) -> Results {
         // Record and keep the format type of whether or not the random barcode is included
         let format_type;
         if random_barcode {
@@ -713,8 +734,8 @@ impl Results {
         let empty_count_hash: HashMap<String, u32> = HashMap::new();
 
         // If sample name conversion was included, add all sample names to the hashmaps used to count
-        if let Some(samples_hashmap) = samples_hashmap_option {
-            for sample in samples_hashmap.keys() {
+        if !samples_barcode_hash.is_empty() {
+            for sample in samples_barcode_hash.keys() {
                 let sample_barcode = sample.to_string();
                 random_hashmap.insert(sample_barcode.clone(), empty_random_hash.clone());
                 count_hashmap.insert(sample_barcode, empty_count_hash.clone());

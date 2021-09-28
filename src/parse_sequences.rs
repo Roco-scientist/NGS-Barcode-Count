@@ -14,8 +14,8 @@ pub struct SequenceParser {
     shared_mut_clone: crate::barcode_info::SharedMutData,
     sequence_errors_clone: crate::barcode_info::SequenceErrors,
     sequence_format_clone: crate::barcode_info::SequenceFormat,
-    samples_clone: Option<HashMap<String, String>>,
-    barcodes_clone: Option<BarcodeNumBarcode>,
+    samples_clone: HashMap<String, String>,
+    barcodes_clone: BarcodeNumBarcode,
     max_errors_clone: crate::barcode_info::MaxSeqErrors,
     sample_seqs: HashSet<String>,
     barcode_seqs: Vec<HashSet<String>>,
@@ -28,8 +28,8 @@ impl SequenceParser {
         shared_mut_clone: crate::barcode_info::SharedMutData,
         sequence_errors_clone: crate::barcode_info::SequenceErrors,
         sequence_format_clone: crate::barcode_info::SequenceFormat,
-        samples_clone: Option<HashMap<String, String>>,
-        barcodes_clone: Option<BarcodeNumBarcode>,
+        samples_clone: HashMap<String, String>,
+        barcodes_clone: BarcodeNumBarcode,
         max_errors_clone: crate::barcode_info::MaxSeqErrors,
     ) -> SequenceParser {
         let mut barcode_groups = Vec::new();
@@ -100,15 +100,16 @@ impl SequenceParser {
     }
     fn get_sample_seqs(&mut self) {
         // Get a vec of all possible sample barcodes for error correction
-        if let Some(ref samples) = self.samples_clone {
-            for sample_barcode in samples.keys() {
+        if !self.samples_clone.is_empty() {
+            for sample_barcode in self.samples_clone.keys() {
                 self.sample_seqs.insert(sample_barcode.to_string());
             }
         }
     }
     fn get_barcode_seqs(&mut self) {
-        if let Some(ref barcodes) = self.barcodes_clone {
-            self.barcode_seqs = barcodes
+        if !self.barcodes_clone.is_empty() {
+            self.barcode_seqs = self
+                .barcodes_clone
                 .iter()
                 .map(|hash| {
                     hash.keys()

@@ -180,8 +180,8 @@ fn test_sequence(sequence: &str) -> LineType {
 pub struct Output {
     results: crate::barcode_info::Results,
     sequence_format: crate::barcode_info::SequenceFormat,
-    barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
-    samples_hashmap_option: Option<HashMap<String, String>>,
+    counted_barcodes_hash: Vec<HashMap<String, String>>,
+    samples_barcode_hash: HashMap<String, String>,
     merged_output_file_option: Option<File>,
     compounds_written: HashSet<String>,
     args: crate::Args,
@@ -192,16 +192,16 @@ impl Output {
     pub fn new(
         results_arc: Arc<Mutex<crate::barcode_info::Results>>,
         sequence_format: crate::barcode_info::SequenceFormat,
-        barcodes_hashmap_option: Option<Vec<HashMap<String, String>>>,
-        samples_hashmap_option: Option<HashMap<String, String>>,
+        counted_barcodes_hash: Vec<HashMap<String, String>>,
+        samples_barcode_hash: HashMap<String, String>,
         args: crate::Args,
     ) -> Result<Output, Box<dyn Error>> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
         Ok(Output {
             results,
             sequence_format,
-            barcodes_hashmap_option,
-            samples_hashmap_option,
+            counted_barcodes_hash,
+            samples_barcode_hash,
             merged_output_file_option: None,
             compounds_written: HashSet::new(),
             args,
@@ -229,9 +229,12 @@ impl Output {
         };
 
         // If there was a sample conversion file, sort the barcodes by the sample IDs so that the columns for the merged file are in order
-        if let Some(samples_hashmap) = &self.samples_hashmap_option {
-            sample_barcodes
-                .sort_by_key(|barcode| samples_hashmap.get(barcode).unwrap_or(&unknown_sample))
+        if !self.samples_barcode_hash.is_empty() {
+            sample_barcodes.sort_by_key(|barcode| {
+                self.samples_barcode_hash
+                    .get(barcode)
+                    .unwrap_or(&unknown_sample)
+            })
         }
 
         // create the directory variable to join the file to
@@ -241,7 +244,7 @@ impl Output {
         let mut header = self.create_header();
         // If merged called, create the header with the sample names as columns and write
         if self.args.merge_output {
-            if let Some(sample_barcodes_hash) = &self.samples_hashmap_option {
+            if !self.samples_barcode_hash.is_empty() {
                 // Create the merge file and push the header, if merged called within arguments
                 let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
                 self.output_files.push(merged_file_name.clone());
@@ -251,7 +254,8 @@ impl Output {
                 let mut merged_header = header.clone();
                 for sample_barcode in &sample_barcodes {
                     // Get the sample name from the sample barcode
-                    let sample_name = sample_barcodes_hash
+                    let sample_name = self
+                        .samples_barcode_hash
                         .get(sample_barcode)
                         .unwrap_or(&unknown_sample);
                     merged_header.push(',');
@@ -273,8 +277,9 @@ impl Output {
 
         for sample_barcode in &sample_barcodes {
             let file_name;
-            if let Some(sample_barcode_hash) = &self.samples_hashmap_option {
-                let sample_name = sample_barcode_hash
+            if !self.samples_barcode_hash.is_empty() {
+                let sample_name = self
+                    .samples_barcode_hash
                     .get(sample_barcode)
                     .unwrap_or(&unknown_sample);
                 file_name = format!("{}_{}{}", self.args.prefix, sample_name, "_counts.csv");
@@ -326,9 +331,9 @@ impl Output {
         // If there is an included building block barcode file, it is converted here
         for (code, random_barcodes) in sample_random_hash.iter() {
             let written_barcodes;
-            if let Some(ref barcodes_hashmap) = self.barcodes_hashmap_option {
+            if !self.counted_barcodes_hash.is_empty() {
                 // Convert the building block DNA barcodes and join them back to comma separated
-                written_barcodes = convert_code(code, barcodes_hashmap);
+                written_barcodes = convert_code(code, &self.counted_barcodes_hash);
             } else {
                 written_barcodes = code.clone();
             }
@@ -377,9 +382,9 @@ impl Output {
         let sample_counts_hash = self.results.count_hashmap.get(sample_barcode).unwrap();
         for (code, count) in sample_counts_hash.iter() {
             let written_barcodes;
-            if let Some(ref barcodes_hashmap) = self.barcodes_hashmap_option {
+            if !self.counted_barcodes_hash.is_empty() {
                 // Convert the building block DNA barcodes and join them back to comma separated
-                written_barcodes = convert_code(code, barcodes_hashmap);
+                written_barcodes = convert_code(code, &self.counted_barcodes_hash);
             } else {
                 written_barcodes = code.clone();
             }
