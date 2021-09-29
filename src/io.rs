@@ -83,6 +83,7 @@ struct FastqLineReader {
     test_fastq_format: bool, // whether or not to test line 2, which should be a sequence
     line_num: u8,          // the current line number 1-4.  Resets back to 1
     total_reads: u32,      // total sequences read within the fastq file
+    quality_filter_option: Option<u8>, // number to filter the DNA score by. Not yet implemented
     seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
     exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
@@ -95,6 +96,7 @@ impl FastqLineReader {
             test_fastq_format: true,
             line_num: 1,
             total_reads: 0,
+            quality_filter_option: None,
             seq_clone,
             exit_clone,
         }
@@ -111,6 +113,14 @@ impl FastqLineReader {
             }
             self.test_first_line = false
         }
+
+        if let Some(quality_filter) = self.quality_filter_option {
+            if self.line_num == 4 {
+                let quality = self.read_quality_score(&line);
+                println!("{:?}", quality);
+            }
+        }
+
         // if it is the sequence line which is line 2
         if self.line_num == 2 {
             // test the first sequence line for whether or not it is a sequence and therefor in the correct format
@@ -144,6 +154,17 @@ impl FastqLineReader {
             self.line_num = 1
         }
         Ok(())
+    }
+
+    /// Each DNA base read score within FASTQ is the ascii number - 33.
+    ///
+    /// Score    Error Probability
+    /// 40       0.0001
+    /// 30       0.001
+    /// 20       0.01
+    /// 10       0.1
+    pub fn read_quality_score(&self, line: &str) -> Vec<u8> {
+        line.chars().map(|ch| ch as u8 - 33).collect::<Vec<u8>>()
     }
 
     /// Displays the total reads so far.  Used while reading to incrementally display, then used after finished reading the file to display total sequences that were read
