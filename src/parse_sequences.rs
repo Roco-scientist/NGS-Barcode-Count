@@ -183,6 +183,7 @@ custom_error! {FastqError
 }
 
 /// A struct to hold the raw sequencing information and transform it if there are sequencing errors
+#[derive(Clone)]
 pub struct RawSequenceRead {
     description: String,     // line 1 of fastq
     pub sequence: String,    // line 2 of fastq
