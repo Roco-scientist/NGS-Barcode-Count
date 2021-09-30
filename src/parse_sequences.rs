@@ -1,5 +1,5 @@
 use custom_error::custom_error;
-use regex::Captures;
+use regex::{Captures, Regex};
 use std::{
     collections::HashSet,
     error::Error,
@@ -312,6 +312,32 @@ impl RawSequenceRead {
             .chars()
             .map(|ch| ch as u8 - 33)
             .collect::<Vec<u8>>()
+    }
+
+    pub fn low_quality(&self, max_average: f32, format_string: &str) -> bool {
+        let mut scores = Vec::new();
+        let mut previous_type = '\0';
+        for (score, seq_type) in self.quality_scores().iter().zip(format_string.chars()) {
+            if seq_type != previous_type {
+                if !scores.is_empty() {
+                    let sum: f32 = scores.iter().sum();
+                    let average_score: f32 = sum / scores.len() as f32;
+                    if average_score < max_average {
+                        return true;
+                    }
+                    scores = Vec::new();
+                }
+                previous_type = seq_type;
+                if seq_type != 'C' {
+                    scores = vec![score.clone() as f32];
+                }
+            } else {
+                if seq_type != 'C' {
+                    scores.push(score.clone() as f32);
+                }
+            }
+        }
+        return false;
     }
 
     pub fn check_fastq_format(&self) -> Result<(), Box<dyn Error>> {
