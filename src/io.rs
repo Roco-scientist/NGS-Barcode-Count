@@ -18,6 +18,7 @@ use itertools::Itertools;
 // Errors associated with checking the fastq format to make sure it is correct
 custom_error! {FastqError
     NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
+    LeftOver = "Sequence lines left over.  Check code",
 }
 
 /// Reads in the FASTQ file line by line, then pushes every 2 out of 4 lines, which corresponds to the sequence line, into a Vec that is passed to other threads
@@ -111,7 +112,11 @@ impl FastqLineReader {
             }
         }
         if self.line_num == 1 {
-            self.lines = Vec::new();
+            if !self.lines.is_empty() {
+                println!("Lines: {:?}", self.lines);
+                self.lines.clear();
+                return Err(Box::new(FastqError::LeftOver));
+            }
             self.lines.push(line);
         } else if self.line_num == 2 {
             self.lines.push(line);
