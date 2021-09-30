@@ -81,7 +81,7 @@ impl SequenceParser {
     fn get_seqeunce(&mut self) -> bool {
         // Pop off the last sequence from the seq vec
         if let Some(new_raw_sequence) = self.shared_mut_clone.seq.lock().unwrap().pop() {
-            self.raw_sequence = new_raw_sequence;
+            self.raw_sequence = RawSequenceRead::unpack(new_raw_sequence);
             true
         } else {
             false
@@ -145,14 +145,14 @@ impl SequenceParser {
 }
 
 pub struct SharedMutData {
-    pub seq: Arc<Mutex<Vec<RawSequenceRead>>>,
+    pub seq: Arc<Mutex<Vec<String>>>,
     pub finished: Arc<AtomicBool>,
     pub results: Arc<Mutex<crate::barcode_info::Results>>,
 }
 
 impl SharedMutData {
     pub fn new(
-        seq: Arc<Mutex<Vec<RawSequenceRead>>>,
+        seq: Arc<Mutex<Vec<String>>>,
         finished: Arc<AtomicBool>,
         results: Arc<Mutex<crate::barcode_info::Results>>,
     ) -> SharedMutData {
@@ -229,6 +229,22 @@ impl RawSequenceRead {
             4 => self.quality_values = line,
             _ => eprintln!("Line out of range for RawSequenceRead::add_line()"),
         }
+    }
+
+    pub fn pack(&self) -> String {
+        format!(
+            "{}\n{}\n{}\n{}",
+            self.description, self.sequence, self.add_description, self.quality_values
+        )
+    }
+
+    pub fn unpack(raw_string: String) -> Self {
+        let mut raw_sequence_read = RawSequenceRead::new();
+        for (line_num, line) in raw_string.split("\n").enumerate() {
+            let true_line = line_num as u8 + 1;
+            raw_sequence_read.add_line(true_line, line.to_string())
+        }
+        raw_sequence_read
     }
 
     /// Replaces the 'N's in the sequencing format with the barcodes to fix any sequencing errrors that would cause the regex search not to work

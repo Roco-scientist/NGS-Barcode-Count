@@ -30,7 +30,7 @@ custom_error! {FastqError
 /// Line 4: Quality score
 pub fn read_fastq(
     fastq: String,
-    seq_clone: Arc<Mutex<Vec<crate::parse_sequences::RawSequenceRead>>>,
+    seq_clone: Arc<Mutex<Vec<String>>>,
     exit_clone: Arc<AtomicBool>,
     total_reads_arc: Arc<AtomicU32>,
 ) -> Result<(), Box<dyn Error>> {
@@ -95,22 +95,19 @@ struct FastqLineReader {
     test: bool,   // whether or not to test the fastq format. Only does this for the first read
     line_num: u8, // the current line number 1-4.  Resets back to 1
     total_reads: u32, // total sequences read within the fastq file
-    lines: Vec<String>,
-    seq_clone: Arc<Mutex<Vec<crate::parse_sequences::RawSequenceRead>>>, // the vector that is passed between threads which containst the sequences
+    raw_sequence_read: crate::parse_sequences::RawSequenceRead,
+    seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
     exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
 
 impl FastqLineReader {
     /// Creates a new FastqLineReader struct
-    pub fn new(
-        seq_clone: Arc<Mutex<Vec<crate::parse_sequences::RawSequenceRead>>>,
-        exit_clone: Arc<AtomicBool>,
-    ) -> FastqLineReader {
+    pub fn new(seq_clone: Arc<Mutex<Vec<String>>>, exit_clone: Arc<AtomicBool>) -> FastqLineReader {
         FastqLineReader {
             test: true,
             line_num: 0,
             total_reads: 0,
-            lines: Vec::new(),
+            raw_sequence_read: crate::parse_sequences::RawSequenceRead::new(),
             seq_clone,
             exit_clone,
         }
@@ -132,28 +129,22 @@ impl FastqLineReader {
             self.line_num = 1
         }
         if self.line_num == 1 {
-            if !self.lines.is_empty() {
-                println!("Lines: {:?}", self.lines);
-                self.lines.clear();
-                return Err(Box::new(FastqError::LeftOver));
-            }
+            self.raw_sequence_read = crate::parse_sequences::RawSequenceRead::new();
         }
-        self.lines.push(line);
+        self.raw_sequence_read.add_line(self.line_num, line);
         Ok(())
     }
 
     pub fn post(&mut self) -> Result<(), Box<dyn Error>> {
         // Insert the sequence into the vec.  This will be popped out by other threads
-        let line_4 = self.lines.pop().unwrap_or(String::new());
-        let line_3 = self.lines.pop().unwrap_or(String::new());
-        let line_2 = self.lines.pop().unwrap_or(String::new());
-        let line_1 = self.lines.pop().unwrap_or(String::new());
-        let raw_read = crate::parse_sequences::RawSequenceRead::new(line_1, line_2, line_3, line_4);
         if self.test {
-            raw_read.check_fastq_format()?;
+            self.raw_sequence_read.check_fastq_format()?;
             self.test = false;
         }
-        self.seq_clone.lock().unwrap().insert(0, raw_read);
+        self.seq_clone
+            .lock()
+            .unwrap()
+            .insert(0, self.raw_sequence_read.pack());
         Ok(())
     }
 
