@@ -82,7 +82,7 @@ fn main() {
         });
 
         let shared_mut =
-            barcode::barcode_info::SharedMutData::new(seq, finished, Arc::clone(&results));
+            barcode::parse_sequences::SharedMutData::new(seq, finished, Arc::clone(&results));
         // Create processing threads.  One less than the total threads because of the single reading thread
         for _ in 1..args.threads {
             // Clone all variables needed to pass into each thread

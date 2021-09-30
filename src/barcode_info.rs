@@ -5,8 +5,8 @@ use std::{
     error::Error,
     fs,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
-        Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
+        Arc,
     },
 };
 
@@ -828,37 +828,6 @@ impl Results {
             .unwrap_or(&mut self.empty_count_hash.clone())
             .entry(barcode_string)
             .or_insert(0) += 1;
-    }
-}
-
-pub struct SharedMutData {
-    pub seq: Arc<Mutex<Vec<String>>>,
-    pub finished: Arc<AtomicBool>,
-    pub results: Arc<Mutex<crate::barcode_info::Results>>,
-}
-
-impl SharedMutData {
-    pub fn new(
-        seq: Arc<Mutex<Vec<String>>>,
-        finished: Arc<AtomicBool>,
-        results: Arc<Mutex<crate::barcode_info::Results>>,
-    ) -> SharedMutData {
-        SharedMutData {
-            seq,
-            finished,
-            results,
-        }
-    }
-
-    pub fn arc_clone(&self) -> SharedMutData {
-        let seq = Arc::clone(&self.seq);
-        let finished = Arc::clone(&self.finished);
-        let results = Arc::clone(&self.results);
-        SharedMutData {
-            seq,
-            finished,
-            results,
-        }
     }
 }
 

@@ -18,8 +18,6 @@ use itertools::Itertools;
 // Errors associated with checking the fastq format to make sure it is correct
 custom_error! {FastqError
     NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
-    Line2NotSeq = "The second line within the FASTQ file is not a sequence. Check the FASTQ format",
-    Line1Seq = "The first line within the FASTQ contains DNA sequences.  Check the FASTQ format",
 }
 
 /// Reads in the FASTQ file line by line, then pushes every 2 out of 4 lines, which corresponds to the sequence line, into a Vec that is passed to other threads
@@ -31,7 +29,7 @@ custom_error! {FastqError
 /// Line 4: Quality score
 pub fn read_fastq(
     fastq: String,
-    seq_clone: Arc<Mutex<Vec<String>>>,
+    seq_clone: Arc<Mutex<Vec<crate::parse_sequences::RawSequenceRead>>>,
     exit_clone: Arc<AtomicBool>,
     total_reads_arc: Arc<AtomicU32>,
 ) -> Result<(), Box<dyn Error>> {
@@ -79,24 +77,25 @@ pub fn read_fastq(
 
 /// A struct with functions for keeping track of read information and to post sequence lines to the shared vector
 struct FastqLineReader {
-    test_first_line: bool, // whether or not to keep testing line 1 as a sequence or metadata
-    test_fastq_format: bool, // whether or not to test line 2, which should be a sequence
-    line_num: u8,          // the current line number 1-4.  Resets back to 1
-    total_reads: u32,      // total sequences read within the fastq file
-    quality_filter_option: Option<u8>, // number to filter the DNA score by. Not yet implemented
-    seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
+    test: bool,   // whether or not to test the fastq format. Only does this for the first read
+    line_num: u8, // the current line number 1-4.  Resets back to 1
+    total_reads: u32, // total sequences read within the fastq file
+    lines: Vec<String>,
+    seq_clone: Arc<Mutex<Vec<crate::parse_sequences::RawSequenceRead>>>, // the vector that is passed between threads which containst the sequences
     exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
 
 impl FastqLineReader {
     /// Creates a new FastqLineReader struct
-    pub fn new(seq_clone: Arc<Mutex<Vec<String>>>, exit_clone: Arc<AtomicBool>) -> FastqLineReader {
+    pub fn new(
+        seq_clone: Arc<Mutex<Vec<crate::parse_sequences::RawSequenceRead>>>,
+        exit_clone: Arc<AtomicBool>,
+    ) -> FastqLineReader {
         FastqLineReader {
-            test_first_line: true,
-            test_fastq_format: true,
+            test: true,
             line_num: 1,
             total_reads: 0,
-            quality_filter_option: None,
+            lines: Vec::new(),
             seq_clone,
             exit_clone,
         }
@@ -104,50 +103,38 @@ impl FastqLineReader {
 
     /// Reads in the line and either passes to the vec or discards it, depending if it is a sequence line.  Also increments on line count, sequence count etc.
     pub fn read_and_post(&mut self, line: String) -> Result<(), Box<dyn Error>> {
-        // Test the first line for whether or not it is sequence data.  It should be metadata for FASTQ formats
-        if self.test_first_line {
-            let linetype = test_sequence(&line);
-            match linetype {
-                LineType::Sequence => return Err(Box::new(FastqError::Line1Seq)),
-                LineType::Metadata => (),
-            }
-            self.test_first_line = false
-        }
-
-        if let Some(quality_filter) = self.quality_filter_option {
-            if self.line_num == 4 {
-                let quality = self.read_quality_score(&line);
-                println!("{:?}", quality);
+        // Pause if there are already 10000 sequences in the vec so memory is not overloaded
+        while self.seq_clone.lock().unwrap().len() >= 10000 {
+            // if threads have failed exit out of this thread
+            if self.exit_clone.load(Ordering::Relaxed) {
+                break;
             }
         }
-
-        // if it is the sequence line which is line 2
-        if self.line_num == 2 {
-            // test the first sequence line for whether or not it is a sequence and therefor in the correct format
-            if self.test_fastq_format {
-                let linetype = test_sequence(&line);
-                match linetype {
-                    LineType::Sequence => (),
-                    LineType::Metadata => return Err(Box::new(FastqError::Line2NotSeq)),
-                }
-                self.test_fastq_format = false
-            }
-            // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-            while self.seq_clone.lock().unwrap().len() >= 10000 {
-                // if threads have failed exit out of this thread
-                if self.exit_clone.load(Ordering::Relaxed) {
-                    break;
-                }
-            }
-            // Insert the sequence into the vec.  This will be popped out by other threads
-            self.seq_clone.lock().unwrap().insert(0, line);
+        if self.line_num == 1 {
+            self.lines = Vec::new();
+            self.lines.push(line);
+        } else if self.line_num == 2 {
+            self.lines.push(line);
             // Add to read count to print numnber of sequences read by this thread
             self.total_reads += 1;
             if self.total_reads % 1000 == 0 {
                 self.display_total_reads()?;
             }
+        } else if self.line_num == 3 {
+            self.lines.push(line);
+        } else if self.line_num == 4 {
+            let line_3 = self.lines.pop().unwrap_or(String::new());
+            let line_2 = self.lines.pop().unwrap_or(String::new());
+            let line_1 = self.lines.pop().unwrap_or(String::new());
+            let raw_read =
+                crate::parse_sequences::RawSequenceRead::new(line_1, line_2, line_3, line);
+            if self.test {
+                raw_read.check_fastq_format()?;
+                self.test = false;
+            }
+            // Insert the sequence into the vec.  This will be popped out by other threads
+            self.seq_clone.lock().unwrap().insert(0, raw_read);
         }
-
         // increase line number and if it has passed line 4, reset to 1
         self.line_num += 1;
         if self.line_num == 5 {
@@ -156,45 +143,12 @@ impl FastqLineReader {
         Ok(())
     }
 
-    /// Each DNA base read score within FASTQ is the ascii number - 33.
-    ///
-    /// Score    Error Probability
-    /// 40       0.0001
-    /// 30       0.001
-    /// 20       0.01
-    /// 10       0.1
-    pub fn read_quality_score(&self, line: &str) -> Vec<u8> {
-        line.chars().map(|ch| ch as u8 - 33).collect::<Vec<u8>>()
-    }
-
     /// Displays the total reads so far.  Used while reading to incrementally display, then used after finished reading the file to display total sequences that were read
     pub fn display_total_reads(&self) -> Result<(), Box<dyn Error>> {
         print!("Total sequences:             {}\r", self.total_reads);
         std::io::stdout().flush()?;
         Ok(())
     }
-}
-
-/// An enum of linetype to use with test_sequence.  Every line of a FASTQ should either be sequence or metadata for the sequence.
-enum LineType {
-    Sequence,
-    Metadata,
-}
-
-/// Tests whether a line within the file String is a sequence by checking if over half of the line contains DNA neceotide letters
-fn test_sequence(sequence: &str) -> LineType {
-    let sequence_length = sequence.len(); // the the length of the line
-    let adenines = sequence.matches('A').count(); // And the amount of each DNA nucleotide
-    let guanines = sequence.matches('G').count();
-    let cytosines = sequence.matches('C').count();
-    let thymines = sequence.matches('T').count();
-    let any = sequence.matches('N').count();
-    let total_dna = adenines + guanines + cytosines + thymines + any;
-    // Check if less than half of the line contains DNA nucleotides.  If so, return that the line is metadata.  Otherwise, a sequence
-    if total_dna < sequence_length / 2 {
-        return LineType::Metadata;
-    }
-    LineType::Sequence
 }
 
 /// A struct setup to output results and stat information into files
