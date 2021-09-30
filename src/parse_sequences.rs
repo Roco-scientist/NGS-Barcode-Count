@@ -18,6 +18,7 @@ pub struct SequenceParser {
     counted_barcode_seqs: Vec<HashSet<String>>,
     raw_sequence: RawSequenceRead,
     barcode_groups: Vec<String>,
+    min_quality_score: f32,
 }
 
 impl SequenceParser {
@@ -28,6 +29,7 @@ impl SequenceParser {
         max_errors_clone: crate::barcode_info::MaxSeqErrors,
         sample_seqs: HashSet<String>,
         counted_barcode_seqs: Vec<HashSet<String>>,
+        min_quality_score: f32,
     ) -> SequenceParser {
         let mut barcode_groups = Vec::new();
         for x in 0..sequence_format_clone.barcode_num {
@@ -42,6 +44,7 @@ impl SequenceParser {
             counted_barcode_seqs,
             raw_sequence: RawSequenceRead::new(),
             barcode_groups,
+            min_quality_score,
         }
     }
     pub fn parse(&mut self) -> Result<(), Box<dyn Error>> {
@@ -91,6 +94,17 @@ impl SequenceParser {
     /// Does a regex search and captures the barcodes.  Returns a struct of the results.  
     fn match_seq(&mut self) -> Result<Option<SequenceMatchResult>, Box<dyn Error>> {
         self.check_and_fix_consant_region()?;
+        // If there was a minimum set for quality, check each barcode's quality
+        if self.min_quality_score > 0.0
+            && self.raw_sequence.low_quality(
+                self.min_quality_score,
+                &self.sequence_format_clone.regions_string,
+            )
+        {
+            // If any are low qualty, add to the low quality count and return
+            self.sequence_errors_clone.low_quality_barcode();
+            return Ok(None);
+        }
 
         // if the barcodes are found continue, else return None and record a constant region error
         if let Some(barcodes) = self
@@ -240,7 +254,7 @@ impl RawSequenceRead {
 
     pub fn unpack(raw_string: String) -> Self {
         let mut raw_sequence_read = RawSequenceRead::new();
-        for (line_num, line) in raw_string.split("\n").enumerate() {
+        for (line_num, line) in raw_string.split('\n').enumerate() {
             let true_line = line_num as u8 + 1;
             raw_sequence_read.add_line(true_line, line.to_string())
         }
@@ -342,17 +356,17 @@ impl RawSequenceRead {
                 previous_type = seq_type;
                 // if indicator is not for a constant region, create a new vec with the new score
                 if seq_type != 'C' {
-                    scores = vec![score.clone() as f32];
+                    scores = vec![*score as f32];
                 }
             } else {
                 // If indicator type is not for a constant region, add the score to the vec
                 if seq_type != 'C' {
-                    scores.push(score.clone() as f32);
+                    scores.push(*score as f32);
                 }
             }
         }
         // If no average scores cause a true return, then return low_quality as false
-        return false;
+        false
     }
 
     pub fn check_fastq_format(&self) -> Result<(), Box<dyn Error>> {
@@ -371,7 +385,7 @@ impl RawSequenceRead {
                 return Err(Box::new(FastqError::Line2NotSeq));
             }
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn print_read(&self) {
