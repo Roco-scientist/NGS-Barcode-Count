@@ -40,7 +40,7 @@ impl SequenceParser {
             max_errors_clone,
             sample_seqs,
             counted_barcode_seqs,
-            raw_sequence: RawSequenceRead::empty(),
+            raw_sequence: RawSequenceRead::new(),
             barcode_groups,
         }
     }
@@ -190,8 +190,28 @@ pub struct RawSequenceRead {
     quality_values: String,  // line 4 of fastq
 }
 
+impl Default for RawSequenceRead {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RawSequenceRead {
-    pub fn new(line_1: String, line_2: String, line_3: String, line_4: String) -> RawSequenceRead {
+    pub fn new() -> Self {
+        RawSequenceRead {
+            description: String::new(),
+            sequence: String::new(),
+            add_description: String::new(),
+            quality_values: String::new(),
+        }
+    }
+
+    pub fn new_fill(
+        line_1: String,
+        line_2: String,
+        line_3: String,
+        line_4: String,
+    ) -> RawSequenceRead {
         RawSequenceRead {
             description: line_1,
             sequence: line_2,
@@ -200,12 +220,13 @@ impl RawSequenceRead {
         }
     }
 
-    pub fn empty() -> RawSequenceRead {
-        RawSequenceRead {
-            description: String::new(),
-            sequence: String::new(),
-            add_description: String::new(),
-            quality_values: String::new(),
+    pub fn add_line(&mut self, line_num: u8, line: String) {
+        match line_num {
+            1 => self.description = line,
+            2 => self.sequence = line,
+            3 => self.add_description = line,
+            4 => self.quality_values = line,
+            _ => eprintln!("Line out of range for RawSequenceRead::add_line()"),
         }
     }
 
