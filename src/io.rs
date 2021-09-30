@@ -95,7 +95,7 @@ struct FastqLineReader {
     test: bool,   // whether or not to test the fastq format. Only does this for the first read
     line_num: u8, // the current line number 1-4.  Resets back to 1
     total_reads: u32, // total sequences read within the fastq file
-    raw_sequence_read: crate::parse_sequences::RawSequenceRead,
+    raw_sequence_read_string: String,
     seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
     exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
@@ -107,7 +107,7 @@ impl FastqLineReader {
             test: true,
             line_num: 0,
             total_reads: 0,
-            raw_sequence_read: crate::parse_sequences::RawSequenceRead::new(),
+            raw_sequence_read_string: String::new(),
             seq_clone,
             exit_clone,
         }
@@ -125,26 +125,29 @@ impl FastqLineReader {
         // increase line number and if it has passed line 4, reset to 1
         self.line_num += 1;
         if self.line_num == 5 {
-            self.total_reads += 1;
             self.line_num = 1
         }
         if self.line_num == 1 {
-            self.raw_sequence_read = crate::parse_sequences::RawSequenceRead::new();
+            self.total_reads += 1;
+            self.raw_sequence_read_string = line;
+        } else {
+            self.raw_sequence_read_string.push('\n');
+            self.raw_sequence_read_string.push_str(&line);
         }
-        self.raw_sequence_read.add_line(self.line_num, line);
         Ok(())
     }
 
     pub fn post(&mut self) -> Result<(), Box<dyn Error>> {
         // Insert the sequence into the vec.  This will be popped out by other threads
         if self.test {
-            self.raw_sequence_read.check_fastq_format()?;
+            crate::parse_sequences::RawSequenceRead::unpack(self.raw_sequence_read_string.clone())
+                .check_fastq_format()?;
             self.test = false;
         }
         self.seq_clone
             .lock()
             .unwrap()
-            .insert(0, self.raw_sequence_read.pack());
+            .insert(0, self.raw_sequence_read_string.clone());
         Ok(())
     }
 
