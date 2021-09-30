@@ -94,24 +94,24 @@ impl SequenceParser {
     /// Does a regex search and captures the barcodes.  Returns a struct of the results.  
     fn match_seq(&mut self) -> Result<Option<SequenceMatchResult>, Box<dyn Error>> {
         self.check_and_fix_consant_region()?;
-        // If there was a minimum set for quality, check each barcode's quality
-        if self.min_quality_score > 0.0
-            && self.raw_sequence.low_quality(
-                self.min_quality_score,
-                &self.sequence_format_clone.regions_string,
-            )
-        {
-            // If any are low qualty, add to the low quality count and return
-            self.sequence_errors_clone.low_quality_barcode();
-            return Ok(None);
-        }
-
         // if the barcodes are found continue, else return None and record a constant region error
         if let Some(barcodes) = self
             .sequence_format_clone
             .format_regex
             .captures(&self.raw_sequence.sequence)
         {
+            // If there was a minimum set for quality, check each barcode's quality
+            if self.min_quality_score > 0.0
+                && self.raw_sequence.low_quality(
+                    self.min_quality_score,
+                    &self.sequence_format_clone.regions_string,
+                )
+            {
+                // If any are low qualty, add to the low quality count and return
+                self.sequence_errors_clone.low_quality_barcode();
+                return Ok(None);
+            }
+
             // Create a match results struct which tests the regex regions
             let match_results = SequenceMatchResult::new(
                 barcodes,
