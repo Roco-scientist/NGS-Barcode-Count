@@ -13,16 +13,12 @@ use std::{
 // Struct to keep track of sequencing errors and correct matches.  This is displayed at the end of the algorithm for QC measures
 #[derive(Debug, Clone)]
 pub struct SequenceErrors {
-    // errors within the constant region
-    constant_region: Arc<AtomicU32>,
-    // errors within the sample barcode
-    sample_barcode: Arc<AtomicU32>,
-    // erors within the counted barcode
-    barcode: Arc<AtomicU32>,
-    // total matched
-    matched: Arc<AtomicU32>,
-    // total random barcode duplicates
-    duplicates: Arc<AtomicU32>,
+    constant_region: Arc<AtomicU32>, // errors within the constant region
+    sample_barcode: Arc<AtomicU32>,  // errors within the sample barcode
+    barcode: Arc<AtomicU32>,         // erors within the counted barcode
+    matched: Arc<AtomicU32>,         // total matched
+    duplicates: Arc<AtomicU32>,      // total random barcode duplicates
+    low_quality: Arc<AtomicU32>,     // total random barcode duplicates
 }
 
 impl Default for SequenceErrors {
@@ -47,6 +43,7 @@ impl SequenceErrors {
             barcode: Arc::new(AtomicU32::new(0)),
             matched: Arc::new(AtomicU32::new(0)),
             duplicates: Arc::new(AtomicU32::new(0)),
+            low_quality: Arc::new(AtomicU32::new(0)),
         }
     }
 
@@ -115,6 +112,19 @@ impl SequenceErrors {
         self.duplicates.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Add one to low_quality
+    ///
+    /// # Example
+    /// ```
+    /// use barcode::barcode_info::SequenceErrors;
+    ///
+    /// let mut sequence_errors = SequenceErrors::new();
+    /// sequence_errors.low_quality_barcode();
+    /// ```
+    pub fn low_quality_barcode(&mut self) {
+        self.low_quality.fetch_add(1, Ordering::Relaxed);
+    }
+
     /// Print to stdout all sequencing error counts
     ///
     /// # Example
@@ -132,8 +142,8 @@ impl SequenceErrors {
 
     pub fn display_string(&mut self) -> String {
         format!(
-            "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}",
-            self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed)
+            "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}\nLow quality barcodes:        {}",
+            self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed), self.low_quality.load(Ordering::Relaxed)
         )
     }
 
@@ -144,6 +154,7 @@ impl SequenceErrors {
             barcode: Arc::clone(&self.barcode),
             matched: Arc::clone(&self.matched),
             duplicates: Arc::clone(&self.duplicates),
+            low_quality: Arc::clone(&self.low_quality),
         }
     }
 }
@@ -152,7 +163,7 @@ impl SequenceErrors {
 #[derive(Debug, Clone)]
 pub struct SequenceFormat {
     pub format_string: String,
-    regions_string: String,
+    pub regions_string: String,
     // Not implemented yet
     pub format_string_multiple: Option<Vec<String>>,
     pub format_regex: Regex,
@@ -521,6 +532,7 @@ pub struct MaxSeqErrors {
     // erors within the counted barcode
     barcode: Vec<u8>,
     barcode_sizes: Vec<u8>,
+    min_quality: f32,
 }
 
 impl MaxSeqErrors {
@@ -545,6 +557,7 @@ impl MaxSeqErrors {
         barcode_sizes: Vec<u8>,
         constant_errors_option: Option<u8>,
         constant_region_size: u8,
+        min_quality: f32,
     ) -> Result<MaxSeqErrors, Box<dyn Error>> {
         let max_sample_errors;
         // start with a sample size of 0 in case there is no sample barcode.  If there is then mutate
@@ -588,6 +601,7 @@ impl MaxSeqErrors {
             sample_size,
             barcode: max_barcode_errors,
             barcode_sizes,
+            min_quality,
         })
     }
 
@@ -678,8 +692,8 @@ impl MaxSeqErrors {
     pub fn display(&mut self) {
         println!(
             "
-            \n########## Barcode Info ###################################\n\
-            {}###########################################################",
+            \n########## Barcode Info ######################################\n\
+            {}##############################################################",
             self.display_string()
         );
         println!();
@@ -705,19 +719,22 @@ impl MaxSeqErrors {
             "\
             Constant region size: {}\n\
             Maximum mismatches allowed per sequence: {}\n\
-            -----------------------------------------------------------\n\
+            --------------------------------------------------------------\n\
             Sample barcode size: {}\n\
             Maximum mismatches allowed per sequence: {}\n\
-            -----------------------------------------------------------\n\
+            --------------------------------------------------------------\n\
             {}\n\
             {}\n\
+            --------------------------------------------------------------\n\
+            Minimum allowed average read quality score per barcode: {}\n\
             ",
             self.constant_region_size,
             self.constant_region,
             self.sample_size,
             self.sample_barcode,
             barcode_size_info,
-            barcode_error_info
+            barcode_error_info,
+            self.min_quality
         )
     }
 }
