@@ -1,5 +1,5 @@
 use custom_error::custom_error;
-use regex::{Captures, Regex};
+use regex::Captures;
 use std::{
     collections::HashSet,
     error::Error,
@@ -314,29 +314,44 @@ impl RawSequenceRead {
             .collect::<Vec<u8>>()
     }
 
-    pub fn low_quality(&self, max_average: f32, format_string: &str) -> bool {
-        let mut scores = Vec::new();
-        let mut previous_type = '\0';
-        for (score, seq_type) in self.quality_scores().iter().zip(format_string.chars()) {
+    /// Test for if any of the barcode average quality score falls below the min_average cutoff
+    pub fn low_quality(&self, min_average: f32, barcode_indicator_string: &str) -> bool {
+        let mut scores = Vec::new(); // vec to hold the quality scores for each barcode
+        let mut previous_type = '\0'; // setup previoius barcode inidator type for the first comparison
+
+        for (score, seq_type) in self
+            .quality_scores()
+            .iter()
+            .zip(barcode_indicator_string.chars())
+        // Zip score and barcode indicator
+        {
+            // Check for change in barcode/sequence type to know to calculate average score and create a new start to scores
             if seq_type != previous_type {
+                // If scores is empty.  This avoids if there is a transition from consant region to barcode.  Constant region is not calculated
                 if !scores.is_empty() {
+                    // Get the average quality score for the barcode and if it is below the max average return true for low_quality
                     let sum: f32 = scores.iter().sum();
                     let average_score: f32 = sum / scores.len() as f32;
-                    if average_score < max_average {
+                    if average_score < min_average {
                         return true;
                     }
+                    // Start a new vec for the next barcode
                     scores = Vec::new();
                 }
+                // set previous indicator type to the current type to check next
                 previous_type = seq_type;
+                // if indicator is not for a constant region, create a new vec with the new score
                 if seq_type != 'C' {
                     scores = vec![score.clone() as f32];
                 }
             } else {
+                // If indicator type is not for a constant region, add the score to the vec
                 if seq_type != 'C' {
                     scores.push(score.clone() as f32);
                 }
             }
         }
+        // If no average scores cause a true return, then return low_quality as false
         return false;
     }
 
