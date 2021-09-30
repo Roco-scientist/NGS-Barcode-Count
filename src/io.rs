@@ -50,7 +50,14 @@ pub fn read_fastq(
         for line_result in BufReader::new(fastq_file).lines() {
             let line = line_result?;
             // post the line to the shared vector and keep track of the number of sequences etc
-            fastq_line_reader.read_and_post(line)?;
+            fastq_line_reader.read(line)?;
+            if fastq_line_reader.line_num == 4 {
+                fastq_line_reader.post()?;
+            }
+            // Add to read count to print numnber of sequences read by this thread
+            if fastq_line_reader.total_reads % 1000 == 0 {
+                fastq_line_reader.display_total_reads()?;
+            }
         }
     } else {
         println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file\n");
@@ -66,7 +73,14 @@ pub fn read_fastq(
             // move the read line to the line variable and get the response to check if it is 0 and therefore the file is done
             read_response = reader.read_line(&mut line)?;
             // post the line to the shared vector and keep track of the number of sequences etc
-            fastq_line_reader.read_and_post(line)?;
+            fastq_line_reader.read(line)?;
+            if fastq_line_reader.line_num == 4 {
+                fastq_line_reader.post()?;
+            }
+            // Add to read count to print numnber of sequences read by this thread
+            if fastq_line_reader.total_reads % 1000 == 0 {
+                fastq_line_reader.display_total_reads()?;
+            }
         }
     }
     // Display the final total read count
@@ -94,7 +108,7 @@ impl FastqLineReader {
     ) -> FastqLineReader {
         FastqLineReader {
             test: true,
-            line_num: 1,
+            line_num: 0,
             total_reads: 0,
             lines: Vec::new(),
             seq_clone,
@@ -103,7 +117,7 @@ impl FastqLineReader {
     }
 
     /// Reads in the line and either passes to the vec or discards it, depending if it is a sequence line.  Also increments on line count, sequence count etc.
-    pub fn read_and_post(&mut self, line: String) -> Result<(), Box<dyn Error>> {
+    pub fn read(&mut self, line: String) -> Result<(), Box<dyn Error>> {
         // Pause if there are already 10000 sequences in the vec so memory is not overloaded
         while self.seq_clone.lock().unwrap().len() >= 10000 {
             // if threads have failed exit out of this thread
@@ -111,40 +125,35 @@ impl FastqLineReader {
                 break;
             }
         }
+        // increase line number and if it has passed line 4, reset to 1
+        self.line_num += 1;
+        if self.line_num == 5 {
+            self.total_reads += 1;
+            self.line_num = 1
+        }
         if self.line_num == 1 {
             if !self.lines.is_empty() {
                 println!("Lines: {:?}", self.lines);
                 self.lines.clear();
                 return Err(Box::new(FastqError::LeftOver));
             }
-            self.lines.push(line);
-        } else if self.line_num == 2 {
-            self.lines.push(line);
-            // Add to read count to print numnber of sequences read by this thread
-            self.total_reads += 1;
-            if self.total_reads % 1000 == 0 {
-                self.display_total_reads()?;
-            }
-        } else if self.line_num == 3 {
-            self.lines.push(line);
-        } else if self.line_num == 4 {
-            let line_3 = self.lines.pop().unwrap_or(String::new());
-            let line_2 = self.lines.pop().unwrap_or(String::new());
-            let line_1 = self.lines.pop().unwrap_or(String::new());
-            let raw_read =
-                crate::parse_sequences::RawSequenceRead::new(line_1, line_2, line_3, line);
-            if self.test {
-                raw_read.check_fastq_format()?;
-                self.test = false;
-            }
-            // Insert the sequence into the vec.  This will be popped out by other threads
-            self.seq_clone.lock().unwrap().insert(0, raw_read);
         }
-        // increase line number and if it has passed line 4, reset to 1
-        self.line_num += 1;
-        if self.line_num == 5 {
-            self.line_num = 1
+        self.lines.push(line);
+        Ok(())
+    }
+
+    pub fn post(&mut self) -> Result<(), Box<dyn Error>> {
+        // Insert the sequence into the vec.  This will be popped out by other threads
+        let line_4 = self.lines.pop().unwrap_or(String::new());
+        let line_3 = self.lines.pop().unwrap_or(String::new());
+        let line_2 = self.lines.pop().unwrap_or(String::new());
+        let line_1 = self.lines.pop().unwrap_or(String::new());
+        let raw_read = crate::parse_sequences::RawSequenceRead::new(line_1, line_2, line_3, line_4);
+        if self.test {
+            raw_read.check_fastq_format()?;
+            self.test = false;
         }
+        self.seq_clone.lock().unwrap().insert(0, raw_read);
         Ok(())
     }
 
