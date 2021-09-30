@@ -53,6 +53,7 @@ fn main() {
         sequence_format.barcode_lengths().unwrap(),
         args.constant_errors_option,
         sequence_format.constant_region_length(),
+        args.min_average_quality_score,
     )
     .unwrap_or_else(|err| panic!("Max Sequencing Errors error: {}", err));
     // Display region sizes and errors allowed
@@ -93,6 +94,7 @@ fn main() {
             let max_errors_clone = max_errors.clone();
             let sample_seqs_clone = barcode_conversions.sample_seqs.clone();
             let counted_barcode_seqs_clone = barcode_conversions.counted_barcode_seqs.clone();
+            let min_quality_score = args.min_average_quality_score;
 
             // Create a processing thread
             s.spawn(move |_| {
@@ -103,6 +105,7 @@ fn main() {
                     max_errors_clone,
                     sample_seqs_clone,
                     counted_barcode_seqs_clone,
+                    min_quality_score,
                 );
                 parser.parse().unwrap_or_else(|err| {
                     exit_clone.store(true, Ordering::Relaxed);
