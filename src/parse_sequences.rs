@@ -1,25 +1,35 @@
+use custom_error::custom_error;
 use regex::Captures;
-use std::{collections::HashSet, error::Error, sync::atomic::Ordering};
+use std::{
+    collections::HashSet,
+    error::Error,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+};
 
 pub struct SequenceParser {
-    shared_mut_clone: crate::barcode_info::SharedMutData,
+    shared_mut_clone: SharedMutData,
     sequence_errors_clone: crate::barcode_info::SequenceErrors,
     sequence_format_clone: crate::barcode_info::SequenceFormat,
     max_errors_clone: crate::barcode_info::MaxSeqErrors,
     sample_seqs: HashSet<String>,
     counted_barcode_seqs: Vec<HashSet<String>>,
-    raw_sequence: RawSequence,
+    raw_sequence: RawSequenceRead,
     barcode_groups: Vec<String>,
+    min_quality_score: f32,
 }
 
 impl SequenceParser {
     pub fn new(
-        shared_mut_clone: crate::barcode_info::SharedMutData,
+        shared_mut_clone: SharedMutData,
         sequence_errors_clone: crate::barcode_info::SequenceErrors,
         sequence_format_clone: crate::barcode_info::SequenceFormat,
         max_errors_clone: crate::barcode_info::MaxSeqErrors,
         sample_seqs: HashSet<String>,
         counted_barcode_seqs: Vec<HashSet<String>>,
+        min_quality_score: f32,
     ) -> SequenceParser {
         let mut barcode_groups = Vec::new();
         for x in 0..sequence_format_clone.barcode_num {
@@ -32,14 +42,15 @@ impl SequenceParser {
             max_errors_clone,
             sample_seqs,
             counted_barcode_seqs,
-            raw_sequence: RawSequence::new(String::new()),
+            raw_sequence: RawSequenceRead::new(),
             barcode_groups,
+            min_quality_score,
         }
     }
     pub fn parse(&mut self) -> Result<(), Box<dyn Error>> {
         // Loop until there are no sequences left to parse.  These are fed into seq vec by the reader thread
         loop {
-            if self.get_seqeunce() {
+            if self.get_seqeunce()? {
                 if let Some(seq_match_result) = self.match_seq()? {
                     let barcode_string = seq_match_result.barcode_string();
                     // If there is a random barcode included
@@ -70,26 +81,37 @@ impl SequenceParser {
         Ok(())
     }
 
-    fn get_seqeunce(&mut self) -> bool {
+    fn get_seqeunce(&mut self) -> Result<bool, Box<dyn Error>> {
         // Pop off the last sequence from the seq vec
-        if let Some(new_sequence) = self.shared_mut_clone.seq.lock().unwrap().pop() {
-            self.raw_sequence = RawSequence::new(new_sequence);
-            true
+        if let Some(new_raw_sequence) = self.shared_mut_clone.seq.lock().unwrap().pop() {
+            self.raw_sequence = RawSequenceRead::unpack(new_raw_sequence)?;
+            Ok(true)
         } else {
-            false
+            Ok(false)
         }
     }
 
     /// Does a regex search and captures the barcodes.  Returns a struct of the results.  
     fn match_seq(&mut self) -> Result<Option<SequenceMatchResult>, Box<dyn Error>> {
         self.check_and_fix_consant_region()?;
-
         // if the barcodes are found continue, else return None and record a constant region error
         if let Some(barcodes) = self
             .sequence_format_clone
             .format_regex
             .captures(&self.raw_sequence.sequence)
         {
+            // If there was a minimum set for quality, check each barcode's quality
+            if self.min_quality_score > 0.0
+                && self.raw_sequence.low_quality(
+                    self.min_quality_score,
+                    &self.sequence_format_clone.regions_string,
+                )
+            {
+                // If any are low qualty, add to the low quality count and return
+                self.sequence_errors_clone.low_quality_barcode();
+                return Ok(None);
+            }
+
             // Create a match results struct which tests the regex regions
             let match_results = SequenceMatchResult::new(
                 barcodes,
@@ -136,14 +158,109 @@ impl SequenceParser {
     }
 }
 
-/// A struct to hold the raw sequencing information and transform it if there are sequencing errors
-struct RawSequence {
-    sequence: String,
+pub struct SharedMutData {
+    pub seq: Arc<Mutex<Vec<String>>>,
+    pub finished: Arc<AtomicBool>,
+    pub results: Arc<Mutex<crate::barcode_info::Results>>,
 }
 
-impl RawSequence {
-    pub fn new(sequence: String) -> RawSequence {
-        RawSequence { sequence }
+impl SharedMutData {
+    pub fn new(
+        seq: Arc<Mutex<Vec<String>>>,
+        finished: Arc<AtomicBool>,
+        results: Arc<Mutex<crate::barcode_info::Results>>,
+    ) -> SharedMutData {
+        SharedMutData {
+            seq,
+            finished,
+            results,
+        }
+    }
+
+    pub fn arc_clone(&self) -> SharedMutData {
+        let seq = Arc::clone(&self.seq);
+        let finished = Arc::clone(&self.finished);
+        let results = Arc::clone(&self.results);
+        SharedMutData {
+            seq,
+            finished,
+            results,
+        }
+    }
+}
+
+// Errors associated with checking the fastq format to make sure it is correct
+custom_error! {FastqError
+    NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
+    Line2NotSeq = "The second line within the FASTQ file is not a sequence. Check the FASTQ format",
+    Line1Seq = "The first line within the FASTQ contains DNA sequences.  Check the FASTQ format",
+    ExtraNewLine = "Too many new lines found within fastq read",
+}
+
+/// A struct to hold the raw sequencing information and transform it if there are sequencing errors
+#[derive(Clone)]
+pub struct RawSequenceRead {
+    description: String,     // line 1 of fastq
+    pub sequence: String,    // line 2 of fastq
+    add_description: String, // line 3 of fastq
+    quality_values: String,  // line 4 of fastq
+}
+
+impl Default for RawSequenceRead {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RawSequenceRead {
+    pub fn new() -> Self {
+        RawSequenceRead {
+            description: String::new(),
+            sequence: String::new(),
+            add_description: String::new(),
+            quality_values: String::new(),
+        }
+    }
+
+    pub fn new_fill(
+        line_1: String,
+        line_2: String,
+        line_3: String,
+        line_4: String,
+    ) -> RawSequenceRead {
+        RawSequenceRead {
+            description: line_1,
+            sequence: line_2,
+            add_description: line_3,
+            quality_values: line_4,
+        }
+    }
+
+    pub fn add_line(&mut self, line_num: u8, line: String) -> Result<(), Box<dyn Error>> {
+        match line_num {
+            1 => self.description = line,
+            2 => self.sequence = line,
+            3 => self.add_description = line,
+            4 => self.quality_values = line,
+            _ => return Err(Box::new(FastqError::ExtraNewLine)),
+        }
+        Ok(())
+    }
+
+    pub fn pack(&self) -> String {
+        format!(
+            "{}\n{}\n{}\n{}",
+            self.description, self.sequence, self.add_description, self.quality_values
+        )
+    }
+
+    pub fn unpack(raw_string: String) -> Result<Self, Box<dyn Error>> {
+        let mut raw_sequence_read = RawSequenceRead::new();
+        for (line_num, line) in raw_string.split('\n').enumerate() {
+            let true_line = line_num as u8 + 1;
+            raw_sequence_read.add_line(true_line, line.to_string())?
+        }
+        Ok(raw_sequence_read)
     }
 
     /// Replaces the 'N's in the sequencing format with the barcodes to fix any sequencing errrors that would cause the regex search not to work
@@ -197,6 +314,112 @@ impl RawSequence {
             Ok(())
         }
     }
+
+    /// Each DNA base read score within FASTQ is the ascii number - 33.
+    /// This returns the number scores associated with the ascii values
+    ///
+    /// Score    Error Probability
+    /// 40       0.0001
+    /// 30       0.001
+    /// 20       0.01
+    /// 10       0.1
+    pub fn quality_scores(&self) -> Vec<u8> {
+        self.quality_values
+            .chars()
+            .map(|ch| ch as u8 - 33)
+            .collect::<Vec<u8>>()
+    }
+
+    /// Test for if any of the barcode average quality score falls below the min_average cutoff
+    pub fn low_quality(&self, min_average: f32, barcode_indicator_string: &str) -> bool {
+        let mut scores = Vec::new(); // vec to hold the quality scores for each barcode
+        let mut previous_type = '\0'; // setup previoius barcode inidator type for the first comparison
+
+        for (score, seq_type) in self
+            .quality_scores()
+            .iter()
+            .zip(barcode_indicator_string.chars())
+        // Zip score and barcode indicator
+        {
+            // Check for change in barcode/sequence type to know to calculate average score and create a new start to scores
+            if seq_type != previous_type {
+                // If scores is empty.  This avoids if there is a transition from consant region to barcode.  Constant region is not calculated
+                if !scores.is_empty() {
+                    // Get the average quality score for the barcode and if it is below the max average return true for low_quality
+                    let sum: f32 = scores.iter().sum();
+                    let average_score: f32 = sum / scores.len() as f32;
+                    if average_score < min_average {
+                        return true;
+                    }
+                    // Start a new vec for the next barcode
+                    scores = Vec::new();
+                }
+                // set previous indicator type to the current type to check next
+                previous_type = seq_type;
+                // if indicator is not for a constant region, create a new vec with the new score
+                if seq_type != 'C' {
+                    scores = vec![*score as f32];
+                }
+            } else {
+                // If indicator type is not for a constant region, add the score to the vec
+                if seq_type != 'C' {
+                    scores.push(*score as f32);
+                }
+            }
+        }
+        // If no average scores cause a true return, then return low_quality as false
+        false
+    }
+
+    pub fn check_fastq_format(&self) -> Result<(), Box<dyn Error>> {
+        // Test to see if the first line is not a sequence and the second is a sequence, which is typical fastq format
+        match test_sequence(&self.description) {
+            LineType::Sequence => {
+                self.print_read();
+                return Err(Box::new(FastqError::Line1Seq));
+            }
+            LineType::Metadata => (),
+        }
+        match test_sequence(&self.sequence) {
+            LineType::Sequence => (),
+            LineType::Metadata => {
+                self.print_read();
+                return Err(Box::new(FastqError::Line2NotSeq));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn print_read(&self) {
+        println!("Fastq read:");
+        println!(
+            "Line 1: {}\nLine 2: {}\nLine 3: {}\nLine 4: {}",
+            self.description, self.sequence, self.add_description, self.quality_values
+        );
+        println!();
+    }
+}
+
+/// An enum of linetype to use with test_sequence.  Every line of a FASTQ should either be sequence or metadata for the sequence.
+enum LineType {
+    Sequence,
+    Metadata,
+}
+
+/// Tests whether a line within the file String is a sequence by checking if over half of the line contains DNA neceotide letters
+fn test_sequence(sequence: &str) -> LineType {
+    let sequence_length = sequence.len(); // the the length of the line
+    let adenines = sequence.matches('A').count(); // And the amount of each DNA nucleotide
+    let guanines = sequence.matches('G').count();
+    let cytosines = sequence.matches('C').count();
+    let thymines = sequence.matches('T').count();
+    let any = sequence.matches('N').count();
+    let total_dna = adenines + guanines + cytosines + thymines + any;
+    // Check if less than half of the line contains DNA nucleotides.  If so, return that the line is metadata.  Otherwise, a sequence
+    if total_dna < sequence_length / 2 {
+        return LineType::Metadata;
+    }
+    LineType::Sequence
 }
 
 /// A struct to hold the results of the regex search on the sequence along with perform the functions to fix and find

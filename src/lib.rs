@@ -20,6 +20,7 @@ pub struct Args {
     pub barcodes_errors_option: Option<u8>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
     pub sample_errors_option: Option<u8>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
     pub constant_errors_option: Option<u8>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
+    pub min_average_quality_score: f32,
 }
 
 impl Args {
@@ -28,7 +29,7 @@ impl Args {
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
-        .version("0.6.2")
+        .version("0.7.0")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts barcodes located in sequencing data")
         .arg(
@@ -110,6 +111,13 @@ impl Args {
                 .takes_value(true)
                 .help("Maximimum number of sequence errors allowed within constant region. Defaults to 20% of the total."),
         )
+        .arg(
+            Arg::with_name("min_quality")
+                .long("min_quality")
+                .takes_value(true)
+                .default_value("0")
+                .help("Minimum average read quality score per barcode"),
+        )
         .get_matches();
 
         let sample_barcodes_option;
@@ -158,6 +166,11 @@ impl Args {
         let output_dir = args.value_of("output_dir").unwrap().to_string();
         let threads = args.value_of("threads").unwrap().parse::<u8>().unwrap();
         let prefix = args.value_of("prefix").unwrap().to_string();
+        let min_average_quality_score = args
+            .value_of("min_quality")
+            .unwrap()
+            .parse::<f32>()
+            .unwrap();
 
         Ok(Args {
             fastq,
@@ -171,6 +184,7 @@ impl Args {
             barcodes_errors_option,
             sample_errors_option,
             constant_errors_option,
+            min_average_quality_score,
         })
     }
 }
