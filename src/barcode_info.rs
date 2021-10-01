@@ -5,8 +5,8 @@ use std::{
     error::Error,
     fs,
     sync::{
-        atomic::{AtomicU32, Ordering},
-        Arc,
+        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
+        {Arc, Mutex},
     },
 };
 
@@ -160,19 +160,19 @@ impl SequenceErrors {
 }
 
 // Struct to keep the format information for the sequencing, ie barcodes, regex search etc.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SequenceFormat {
     pub format_string: String,
     pub regions_string: String,
-    // Not implemented yet
-    pub format_string_multiple: Option<Vec<String>>,
+    pub length: usize,
     pub format_regex: Regex,
     pub regex_string: String,
     pub barcode_num: usize,
-    // Not implemented yet
-    pub multiple: bool,
     format_data: String,
     pub random_barcode: bool,
+    starts: Arc<Mutex<Vec<usize>>>,
+    start_found: Arc<AtomicBool>,
+    start: Arc<AtomicUsize>,
 }
 
 impl SequenceFormat {
@@ -190,18 +190,21 @@ impl SequenceFormat {
         let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
         let regions_string = build_regions_string(&format_data)?; // Create the string which indicates where the barcodes are located
         let barcode_num = regex_string.matches("barcode").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
+        let length = format_string.chars().count();
 
         // Create and return the SequenceFormat struct
         Ok(SequenceFormat {
             format_string,
             regions_string,
-            format_string_multiple: None,
+            length,
             format_regex,
             regex_string,
             barcode_num,
-            multiple: false,
             format_data,
             random_barcode,
+            starts: Arc::new(Mutex::new(Vec::new())),
+            start_found: Arc::new(AtomicBool::new(false)),
+            start: Arc::new(AtomicUsize::new(0)),
         })
     }
 
@@ -274,6 +277,34 @@ impl SequenceFormat {
         // Get the full length of the format_string and subtract the amount of 'N's found to get the constant nucleotide count
         let diff = self.format_string.len() - self.format_string.matches('N').count();
         diff as u8
+    }
+
+    pub fn add_start(&self, start: usize) {
+        self.starts.lock().unwrap().push(start)
+    }
+
+    pub fn start_found(&self) -> bool {
+        self.start_found.load(Ordering::Relaxed)
+    }
+
+    pub fn start(&self) -> usize {
+        self.start.load(Ordering::Relaxed)
+    }
+
+    pub fn clone_arcs(&self) -> Self {
+        SequenceFormat {
+            format_string: self.format_string.clone(),
+            regions_string: self.regions_string.clone(),
+            length: self.length.clone(),
+            format_regex: self.format_regex.clone(),
+            regex_string: self.regex_string.clone(),
+            barcode_num: self.barcode_num.clone(),
+            format_data: self.format_data.clone(),
+            random_barcode: self.random_barcode.clone(),
+            starts: Arc::clone(&self.starts),
+            start_found: Arc::clone(&self.start_found),
+            start: Arc::clone(&self.start),
+        }
     }
 }
 

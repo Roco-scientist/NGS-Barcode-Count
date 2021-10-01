@@ -101,15 +101,25 @@ impl SequenceParser {
             .captures(&self.raw_sequence.sequence)
         {
             // If there was a minimum set for quality, check each barcode's quality
-            if self.min_quality_score > 0.0
-                && self.raw_sequence.low_quality(
-                    self.min_quality_score,
-                    &self.sequence_format_clone.regions_string,
-                )
-            {
-                // If any are low qualty, add to the low quality count and return
-                self.sequence_errors_clone.low_quality_barcode();
-                return Ok(None);
+            if self.min_quality_score > 0.0 {
+                if let Some(format_match) = self
+                    .sequence_format_clone
+                    .format_regex
+                    .find(&self.raw_sequence.sequence)
+                {
+                    let start = format_match.start();
+                    if self.raw_sequence.low_quality(
+                        self.min_quality_score,
+                        &self.sequence_format_clone.regions_string,
+                        start,
+                    ) {
+                        // If any are low qualty, add to the low quality count and return
+                        self.sequence_errors_clone.low_quality_barcode();
+                        return Ok(None);
+                    }
+                } else {
+                    return Err(Box::new(FastqError::RegexFindError));
+                }
             }
 
             // Create a match results struct which tests the regex regions
@@ -195,6 +205,7 @@ custom_error! {FastqError
     Line2NotSeq = "The second line within the FASTQ file is not a sequence. Check the FASTQ format",
     Line1Seq = "The first line within the FASTQ contains DNA sequences.  Check the FASTQ format",
     ExtraNewLine = "Too many new lines found within fastq read",
+    RegexFindError = "Regex find failed after regex captures was successful",
 }
 
 /// A struct to hold the raw sequencing information and transform it if there are sequencing errors
@@ -331,13 +342,19 @@ impl RawSequenceRead {
     }
 
     /// Test for if any of the barcode average quality score falls below the min_average cutoff
-    pub fn low_quality(&self, min_average: f32, barcode_indicator_string: &str) -> bool {
+    pub fn low_quality(
+        &self,
+        min_average: f32,
+        barcode_indicator_string: &str,
+        start: usize,
+    ) -> bool {
         let mut scores = Vec::new(); // vec to hold the quality scores for each barcode
         let mut previous_type = '\0'; // setup previoius barcode inidator type for the first comparison
 
         for (score, seq_type) in self
             .quality_scores()
             .iter()
+            .skip(start)
             .zip(barcode_indicator_string.chars())
         // Zip score and barcode indicator
         {
