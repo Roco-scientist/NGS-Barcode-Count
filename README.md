@@ -9,6 +9,8 @@ Error handling is defaulted at 20% maximum sequence error per constant region an
 it is not counted.
 <br>
 <br>
+Filtering by read quality score is also an option.  If used, each barcode has its read quality average calculated and if it is below the set threshold, the read is not counted.  The algorithm is defaulted to not filter unless the --min_quality arguemnt is called.  See fastq documentation from what the read quality scores mean.
+<br><br>
 Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/decode target="_blank" rel="noopener noreferrer">decode</a>
 
 ## Table of Contents
@@ -158,7 +160,8 @@ barcode --fastq <fastq_file> \
 	--output_dir <output_dir> \
 	--prefix <file_prefix> \
 	--threads <num_of_threads> \
-	--merge_output
+	--merge_output \
+	--min_quality <min_barcode_read_quality>
 ```
 
 <br>
@@ -180,6 +183,9 @@ barcode --fastq <fastq_file> \
 </li>
 <li>
 --merge_output flag that merges the output csv file so that each sample has one column
+</li>
+<li>
+--min_quality will filter out reads where any of the barcodes have an average quality score below the threshold set here.  Default is 0 and no filtering.
 </li>
 </ul>
 
@@ -236,6 +242,8 @@ If `--merge_output` is called, an additional file is created with the format (fo
 </tr>
 </table>
 
+An additional barcode_stats.txt file is also written/appended to the output folder.  This keeps track of running information.
+
 
 ## Tests results
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in just under 1 hour.
@@ -247,12 +255,13 @@ Constant region mismatches:  151955695
 Sample barcode mismatches:   3324481
 Barcode mismatches:          5682306
 Duplicates:                  0
+Low quality barcodes:        0
 
-Compute time: 0 hours, 55 minutes, 42.595 seconds
+Compute time: 0 hours, 37 minutes, 40.10 seconds
 
 Writing counts
 
-Total time: 1 hours, 1 minutes, 19.644 seconds
+Total time: 0 hours, 43 minutes, 19.614 seconds 
 ```
 
 ## Notes
