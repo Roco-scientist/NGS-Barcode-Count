@@ -9,7 +9,7 @@ Error handling is defaulted at 20% maximum sequence error per constant region an
 it is not counted.
 <br>
 <br>
-Filtering by read quality score is also an option.  If used, each barcode has its read quality average calculated and if it is below the set threshold, the read is not counted.  The algorithm is defaulted to not filter unless the --min_quality arguemnt is called.  See fastq documentation from what the read quality scores mean.
+Filtering by read quality score is also an option.  If used, each barcode has its read quality average calculated and if it is below the set threshold, the read is not counted.  The algorithm is defaulted to not filter unless the --min_quality argument is called.  See fastq documentation from what the read quality scores mean.
 <br><br>
 Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/decode target="_blank" rel="noopener noreferrer">decode</a>
 
