@@ -89,7 +89,7 @@ fn main() {
             // Clone all variables needed to pass into each thread
             let shared_mut_clone = shared_mut.arc_clone();
             let sequence_errors_clone = sequence_errors.arc_clone();
-            let sequence_format_clone = sequence_format.clone();
+            let sequence_format_clone = sequence_format.clone_arcs();
             let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
             let sample_seqs_clone = barcode_conversions.sample_seqs.clone();
