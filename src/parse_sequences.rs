@@ -50,7 +50,7 @@ impl SequenceParser {
     pub fn parse(&mut self) -> Result<(), Box<dyn Error>> {
         // Loop until there are no sequences left to parse.  These are fed into seq vec by the reader thread
         loop {
-            if self.get_seqeunce() {
+            if self.get_seqeunce()? {
                 if let Some(seq_match_result) = self.match_seq()? {
                     let barcode_string = seq_match_result.barcode_string();
                     // If there is a random barcode included
@@ -81,13 +81,13 @@ impl SequenceParser {
         Ok(())
     }
 
-    fn get_seqeunce(&mut self) -> bool {
+    fn get_seqeunce(&mut self) -> Result<bool, Box<dyn Error>> {
         // Pop off the last sequence from the seq vec
         if let Some(new_raw_sequence) = self.shared_mut_clone.seq.lock().unwrap().pop() {
-            self.raw_sequence = RawSequenceRead::unpack(new_raw_sequence);
-            true
+            self.raw_sequence = RawSequenceRead::unpack(new_raw_sequence)?;
+            Ok(true)
         } else {
-            false
+            Ok(false)
         }
     }
 
@@ -194,6 +194,7 @@ custom_error! {FastqError
     NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
     Line2NotSeq = "The second line within the FASTQ file is not a sequence. Check the FASTQ format",
     Line1Seq = "The first line within the FASTQ contains DNA sequences.  Check the FASTQ format",
+    ExtraNewLine = "Too many new lines found within fastq read",
 }
 
 /// A struct to hold the raw sequencing information and transform it if there are sequencing errors
@@ -235,14 +236,15 @@ impl RawSequenceRead {
         }
     }
 
-    pub fn add_line(&mut self, line_num: u8, line: String) {
+    pub fn add_line(&mut self, line_num: u8, line: String) -> Result<(), Box<dyn Error>> {
         match line_num {
             1 => self.description = line,
             2 => self.sequence = line,
             3 => self.add_description = line,
             4 => self.quality_values = line,
-            _ => eprintln!("Line out of range for RawSequenceRead::add_line()"),
+            _ => return Err(Box::new(FastqError::ExtraNewLine)),
         }
+        Ok(())
     }
 
     pub fn pack(&self) -> String {
@@ -252,13 +254,13 @@ impl RawSequenceRead {
         )
     }
 
-    pub fn unpack(raw_string: String) -> Self {
+    pub fn unpack(raw_string: String) -> Result<Self, Box<dyn Error>> {
         let mut raw_sequence_read = RawSequenceRead::new();
         for (line_num, line) in raw_string.split('\n').enumerate() {
             let true_line = line_num as u8 + 1;
-            raw_sequence_read.add_line(true_line, line.to_string())
+            raw_sequence_read.add_line(true_line, line.to_string())?
         }
-        raw_sequence_read
+        Ok(raw_sequence_read)
     }
 
     /// Replaces the 'N's in the sequencing format with the barcodes to fix any sequencing errrors that would cause the regex search not to work
