@@ -74,7 +74,7 @@ fn main() {
         let fastq = args.fastq.clone();
         let total_reads_arc_clone = Arc::clone(&total_reads_arc);
         s.spawn(move |_| {
-            barcode::io::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone)
+            barcode::input::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone)
                 .unwrap_or_else(|err| {
                     finished_clone.store(true, Ordering::Relaxed);
                     panic!("Error: {}", err)
@@ -124,13 +124,13 @@ fn main() {
         elapsed_time.num_hours(),
         elapsed_time.num_minutes() % 60,
         elapsed_time.num_seconds() % 60,
-        barcode::io::millisecond_decimal(elapsed_time)
+        barcode::output::millisecond_decimal(elapsed_time)
     );
     println!();
 
     println!("Writing counts");
     println!();
-    let mut output = barcode::io::Output::new(
+    let mut output = barcode::output::WriteFiles::new(
         results,
         sequence_format.clone_arcs(),
         barcode_conversions.counted_barcodes_hash,
@@ -139,11 +139,11 @@ fn main() {
     )
     .unwrap_or_else(|err| panic!("Output error: {}", err));
     output
-        .write_files()
+        .write_counts_files()
         .unwrap_or_else(|err| panic!("Writing error: {}", err));
     // Get the end time and print total time for the algorithm
     output
-        .write_stats(
+        .write_stats_file(
             start_time,
             max_errors,
             sequence_errors,
@@ -159,6 +159,6 @@ fn main() {
         elapsed_time.num_hours(),
         elapsed_time.num_minutes() % 60,
         elapsed_time.num_seconds() % 60,
-        barcode::io::millisecond_decimal(elapsed_time)
+        barcode::output::millisecond_decimal(elapsed_time)
     );
 }

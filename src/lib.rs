@@ -1,5 +1,6 @@
 pub mod info;
-pub mod io;
+pub mod input;
+pub mod output;
 pub mod parse;
 
 use chrono::Local;
