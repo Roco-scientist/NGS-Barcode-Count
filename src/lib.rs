@@ -1,6 +1,7 @@
-pub mod barcode_info;
-pub mod io;
-pub mod parse_sequences;
+pub mod info;
+pub mod input;
+pub mod output;
+pub mod parse;
 
 use chrono::Local;
 use clap::{App, Arg};

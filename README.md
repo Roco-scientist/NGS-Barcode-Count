@@ -101,6 +101,8 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 </tr>
 </table>
 
+An example can be found in [sample_barcode.example.csv](sample_barcode.example.csv).
+
 ### Barcode File
 <b>Optional</b><br>
 The barcode_file is a comma separate file with the following format:<br>
@@ -141,6 +143,9 @@ The barcode_file is a comma separate file with the following format:<br>
 <td>3</td>
 </tr>
 </table>
+
+An example can be found in [barcode.example.csv](barcode.example.csv).<br><br>
+
 Where the first column is the DNA barcode, the second column is the barcode ID which can be a smile string for DEL, CRISPR target ID, etc. but cannot contain commas. 
 The last column is the barcode number as an integer.  The barcode numbers are in the same order as the sequence format file and starting
 at 1. For example, if there are a total of 3 barcodes, which may be the case with DEL, you would only have 1, 2, or 3 within this column for each row, with each number

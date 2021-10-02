@@ -11,9 +11,9 @@ use std::{
 
 pub struct SequenceParser {
     shared_mut_clone: SharedMutData,
-    sequence_errors_clone: crate::barcode_info::SequenceErrors,
-    sequence_format_clone: crate::barcode_info::SequenceFormat,
-    max_errors_clone: crate::barcode_info::MaxSeqErrors,
+    sequence_errors_clone: crate::info::SequenceErrors,
+    sequence_format_clone: crate::info::SequenceFormat,
+    max_errors_clone: crate::info::MaxSeqErrors,
     sample_seqs: HashSet<String>,
     counted_barcode_seqs: Vec<HashSet<String>>,
     raw_sequence: RawSequenceRead,
@@ -24,9 +24,9 @@ pub struct SequenceParser {
 impl SequenceParser {
     pub fn new(
         shared_mut_clone: SharedMutData,
-        sequence_errors_clone: crate::barcode_info::SequenceErrors,
-        sequence_format_clone: crate::barcode_info::SequenceFormat,
-        max_errors_clone: crate::barcode_info::MaxSeqErrors,
+        sequence_errors_clone: crate::info::SequenceErrors,
+        sequence_format_clone: crate::info::SequenceFormat,
+        max_errors_clone: crate::info::MaxSeqErrors,
         sample_seqs: HashSet<String>,
         counted_barcode_seqs: Vec<HashSet<String>>,
         min_quality_score: f32,
@@ -171,14 +171,14 @@ impl SequenceParser {
 pub struct SharedMutData {
     pub seq: Arc<Mutex<Vec<String>>>,
     pub finished: Arc<AtomicBool>,
-    pub results: Arc<Mutex<crate::barcode_info::Results>>,
+    pub results: Arc<Mutex<crate::info::Results>>,
 }
 
 impl SharedMutData {
     pub fn new(
         seq: Arc<Mutex<Vec<String>>>,
         finished: Arc<AtomicBool>,
-        results: Arc<Mutex<crate::barcode_info::Results>>,
+        results: Arc<Mutex<crate::info::Results>>,
     ) -> SharedMutData {
         SharedMutData {
             seq,

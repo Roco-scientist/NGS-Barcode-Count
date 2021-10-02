@@ -1,168 +1,22 @@
 use chrono::{DateTime, Local};
-use custom_error::custom_error;
-use flate2::read::GzDecoder;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
     fs::{File, OpenOptions},
-    io::{BufRead, BufReader, Write},
+    io::Write,
     path::Path,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
     },
 };
 
 use itertools::Itertools;
 
-// Errors associated with checking the fastq format to make sure it is correct
-custom_error! {FastqError
-    NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
-    LeftOver = "Sequence lines left over.  Check code",
-}
-
-/// Reads in the FASTQ file line by line, then pushes every 2 out of 4 lines, which corresponds to the sequence line, into a Vec that is passed to other threads
-///
-/// FASTQ format:
-/// Line 1: Sequence ID
-/// Line 2: DNA sequence
-/// Line 3: +
-/// Line 4: Quality score
-pub fn read_fastq(
-    fastq: String,
-    seq_clone: Arc<Mutex<Vec<String>>>,
-    exit_clone: Arc<AtomicBool>,
-    total_reads_arc: Arc<AtomicU32>,
-) -> Result<(), Box<dyn Error>> {
-    let fastq_file = File::open(fastq.clone())?; // open file
-
-    // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
-    let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
-
-    // If the file is not gzipped use BufReader to read in lines
-    if !fastq.ends_with("fastq.gz") {
-        // If the file does not end with fastq, return with an error
-        if !fastq.ends_with("fastq") {
-            return Err(Box::new(FastqError::NotFastq));
-        }
-
-        // go line by line
-        for line_result in BufReader::new(fastq_file).lines() {
-            let line = line_result?;
-            // post the line to the shared vector and keep track of the number of sequences etc
-            fastq_line_reader.read(line)?;
-            if fastq_line_reader.line_num == 4 {
-                fastq_line_reader.post()?;
-            }
-            // Add to read count to print numnber of sequences read by this thread
-            if fastq_line_reader.total_reads % 1000 == 0 {
-                fastq_line_reader.display_total_reads()?;
-            }
-        }
-    } else {
-        println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file\n");
-        println!();
-        // stream in first by decoding with GzDecoder, the reading into buffer
-        let mut reader = BufReader::new(GzDecoder::new(fastq_file));
-
-        // artificially set the read response to 10.  The first number does not matter
-        let mut read_response = 10;
-        // continue reading until there is a response of 0, which indicates the end of file.  This may be where some gzipped files abrupty end
-        while read_response != 0 {
-            let mut line = String::new();
-            // move the read line to the line variable and get the response to check if it is 0 and therefore the file is done
-            read_response = reader.read_line(&mut line)?;
-            // post the line to the shared vector and keep track of the number of sequences etc
-            fastq_line_reader.read(line.replace('\n', ""))?;
-            if fastq_line_reader.line_num == 4 {
-                fastq_line_reader.post()?;
-            }
-            // Add to read count to print numnber of sequences read by this thread
-            if fastq_line_reader.total_reads % 1000 == 0 {
-                fastq_line_reader.display_total_reads()?;
-            }
-        }
-    }
-    // Display the final total read count
-    fastq_line_reader.display_total_reads()?;
-    total_reads_arc.store(fastq_line_reader.total_reads, Ordering::Relaxed);
-    println!();
-    Ok(())
-}
-
-/// A struct with functions for keeping track of read information and to post sequence lines to the shared vector
-struct FastqLineReader {
-    test: bool,   // whether or not to test the fastq format. Only does this for the first read
-    line_num: u8, // the current line number 1-4.  Resets back to 1
-    total_reads: u32, // total sequences read within the fastq file
-    raw_sequence_read_string: String,
-    seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
-    exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
-}
-
-impl FastqLineReader {
-    /// Creates a new FastqLineReader struct
-    pub fn new(seq_clone: Arc<Mutex<Vec<String>>>, exit_clone: Arc<AtomicBool>) -> FastqLineReader {
-        FastqLineReader {
-            test: true,
-            line_num: 0,
-            total_reads: 0,
-            raw_sequence_read_string: String::new(),
-            seq_clone,
-            exit_clone,
-        }
-    }
-
-    /// Reads in the line and either passes to the vec or discards it, depending if it is a sequence line.  Also increments on line count, sequence count etc.
-    pub fn read(&mut self, line: String) -> Result<(), Box<dyn Error>> {
-        // Pause if there are already 10000 sequences in the vec so memory is not overloaded
-        while self.seq_clone.lock().unwrap().len() >= 10000 {
-            // if threads have failed exit out of this thread
-            if self.exit_clone.load(Ordering::Relaxed) {
-                break;
-            }
-        }
-        // increase line number and if it has passed line 4, reset to 1
-        self.line_num += 1;
-        if self.line_num == 5 {
-            self.line_num = 1
-        }
-        if self.line_num == 1 {
-            self.total_reads += 1;
-            self.raw_sequence_read_string = line;
-        } else {
-            self.raw_sequence_read_string.push('\n');
-            self.raw_sequence_read_string.push_str(&line);
-        }
-        Ok(())
-    }
-
-    pub fn post(&mut self) -> Result<(), Box<dyn Error>> {
-        // Insert the sequence into the vec.  This will be popped out by other threads
-        if self.test {
-            crate::parse_sequences::RawSequenceRead::unpack(self.raw_sequence_read_string.clone())?
-                .check_fastq_format()?;
-            self.test = false;
-        }
-        self.seq_clone
-            .lock()
-            .unwrap()
-            .insert(0, self.raw_sequence_read_string.clone());
-        Ok(())
-    }
-
-    /// Displays the total reads so far.  Used while reading to incrementally display, then used after finished reading the file to display total sequences that were read
-    pub fn display_total_reads(&self) -> Result<(), Box<dyn Error>> {
-        print!("Total sequences:             {}\r", self.total_reads);
-        std::io::stdout().flush()?;
-        Ok(())
-    }
-}
-
 /// A struct setup to output results and stat information into files
-pub struct Output {
-    results: crate::barcode_info::Results,
-    sequence_format: crate::barcode_info::SequenceFormat,
+pub struct WriteFiles {
+    results: crate::info::Results,
+    sequence_format: crate::info::SequenceFormat,
     counted_barcodes_hash: Vec<HashMap<String, String>>,
     samples_barcode_hash: HashMap<String, String>,
     merged_output_file_option: Option<File>,
@@ -171,16 +25,16 @@ pub struct Output {
     output_files: Vec<String>,
 }
 
-impl Output {
+impl WriteFiles {
     pub fn new(
-        results_arc: Arc<Mutex<crate::barcode_info::Results>>,
-        sequence_format: crate::barcode_info::SequenceFormat,
+        results_arc: Arc<Mutex<crate::info::Results>>,
+        sequence_format: crate::info::SequenceFormat,
         counted_barcodes_hash: Vec<HashMap<String, String>>,
         samples_barcode_hash: HashMap<String, String>,
         args: crate::Args,
-    ) -> Result<Output, Box<dyn Error>> {
+    ) -> Result<Self, Box<dyn Error>> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
-        Ok(Output {
+        Ok(WriteFiles {
             results,
             sequence_format,
             counted_barcodes_hash,
@@ -193,17 +47,17 @@ impl Output {
     }
 
     /// Sets up and writes the results file.  Works for either with or without a random barcode
-    pub fn write_files(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn write_counts_files(&mut self) -> Result<(), Box<dyn Error>> {
         let unknown_sample = "Unknown_sample_name".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_barcodes = match self.results.format_type {
-            crate::barcode_info::FormatType::RandomBarcode => self
+            crate::info::FormatType::RandomBarcode => self
                 .results
                 .random_hashmap
                 .keys()
                 .cloned()
                 .collect::<Vec<String>>(),
-            crate::barcode_info::FormatType::NoRandomBarcode => self
+            crate::info::FormatType::NoRandomBarcode => self
                 .results
                 .count_hashmap
                 .keys()
@@ -276,10 +130,10 @@ impl Output {
 
             output.write_all(header.as_bytes())?; // Write the header to the file
             match self.results.format_type {
-                crate::barcode_info::FormatType::RandomBarcode => {
+                crate::info::FormatType::RandomBarcode => {
                     self.write_random(sample_barcode, &sample_barcodes, &mut output)?
                 }
-                crate::barcode_info::FormatType::NoRandomBarcode => {
+                crate::info::FormatType::NoRandomBarcode => {
                     self.write_counts(sample_barcode, &sample_barcodes, &mut output)?
                 }
             }
@@ -404,12 +258,13 @@ impl Output {
         }
         Ok(())
     }
-    pub fn write_stats(
+    pub fn write_stats_file(
         &self,
         start_time: DateTime<Local>,
-        max_sequence_errors: crate::barcode_info::MaxSeqErrors,
-        mut seq_errors: crate::barcode_info::SequenceErrors,
+        max_sequence_errors: crate::info::MaxSeqErrors,
+        seq_errors: crate::info::SequenceErrors,
         total_reads: Arc<AtomicU32>,
+        sequence_format: crate::info::SequenceFormat,
     ) -> Result<(), Box<dyn Error>> {
         // Create the stat file name
         let output_dir = self.args.output_dir.clone();
@@ -429,20 +284,20 @@ impl Output {
         // Write the time information to the stat file
         stat_file.write_all(
             format!(
-                "Start: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
+                "-TIME INFORMATION-\nStart: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
                 start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
                 now.format("%Y-%m-%d %H:%M:%S").to_string(),
                 elapsed_time.num_hours(),
                 elapsed_time.num_minutes() % 60,
                 elapsed_time.num_seconds() % 60,
-                elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
+                millisecond_decimal(elapsed_time)
             )
             .as_bytes(),
         )?;
         // Write the input file information
         stat_file.write_all(
             format!(
-                "-Input files-\nFastq: {}\nFormat: {}\nSamples: {}\nBarcodes: {}\n\n",
+                "-INPUT FILES-\nFastq: {}\nFormat: {}\nSamples: {}\nBarcodes: {}\n\n",
                 self.args.fastq,
                 self.args.format,
                 self.args
@@ -457,22 +312,23 @@ impl Output {
             .as_bytes(),
         )?;
         // Record the files that were created
-        stat_file
-            .write_all(format!("Output files: {}\n\n", self.output_files.join(", ")).as_bytes())?;
-        // Record the barcode information
         stat_file.write_all(
             format!(
-                "-Barcode info-\n{}\n\n",
-                max_sequence_errors.display_string()
+                "-OUTPUT FILES-\nFiles: {}\n\n",
+                self.output_files.join(", ")
             )
             .as_bytes(),
         )?;
+        // Record the sequence_format
+        stat_file.write_all(format!("{}\n\n", sequence_format).as_bytes())?;
+        // Record the barcode information
+        stat_file.write_all(format!("{}\n", max_sequence_errors).as_bytes())?;
         // Record the total reads and errors
         stat_file.write_all(
             format!(
-                "-Results-\nTotal sequences:             {}\n{}\n\n",
+                "-RESULTS-\nTotal sequences:             {}\n{}\n\n",
                 total_reads.load(Ordering::Relaxed),
-                seq_errors.display_string()
+                seq_errors
             )
             .as_bytes(),
         )?;
@@ -480,6 +336,17 @@ impl Output {
         stat_file.write_all("--------------------------------------------------------------------------------------------------\n\n\n".as_bytes())?;
         Ok(())
     }
+}
+
+pub fn millisecond_decimal(elapsed_time: chrono::Duration) -> String {
+    let milliseconds =
+        (elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)).to_string();
+    let mut final_string = String::new();
+    for _ in milliseconds.chars().count()..3 {
+        final_string.push('0');
+    }
+    final_string.push_str(&milliseconds);
+    final_string
 }
 
 /// Converst the DNA sequence from counted barcodes to the ID

@@ -3,7 +3,7 @@ use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    fs,
+    fmt, fs,
     sync::{
         atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
         {Arc, Mutex},
@@ -125,28 +125,6 @@ impl SequenceErrors {
         self.low_quality.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Print to stdout all sequencing error counts
-    ///
-    /// # Example
-    /// ```
-    /// use barcode::barcode_info::SequenceErrors;
-    ///
-    /// let mut sequence_errors = SequenceErrors::new();
-    /// sequence_errors.barcode_error();
-    /// sequence_errors.display();
-    /// ```
-    pub fn display(&mut self) {
-        println!("{}", self.display_string());
-        println!()
-    }
-
-    pub fn display_string(&mut self) -> String {
-        format!(
-            "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}\nLow quality barcodes:        {}",
-            self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed), self.low_quality.load(Ordering::Relaxed)
-        )
-    }
-
     pub fn arc_clone(&self) -> SequenceErrors {
         SequenceErrors {
             constant_region: Arc::clone(&self.constant_region),
@@ -156,6 +134,15 @@ impl SequenceErrors {
             duplicates: Arc::clone(&self.duplicates),
             low_quality: Arc::clone(&self.low_quality),
         }
+    }
+}
+
+impl fmt::Display for SequenceErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,
+            "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}\nLow quality barcodes:        {}",
+            self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed), self.low_quality.load(Ordering::Relaxed)
+        )
     }
 }
 
@@ -206,29 +193,6 @@ impl SequenceFormat {
             start_found: Arc::new(AtomicBool::new(false)),
             start: Arc::new(AtomicUsize::new(0)),
         })
-    }
-
-    /// Displays the sequence format information with 'N's replacing all barcodes
-    pub fn display_format(&self) {
-        let mut key = String::new();
-        let mut new_char = HashSet::new();
-        for key_char in self.regions_string.chars() {
-            if new_char.insert(key_char) {
-                let key_info = match key_char {
-                    'S' => "\nS: Sample barcode",
-                    'B' => "\nB: Counted barcode",
-                    'C' => "\nC: Constant region",
-                    'R' => "\nR: Random barcode",
-                    _ => "",
-                };
-                key.push_str(key_info);
-            }
-        }
-        println!(
-            "Format\n{}\n{}{}",
-            self.format_string, self.regions_string, key
-        );
-        // println!();
     }
 
     /// Returns a Vec of the size of all counted barcodes within the seqeunce format
@@ -305,6 +269,30 @@ impl SequenceFormat {
             start_found: Arc::clone(&self.start_found),
             start: Arc::clone(&self.start),
         }
+    }
+}
+
+impl fmt::Display for SequenceFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut key = String::new();
+        let mut new_char = HashSet::new();
+        for key_char in self.regions_string.chars() {
+            if new_char.insert(key_char) {
+                let key_info = match key_char {
+                    'S' => "\nS: Sample barcode",
+                    'B' => "\nB: Counted barcode",
+                    'C' => "\nC: Constant region",
+                    'R' => "\nR: Random barcode",
+                    _ => "",
+                };
+                key.push_str(key_info);
+            }
+        }
+        write!(
+            f,
+            "-FORMAT-\n{}\n{}{}",
+            self.format_string, self.regions_string, key
+        )
     }
 }
 
@@ -704,33 +692,10 @@ impl MaxSeqErrors {
     pub fn max_barcode_errors(&self) -> &[u8] {
         &self.barcode
     }
+}
 
-    /// Print to stdout all maximum sequencing errors
-    ///
-    /// # Example
-    /// ```
-    /// use barcode::barcode_info::MaxSeqErrors;
-    ///
-    /// let sample_errors_option = None;
-    /// let sample_barcode_size_option = Some(10);
-    /// let barcode_errors_option = None;
-    /// let barcode_sizes = vec![8,8,8];
-    /// let constant_errors_option = None;
-    /// let constant_region_size = 30;
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size).unwrap();
-    /// max_sequence_errors.display();
-    /// ```
-    pub fn display(&mut self) {
-        println!(
-            "
-            \n########## Barcode Info ######################################\n\
-            {}##############################################################",
-            self.display_string()
-        );
-        println!();
-    }
-
-    pub fn display_string(&self) -> String {
+impl fmt::Display for MaxSeqErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let barcode_size_info;
         let barcode_error_info;
         if self.barcode_sizes.len() > 1 {
@@ -746,8 +711,10 @@ impl MaxSeqErrors {
                 self.barcode.first().unwrap()
             );
         }
-        format!(
+        write!(
+            f,
             "\
+            -BARCODE INFO-\n\
             Constant region size: {}\n\
             Maximum mismatches allowed per sequence: {}\n\
             --------------------------------------------------------------\n\
