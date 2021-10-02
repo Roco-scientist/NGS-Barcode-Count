@@ -125,7 +125,7 @@ fn main() {
         elapsed_time.num_hours(),
         elapsed_time.num_minutes() % 60,
         elapsed_time.num_seconds() % 60,
-        elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
+        barcode::io::millisecond_decimal(elapsed_time)
     );
     println!();
 
@@ -160,6 +160,6 @@ fn main() {
         elapsed_time.num_hours(),
         elapsed_time.num_minutes() % 60,
         elapsed_time.num_seconds() % 60,
-        elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
+        barcode::io::millisecond_decimal(elapsed_time)
     );
 }

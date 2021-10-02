@@ -436,7 +436,7 @@ impl Output {
                 elapsed_time.num_hours(),
                 elapsed_time.num_minutes() % 60,
                 elapsed_time.num_seconds() % 60,
-                elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)
+                millisecond_decimal(elapsed_time)
             )
             .as_bytes(),
         )?;
@@ -482,6 +482,17 @@ impl Output {
         stat_file.write_all("--------------------------------------------------------------------------------------------------\n\n\n".as_bytes())?;
         Ok(())
     }
+}
+
+pub fn millisecond_decimal(elapsed_time: chrono::Duration) -> String {
+    let milliseconds =
+        (elapsed_time.num_milliseconds() - (elapsed_time.num_seconds() * 1000)).to_string();
+    let mut final_string = String::new();
+    for _ in milliseconds.chars().count()..3 {
+        final_string.push('0');
+    }
+    final_string.push_str(&milliseconds);
+    final_string
 }
 
 /// Converst the DNA sequence from counted barcodes to the ID
