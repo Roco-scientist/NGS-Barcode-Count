@@ -11,12 +11,12 @@ fn main() {
     // get the argument inputs
     let args = barcode::Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
-    let sequence_format = barcode::barcode_info::SequenceFormat::new(args.format.clone())
+    let sequence_format = barcode::info::SequenceFormat::new(args.format.clone())
         .unwrap_or_else(|err| panic!("sequence format error: {}", err));
     println!("{}\n", sequence_format);
 
     // Start getting the barcode conversion with the BarcodeConversions struct
-    let mut barcode_conversions = barcode::barcode_info::BarcodeConversions::new();
+    let mut barcode_conversions = barcode::info::BarcodeConversions::new();
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     if let Some(ref samples) = args.sample_barcodes_option {
         barcode_conversions
@@ -26,7 +26,7 @@ fn main() {
     }
 
     // Create a results struct that will contain the counts.  This is passed between threads
-    let results = Arc::new(Mutex::new(barcode::barcode_info::Results::new(
+    let results = Arc::new(Mutex::new(barcode::info::Results::new(
         &barcode_conversions.samples_barcode_hash,
         sequence_format.random_barcode,
     )));
@@ -40,13 +40,13 @@ fn main() {
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
-    let sequence_errors = barcode::barcode_info::SequenceErrors::new();
+    let sequence_errors = barcode::info::SequenceErrors::new();
 
     // Create a passed exit passed variable to stop reading when a thread has panicked
     let exit = Arc::new(AtomicBool::new(false));
 
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
-    let max_errors = barcode::barcode_info::MaxSeqErrors::new(
+    let max_errors = barcode::info::MaxSeqErrors::new(
         args.sample_errors_option,
         sequence_format.sample_length_option().unwrap(),
         args.barcodes_errors_option,

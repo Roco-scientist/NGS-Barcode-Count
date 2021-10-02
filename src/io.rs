@@ -161,8 +161,8 @@ impl FastqLineReader {
 
 /// A struct setup to output results and stat information into files
 pub struct Output {
-    results: crate::barcode_info::Results,
-    sequence_format: crate::barcode_info::SequenceFormat,
+    results: crate::info::Results,
+    sequence_format: crate::info::SequenceFormat,
     counted_barcodes_hash: Vec<HashMap<String, String>>,
     samples_barcode_hash: HashMap<String, String>,
     merged_output_file_option: Option<File>,
@@ -173,8 +173,8 @@ pub struct Output {
 
 impl Output {
     pub fn new(
-        results_arc: Arc<Mutex<crate::barcode_info::Results>>,
-        sequence_format: crate::barcode_info::SequenceFormat,
+        results_arc: Arc<Mutex<crate::info::Results>>,
+        sequence_format: crate::info::SequenceFormat,
         counted_barcodes_hash: Vec<HashMap<String, String>>,
         samples_barcode_hash: HashMap<String, String>,
         args: crate::Args,
@@ -197,13 +197,13 @@ impl Output {
         let unknown_sample = "Unknown_sample_name".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_barcodes = match self.results.format_type {
-            crate::barcode_info::FormatType::RandomBarcode => self
+            crate::info::FormatType::RandomBarcode => self
                 .results
                 .random_hashmap
                 .keys()
                 .cloned()
                 .collect::<Vec<String>>(),
-            crate::barcode_info::FormatType::NoRandomBarcode => self
+            crate::info::FormatType::NoRandomBarcode => self
                 .results
                 .count_hashmap
                 .keys()
@@ -276,10 +276,10 @@ impl Output {
 
             output.write_all(header.as_bytes())?; // Write the header to the file
             match self.results.format_type {
-                crate::barcode_info::FormatType::RandomBarcode => {
+                crate::info::FormatType::RandomBarcode => {
                     self.write_random(sample_barcode, &sample_barcodes, &mut output)?
                 }
-                crate::barcode_info::FormatType::NoRandomBarcode => {
+                crate::info::FormatType::NoRandomBarcode => {
                     self.write_counts(sample_barcode, &sample_barcodes, &mut output)?
                 }
             }
@@ -407,10 +407,10 @@ impl Output {
     pub fn write_stats(
         &self,
         start_time: DateTime<Local>,
-        max_sequence_errors: crate::barcode_info::MaxSeqErrors,
-        seq_errors: crate::barcode_info::SequenceErrors,
+        max_sequence_errors: crate::info::MaxSeqErrors,
+        seq_errors: crate::info::SequenceErrors,
         total_reads: Arc<AtomicU32>,
-        sequence_format: crate::barcode_info::SequenceFormat,
+        sequence_format: crate::info::SequenceFormat,
     ) -> Result<(), Box<dyn Error>> {
         // Create the stat file name
         let output_dir = self.args.output_dir.clone();
