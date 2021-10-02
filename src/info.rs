@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use num_format::{Locale, ToFormattedString};
 use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
@@ -139,9 +140,33 @@ impl SequenceErrors {
 
 impl fmt::Display for SequenceErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,
-            "Correctly matched sequences: {}\nConstant region mismatches:  {}\nSample barcode mismatches:   {}\nBarcode mismatches:          {}\nDuplicates:                  {}\nLow quality barcodes:        {}",
-            self.matched.load(Ordering::Relaxed), self.constant_region.load(Ordering::Relaxed), self.sample_barcode.load(Ordering::Relaxed), self.barcode.load(Ordering::Relaxed), self.duplicates.load(Ordering::Relaxed), self.low_quality.load(Ordering::Relaxed)
+        write!(
+            f,
+            "\
+            Correctly matched sequences: {}\n\
+            Constant region mismatches:  {}\n\
+            Sample barcode mismatches:   {}\n\
+            Barcode mismatches:          {}\n\
+            Duplicates:                  {}\n\
+            Low quality barcodes:        {}",
+            self.matched
+                .load(Ordering::Relaxed)
+                .to_formatted_string(&Locale::en),
+            self.constant_region
+                .load(Ordering::Relaxed)
+                .to_formatted_string(&Locale::en),
+            self.sample_barcode
+                .load(Ordering::Relaxed)
+                .to_formatted_string(&Locale::en),
+            self.barcode
+                .load(Ordering::Relaxed)
+                .to_formatted_string(&Locale::en),
+            self.duplicates
+                .load(Ordering::Relaxed)
+                .to_formatted_string(&Locale::en),
+            self.low_quality
+                .load(Ordering::Relaxed)
+                .to_formatted_string(&Locale::en)
         )
     }
 }

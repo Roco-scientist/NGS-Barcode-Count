@@ -1,4 +1,5 @@
 use chrono::{DateTime, Local};
+use num_format::{Locale, ToFormattedString};
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
@@ -180,7 +181,10 @@ impl WriteFiles {
         for (line_num, (code, random_barcodes)) in sample_random_hash.iter().enumerate() {
             barcode_num = line_num + 1;
             if barcode_num % 50000 == 0 {
-                print!("Barcodes counted: {}\r", barcode_num);
+                print!(
+                    "Barcodes counted: {}\r",
+                    barcode_num.to_formatted_string(&Locale::en)
+                );
             }
             let written_barcodes;
             if !self.counted_barcodes_hash.is_empty() {
@@ -222,7 +226,10 @@ impl WriteFiles {
             let row = format!("{},{}\n", written_barcodes, random_barcodes.len());
             output.write_all(row.as_bytes())?;
         }
-        print!("Barcodes counted: {}\r", barcode_num);
+        print!(
+            "Barcodes counted: {}\r",
+            barcode_num.to_formatted_string(&Locale::en)
+        );
         println!();
         Ok(barcode_num)
     }
@@ -239,7 +246,10 @@ impl WriteFiles {
         for (line_num, (code, count)) in sample_counts_hash.iter().enumerate() {
             barcode_num = line_num + 1;
             if barcode_num % 50000 == 0 {
-                print!("Barcodes counted: {}\r", barcode_num);
+                print!(
+                    "Barcodes counted: {}\r",
+                    barcode_num.to_formatted_string(&Locale::en)
+                );
             }
             let written_barcodes;
             if !self.counted_barcodes_hash.is_empty() {
@@ -280,7 +290,10 @@ impl WriteFiles {
             let row = format!("{},{}\n", written_barcodes, count);
             output.write_all(row.as_bytes())?;
         }
-        print!("Barcodes counted: {}\r", barcode_num);
+        print!(
+            "Barcodes counted: {}\r",
+            barcode_num.to_formatted_string(&Locale::en)
+        );
         println!();
         Ok(barcode_num)
     }
@@ -345,7 +358,9 @@ impl WriteFiles {
         stat_file.write_all(
             format!(
                 "-RESULTS-\nTotal sequences:             {}\n{}\n\n",
-                total_reads.load(Ordering::Relaxed),
+                total_reads
+                    .load(Ordering::Relaxed)
+                    .to_formatted_string(&Locale::en),
                 seq_errors
             )
             .as_bytes(),
@@ -354,7 +369,12 @@ impl WriteFiles {
         stat_file.write_all("-OUTPUT FILES-\n".as_bytes())?;
         for (file_name, counts) in self.output_files.iter().zip(self.output_counts.iter()) {
             stat_file.write_all(
-                format!("File & barcodes counted: {}\t{}\n", file_name, counts).as_bytes(),
+                format!(
+                    "File & barcodes counted: {}\t{}\n",
+                    file_name,
+                    counts.to_formatted_string(&Locale::en)
+                )
+                .as_bytes(),
             )?;
         }
         stat_file.write_all("\n".as_bytes())?;
