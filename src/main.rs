@@ -128,8 +128,7 @@ fn main() {
     );
     println!();
 
-    println!("Writing counts");
-    println!();
+    println!("-WRITING COUNTS-");
     let mut output = barcode::output::WriteFiles::new(
         results,
         sequence_format.clone_arcs(),
@@ -154,6 +153,7 @@ fn main() {
 
     // Get the end time and print total time for the algorithm
     let elapsed_time = Local::now() - start_time;
+    println!();
     println!(
         "Total time: {} hours, {} minutes, {}.{} seconds",
         elapsed_time.num_hours(),

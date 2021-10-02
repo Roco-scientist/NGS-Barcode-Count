@@ -84,6 +84,7 @@ impl WriteFiles {
             if !self.samples_barcode_hash.is_empty() {
                 // Create the merge file and push the header, if merged called within arguments
                 let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
+                println!("{}", merged_file_name);
                 self.output_files.push(merged_file_name.clone());
                 let merged_output_path = directory.join(merged_file_name);
 
@@ -123,6 +124,7 @@ impl WriteFiles {
             } else {
                 file_name = format!("{}{}", self.args.prefix, "_all_counts.csv");
             }
+            println!("{}", file_name);
             self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
             let output_path = directory.join(file_name);
