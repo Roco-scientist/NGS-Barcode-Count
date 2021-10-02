@@ -63,7 +63,7 @@ pub fn read_fastq(
             }
         }
     } else {
-        println!("Warning: gzip files is still experimental.  The program may stop reading early. Best results come from using a decompressed fastq file\n");
+        println!("If this program stops reading before the expected number of sequencing reads, unzip the gzipped fastq and rerun.");
         println!();
         // stream in first by decoding with GzDecoder, the reading into buffer
         let mut reader = BufReader::new(GzDecoder::new(fastq_file));
