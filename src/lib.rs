@@ -1,6 +1,6 @@
 pub mod info;
 pub mod io;
-pub mod parse_sequences;
+pub mod parse;
 
 use chrono::Local;
 use clap::{App, Arg};

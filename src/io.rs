@@ -140,7 +140,7 @@ impl FastqLineReader {
     pub fn post(&mut self) -> Result<(), Box<dyn Error>> {
         // Insert the sequence into the vec.  This will be popped out by other threads
         if self.test {
-            crate::parse_sequences::RawSequenceRead::unpack(self.raw_sequence_read_string.clone())?
+            crate::parse::RawSequenceRead::unpack(self.raw_sequence_read_string.clone())?
                 .check_fastq_format()?;
             self.test = false;
         }
