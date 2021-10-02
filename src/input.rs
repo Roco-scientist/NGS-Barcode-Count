@@ -1,6 +1,7 @@
 use chrono::{DateTime, Local};
 use custom_error::custom_error;
 use flate2::read::GzDecoder;
+use num_format::{Locale, ToFormattedString};
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
@@ -157,7 +158,11 @@ impl FastqLineReader {
 
 impl fmt::Display for FastqLineReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Total sequences:             {}\r", self.total_reads)
+        write!(
+            f,
+            "Total sequences:             {}\r",
+            self.total_reads.to_formatted_string(&Locale::en)
+        )
     }
 }
 
