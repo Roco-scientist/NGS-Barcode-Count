@@ -23,6 +23,8 @@ pub struct WriteFiles {
     compounds_written: HashSet<String>,
     args: crate::Args,
     output_files: Vec<String>,
+    output_counts: Vec<usize>,
+    merged_count: usize,
 }
 
 impl WriteFiles {
@@ -43,6 +45,8 @@ impl WriteFiles {
             compounds_written: HashSet::new(),
             args,
             output_files: Vec::new(),
+            output_counts: Vec::new(),
+            merged_count: 0,
         })
     }
 
@@ -131,14 +135,18 @@ impl WriteFiles {
             let mut output = File::create(output_path)?; // Create the output file
 
             output.write_all(header.as_bytes())?; // Write the header to the file
-            match self.results.format_type {
+            let count = match self.results.format_type {
                 crate::info::FormatType::RandomBarcode => {
                     self.write_random(sample_barcode, &sample_barcodes, &mut output)?
                 }
                 crate::info::FormatType::NoRandomBarcode => {
                     self.write_counts(sample_barcode, &sample_barcodes, &mut output)?
                 }
-            }
+            };
+            self.output_counts.push(count);
+        }
+        if self.args.merge_output {
+            self.output_counts.insert(0, self.merged_count);
         }
         Ok(())
     }
@@ -164,12 +172,16 @@ impl WriteFiles {
         sample_barcode: &str,
         sample_barcodes: &[String],
         output: &mut File,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<usize, Box<dyn Error>> {
         let sample_random_hash = self.results.random_hashmap.get(sample_barcode).unwrap();
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
         // If there is an included building block barcode file, it is converted here
+        let mut barcode_num = 0;
         for (line_num, (code, random_barcodes)) in sample_random_hash.iter().enumerate() {
-            print!("Barcodes counted: {}\r", line_num + 1);
+            barcode_num = line_num + 1;
+            if barcode_num % 50000 == 0 {
+                print!("Barcodes counted: {}\r", barcode_num);
+            }
             let written_barcodes;
             if !self.counted_barcodes_hash.is_empty() {
                 // Convert the building block DNA barcodes and join them back to comma separated
@@ -183,6 +195,7 @@ impl WriteFiles {
                 // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                 let new = self.compounds_written.insert(code.clone());
                 if new {
+                    self.merged_count += 1;
                     // Start a new row with the converted building block barcodes
                     let mut merged_row = written_barcodes.clone();
                     // For every sample, retrieve the count and add to the row with a comma
@@ -209,8 +222,9 @@ impl WriteFiles {
             let row = format!("{},{}\n", written_barcodes, random_barcodes.len());
             output.write_all(row.as_bytes())?;
         }
+        print!("Barcodes counted: {}\r", barcode_num);
         println!();
-        Ok(())
+        Ok(barcode_num)
     }
 
     /// Writes the files for when a random barcode is not included
@@ -219,10 +233,14 @@ impl WriteFiles {
         sample_barcode: &str,
         sample_barcodes: &[String],
         output: &mut File,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<usize, Box<dyn Error>> {
         let sample_counts_hash = self.results.count_hashmap.get(sample_barcode).unwrap();
+        let mut barcode_num = 0;
         for (line_num, (code, count)) in sample_counts_hash.iter().enumerate() {
-            print!("Barcodes counted: {}\r", line_num + 1);
+            barcode_num = line_num + 1;
+            if barcode_num % 50000 == 0 {
+                print!("Barcodes counted: {}\r", barcode_num);
+            }
             let written_barcodes;
             if !self.counted_barcodes_hash.is_empty() {
                 // Convert the building block DNA barcodes and join them back to comma separated
@@ -236,6 +254,7 @@ impl WriteFiles {
                 // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                 let new = self.compounds_written.insert(code.clone());
                 if new {
+                    self.merged_count += 1;
                     // Start a new row with the converted building block barcodes
                     let mut merged_row = written_barcodes.clone();
                     // For every sample, retrieve the count and add to the row with a comma
@@ -261,8 +280,9 @@ impl WriteFiles {
             let row = format!("{},{}\n", written_barcodes, count);
             output.write_all(row.as_bytes())?;
         }
+        print!("Barcodes counted: {}\r", barcode_num);
         println!();
-        Ok(())
+        Ok(barcode_num)
     }
     pub fn write_stats_file(
         &self,
@@ -317,14 +337,6 @@ impl WriteFiles {
             )
             .as_bytes(),
         )?;
-        // Record the files that were created
-        stat_file.write_all(
-            format!(
-                "-OUTPUT FILES-\nFiles: {}\n\n",
-                self.output_files.join(", ")
-            )
-            .as_bytes(),
-        )?;
         // Record the sequence_format
         stat_file.write_all(format!("{}\n\n", sequence_format).as_bytes())?;
         // Record the barcode information
@@ -338,6 +350,14 @@ impl WriteFiles {
             )
             .as_bytes(),
         )?;
+        // Record the files that were created
+        stat_file.write_all("-OUTPUT FILES-\n".as_bytes())?;
+        for (file_name, counts) in self.output_files.iter().zip(self.output_counts.iter()) {
+            stat_file.write_all(
+                format!("File & barcodes counted: {}\t{}\n", file_name, counts).as_bytes(),
+            )?;
+        }
+        stat_file.write_all("\n".as_bytes())?;
         // Close the writing with dashes so that it is separated from the next analysis if it is done on the same day
         stat_file.write_all("--------------------------------------------------------------------------------------------------\n\n\n".as_bytes())?;
         Ok(())
