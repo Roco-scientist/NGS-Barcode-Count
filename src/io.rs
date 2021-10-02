@@ -408,8 +408,9 @@ impl Output {
         &self,
         start_time: DateTime<Local>,
         max_sequence_errors: crate::barcode_info::MaxSeqErrors,
-        mut seq_errors: crate::barcode_info::SequenceErrors,
+        seq_errors: crate::barcode_info::SequenceErrors,
         total_reads: Arc<AtomicU32>,
+        sequence_format: crate::barcode_info::SequenceFormat,
     ) -> Result<(), Box<dyn Error>> {
         // Create the stat file name
         let output_dir = self.args.output_dir.clone();
@@ -429,7 +430,7 @@ impl Output {
         // Write the time information to the stat file
         stat_file.write_all(
             format!(
-                "Start: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
+                "-TIME INFORMATION-\nStart: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
                 start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
                 now.format("%Y-%m-%d %H:%M:%S").to_string(),
                 elapsed_time.num_hours(),
@@ -442,7 +443,7 @@ impl Output {
         // Write the input file information
         stat_file.write_all(
             format!(
-                "-Input files-\nFastq: {}\nFormat: {}\nSamples: {}\nBarcodes: {}\n\n",
+                "-INPUT FILES-\nFastq: {}\nFormat: {}\nSamples: {}\nBarcodes: {}\n\n",
                 self.args.fastq,
                 self.args.format,
                 self.args
@@ -457,22 +458,23 @@ impl Output {
             .as_bytes(),
         )?;
         // Record the files that were created
-        stat_file
-            .write_all(format!("Output files: {}\n\n", self.output_files.join(", ")).as_bytes())?;
-        // Record the barcode information
         stat_file.write_all(
             format!(
-                "-Barcode info-\n{}\n\n",
-                max_sequence_errors.display_string()
+                "-OUTPUT FILES-\nFiles: {}\n\n",
+                self.output_files.join(", ")
             )
             .as_bytes(),
         )?;
+        // Record the sequence_format
+        stat_file.write_all(format!("{}\n\n", sequence_format).as_bytes())?;
+        // Record the barcode information
+        stat_file.write_all(format!("{}\n", max_sequence_errors).as_bytes())?;
         // Record the total reads and errors
         stat_file.write_all(
             format!(
-                "-Results-\nTotal sequences:             {}\n{}\n\n",
+                "-RESULTS-\nTotal sequences:             {}\n{}\n\n",
                 total_reads.load(Ordering::Relaxed),
-                seq_errors.display_string()
+                seq_errors
             )
             .as_bytes(),
         )?;
