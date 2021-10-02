@@ -4,6 +4,7 @@ use flate2::read::GzDecoder;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
+    fmt,
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Write},
     path::Path,
@@ -55,8 +56,9 @@ pub fn read_fastq(
                 fastq_line_reader.post()?;
             }
             // Add to read count to print numnber of sequences read by this thread
-            if fastq_line_reader.total_reads % 1000 == 0 {
-                fastq_line_reader.display_total_reads()?;
+            if fastq_line_reader.total_reads % 10000 == 0 {
+                print!("{}", fastq_line_reader);
+                std::io::stdout().flush()?;
             }
         }
     } else {
@@ -78,13 +80,14 @@ pub fn read_fastq(
                 fastq_line_reader.post()?;
             }
             // Add to read count to print numnber of sequences read by this thread
-            if fastq_line_reader.total_reads % 1000 == 0 {
-                fastq_line_reader.display_total_reads()?;
+            if fastq_line_reader.total_reads % 10000 == 0 {
+                print!("{}", fastq_line_reader);
+                std::io::stdout().flush()?;
             }
         }
     }
     // Display the final total read count
-    fastq_line_reader.display_total_reads()?;
+    print!("{}", fastq_line_reader);
     total_reads_arc.store(fastq_line_reader.total_reads, Ordering::Relaxed);
     println!();
     Ok(())
@@ -150,12 +153,11 @@ impl FastqLineReader {
             .insert(0, self.raw_sequence_read_string.clone());
         Ok(())
     }
+}
 
-    /// Displays the total reads so far.  Used while reading to incrementally display, then used after finished reading the file to display total sequences that were read
-    pub fn display_total_reads(&self) -> Result<(), Box<dyn Error>> {
-        print!("Total sequences:             {}\r", self.total_reads);
-        std::io::stdout().flush()?;
-        Ok(())
+impl fmt::Display for FastqLineReader {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Total sequences:             {}\r", self.total_reads)
     }
 }
 
