@@ -30,7 +30,7 @@ impl SequenceParser {
         sample_seqs: HashSet<String>,
         counted_barcode_seqs: Vec<HashSet<String>>,
         min_quality_score: f32,
-    ) -> SequenceParser {
+    ) -> Self {
         let mut barcode_groups = Vec::new();
         for x in 0..sequence_format_clone.barcode_num {
             barcode_groups.push(format!("barcode{}", x + 1))
@@ -179,7 +179,7 @@ impl SharedMutData {
         seq: Arc<Mutex<Vec<String>>>,
         finished: Arc<AtomicBool>,
         results: Arc<Mutex<crate::info::Results>>,
-    ) -> SharedMutData {
+    ) -> Self {
         SharedMutData {
             seq,
             finished,

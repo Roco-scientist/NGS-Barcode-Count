@@ -36,7 +36,7 @@ impl SequenceErrors {
     ///
     /// let mut sequence_errors = SequenceErrors::new();
     /// ```
-    pub fn new() -> SequenceErrors {
+    pub fn new() -> Self {
         SequenceErrors {
             constant_region: Arc::new(AtomicU32::new(0)),
             sample_barcode: Arc::new(AtomicU32::new(0)),
@@ -164,7 +164,7 @@ pub struct SequenceFormat {
 
 impl SequenceFormat {
     /// Creates a new SequenceFormat struct which holds the sequencing format information, such as, where the barcodes are located within the sequence
-    pub fn new(format: String) -> Result<SequenceFormat, Box<dyn Error>> {
+    pub fn new(format: String) -> Result<Self, Box<dyn Error>> {
         // Read sequenc format file to string
         let format_data = fs::read_to_string(format)?
             .lines() // split into lines
@@ -433,7 +433,7 @@ impl Default for BarcodeConversions {
 }
 
 impl BarcodeConversions {
-    pub fn new() -> BarcodeConversions {
+    pub fn new() -> Self {
         BarcodeConversions {
             samples_barcode_hash: HashMap::new(),
             sample_seqs: HashSet::new(),
@@ -577,7 +577,7 @@ impl MaxSeqErrors {
         constant_errors_option: Option<u8>,
         constant_region_size: u8,
         min_quality: f32,
-    ) -> Result<MaxSeqErrors, Box<dyn Error>> {
+    ) -> Result<Self, Box<dyn Error>> {
         let max_sample_errors;
         // start with a sample size of 0 in case there is no sample barcode.  If there is then mutate
         let mut sample_size = 0;
@@ -755,7 +755,7 @@ pub struct Results {
 
 impl Results {
     /// Create a new Results struct
-    pub fn new(samples_barcode_hash: &HashMap<String, String>, random_barcode: bool) -> Results {
+    pub fn new(samples_barcode_hash: &HashMap<String, String>, random_barcode: bool) -> Self {
         // Record and keep the format type of whether or not the random barcode is included
         let format_type;
         if random_barcode {

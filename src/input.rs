@@ -102,7 +102,7 @@ struct FastqLineReader {
 
 impl FastqLineReader {
     /// Creates a new FastqLineReader struct
-    pub fn new(seq_clone: Arc<Mutex<Vec<String>>>, exit_clone: Arc<AtomicBool>) -> FastqLineReader {
+    pub fn new(seq_clone: Arc<Mutex<Vec<String>>>, exit_clone: Arc<AtomicBool>) -> Self {
         FastqLineReader {
             test: true,
             line_num: 0,
@@ -178,7 +178,7 @@ impl Output {
         counted_barcodes_hash: Vec<HashMap<String, String>>,
         samples_barcode_hash: HashMap<String, String>,
         args: crate::Args,
-    ) -> Result<Output, Box<dyn Error>> {
+    ) -> Result<Self, Box<dyn Error>> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
         Ok(Output {
             results,

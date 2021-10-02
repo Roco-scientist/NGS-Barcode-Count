@@ -25,7 +25,7 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn new() -> Result<Args, Box<dyn Error>> {
+    pub fn new() -> Result<Self, Box<dyn Error>> {
         let total_cpus = num_cpus::get().to_string();
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
