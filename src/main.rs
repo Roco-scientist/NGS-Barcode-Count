@@ -9,11 +9,22 @@ fn main() {
     let start_time = Local::now();
 
     // get the argument inputs
-    let args = barcode::Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
+    let mut args = barcode::Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
     let sequence_format = barcode::info::SequenceFormat::new(args.format.clone())
         .unwrap_or_else(|err| panic!("sequence format error: {}", err));
     println!("{}\n", sequence_format);
+
+    // Check how many barcodes occur if either single or double barcode enrichment is callsed.  If there are too few, ignore the argument flag
+    if args.single_barcode_enrichment && sequence_format.barcode_num < 2 {
+        eprintln!("Fewer than 2 counted barcodes.  Too few for single barcode enrichment.  Argument flag is ignored");
+        args.single_barcode_enrichment = false;
+    }
+
+    if args.double_barcode_enrichment && sequence_format.barcode_num < 3 {
+        eprintln!("Fewer than 3 counted barcodes.  Too few for double barcode enrichment.  Argument flag is ignored");
+        args.double_barcode_enrichment = false;
+    }
 
     // Start getting the barcode conversion with the BarcodeConversions struct
     let mut barcode_conversions = barcode::info::BarcodeConversions::new();
