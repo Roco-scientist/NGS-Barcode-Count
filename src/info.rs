@@ -871,6 +871,7 @@ impl Results {
     }
 }
 
+/// A struct which holds hte enriched single and double counted barcodes.  Useful for DEL.  This struct is used during output.
 pub struct ResultsEnrichment {
     pub single_hashmap: HashMap<String, HashMap<String, u32>>, // enrichment of single barcodes hash used at output
     pub double_hashmap: HashMap<String, HashMap<String, u32>>, // enrichment of double barcodes hash used at output
@@ -887,7 +888,9 @@ impl ResultsEnrichment {
         }
     }
 
+    /// Adds sample barcodes for keys within the hashmaps.  This is added later in order to first initiate the struct then add sample barcodes later
     pub fn add_sample_barcodes(&mut self, samples_barcodes: &[String]) {
+        // For each sample barcode, create a sample barcode key to empty hashmap into single and double enrichment hashmaps
         for sample_barcode in samples_barcodes {
             self.single_hashmap
                 .insert(sample_barcode.to_string(), self.empty_count_hash.clone());
@@ -898,18 +901,23 @@ impl ResultsEnrichment {
 
     /// Adds the count the the single barcode enrichment hashmap
     pub fn add_single(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
+        // get the number of barcodes to know homu much to iterate
         let barcode_num = barcode_string.split(",").count();
+        // For each single barcode in the comma separate barcodes, create a new string with just one barcode and empty other columns
         for (index, single_barcode) in barcode_string.split(",").enumerate() {
             let mut single_barcode_string = String::new();
+            // Recreate the new comma separated barcode with only one barcode
             for x in 0..barcode_num {
+                // If the index is sthe same as x, add the single barcode.  This should put it in the right column
                 if x == index {
                     single_barcode_string.push_str(single_barcode);
                 }
+                // Don't add a comma at the end
                 if x != (barcode_num - 1) {
                     single_barcode_string.push(',');
                 }
             }
-            // Insert 0 if the barcodes are not within the sample_name -> barcodes
+            // Insert 0 if the barcodes are not within the single_hashmap -> barcodes
             // Then add one regardless
             *self
                 .single_hashmap
@@ -922,21 +930,28 @@ impl ResultsEnrichment {
 
     /// Adds the count to the double barcode enrichment hashmap
     pub fn add_double(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
+        // get the number of barcodes to know homu much to iterate
         let barcode_num = barcode_string.split(",").count();
+        // split the barcodes into a vec from their comma separated form
         let barcode_split = barcode_string.split(",").collect::<Vec<&str>>();
+        // iterate through the number of barcode_num - 1, and take two barcodes at a tiem
         for index in 0..(barcode_num - 1) {
+            // Initiate the new barcode string
             let mut double_barcode_string = String::new();
+            // Iterate at a second depth for recreating the barcode string and only added the two adjacent barcodes
             for second_index in 0..barcode_num {
+                // If it is either the first or second barcode, add comma separated to the new string
                 if second_index == index {
                     double_barcode_string.push_str(barcode_split[index])
                 } else if second_index == (index + 1) {
                     double_barcode_string.push_str(barcode_split[(index + 1)])
                 }
+                // If we are not on the last barcode, add a comma
                 if second_index != (barcode_num - 1) {
                     double_barcode_string.push(',')
                 }
             }
-            // Insert 0 if the barcodes are not within the sample_name -> barcodes
+            // Insert 0 if the barcodes are not within the double_hashmap -> barcodes
             // Then add one regardless
             *self
                 .double_hashmap
@@ -951,40 +966,5 @@ impl ResultsEnrichment {
 impl Default for ResultsEnrichment {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn max_sequence_errors_test() {
-        let sample_errors_option = None;
-        let sample_barcode_size_option = Some(10);
-        let barcode_errors_option = None;
-        let barcode_sizes = vec![8, 8, 8];
-        let constant_errors_option = None;
-        let constant_region_size = 30;
-        let max_sequence_errors = MaxSeqErrors::new(
-            sample_errors_option,
-            sample_barcode_size_option,
-            barcode_errors_option,
-            barcode_sizes,
-            constant_errors_option,
-            constant_region_size,
-        )
-        .unwrap();
-        assert_eq!(
-            max_sequence_errors,
-            MaxSeqErrors {
-                constant_region: 6,
-                constant_region_size: 30,
-                sample_barcode: 2,
-                sample_size: 10,
-                barcode: vec![1, 1, 1],
-                barcode_sizes: vec![8, 8, 8],
-            }
-        )
     }
 }
