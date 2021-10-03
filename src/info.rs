@@ -871,6 +871,89 @@ impl Results {
     }
 }
 
+pub struct ResultsEnrichment {
+    pub single_hashmap: HashMap<String, HashMap<String, u32>>, // enrichment of single barcodes hash used at output
+    pub double_hashmap: HashMap<String, HashMap<String, u32>>, // enrichment of double barcodes hash used at output
+    empty_count_hash: HashMap<String, u32>,
+}
+
+impl ResultsEnrichment {
+    pub fn new() -> Self {
+        let empty_count_hash: HashMap<String, u32> = HashMap::new();
+        ResultsEnrichment {
+            single_hashmap: HashMap::new(),
+            double_hashmap: HashMap::new(),
+            empty_count_hash,
+        }
+    }
+
+    pub fn add_sample_barcodes(&mut self, samples_barcodes: &[String]) {
+        for sample_barcode in samples_barcodes {
+            self.single_hashmap
+                .insert(sample_barcode.to_string(), self.empty_count_hash.clone());
+            self.double_hashmap
+                .insert(sample_barcode.to_string(), self.empty_count_hash.clone());
+        }
+    }
+
+    /// Adds the count the the single barcode enrichment hashmap
+    pub fn add_single(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
+        let barcode_num = barcode_string.split(",").count();
+        for (index, single_barcode) in barcode_string.split(",").enumerate() {
+            let mut single_barcode_string = String::new();
+            for x in 0..barcode_num {
+                if x == index {
+                    single_barcode_string.push_str(single_barcode);
+                }
+                if x != (barcode_num - 1) {
+                    single_barcode_string.push(',');
+                }
+            }
+            // Insert 0 if the barcodes are not within the sample_name -> barcodes
+            // Then add one regardless
+            *self
+                .single_hashmap
+                .get_mut(sample_id)
+                .unwrap_or(&mut self.empty_count_hash.clone())
+                .entry(single_barcode_string)
+                .or_insert(0) += count;
+        }
+    }
+
+    /// Adds the count to the double barcode enrichment hashmap
+    pub fn add_double(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
+        let barcode_num = barcode_string.split(",").count();
+        let barcode_split = barcode_string.split(",").collect::<Vec<&str>>();
+        for index in 0..(barcode_num - 1) {
+            let mut double_barcode_string = String::new();
+            for second_index in 0..barcode_num {
+                if second_index == index {
+                    double_barcode_string.push_str(barcode_split[index])
+                } else if second_index == (index + 1) {
+                    double_barcode_string.push_str(barcode_split[(index + 1)])
+                }
+                if second_index != (barcode_num - 1) {
+                    double_barcode_string.push(',')
+                }
+            }
+            // Insert 0 if the barcodes are not within the sample_name -> barcodes
+            // Then add one regardless
+            *self
+                .double_hashmap
+                .get_mut(sample_id)
+                .unwrap_or(&mut self.empty_count_hash.clone())
+                .entry(double_barcode_string)
+                .or_insert(0) += count;
+        }
+    }
+}
+
+impl Default for ResultsEnrichment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
