@@ -22,6 +22,8 @@ pub struct Args {
     pub sample_errors_option: Option<u8>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
     pub constant_errors_option: Option<u8>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
     pub min_average_quality_score: f32,
+    pub double_barcode_enrichment: bool,
+    pub single_barcode_enrichment: bool,
 }
 
 impl Args {
@@ -95,6 +97,18 @@ impl Args {
                 .help("Merge sample output counts into a single file.  Not necessary when there is only one sample"),
         )
         .arg(
+            Arg::with_name("double")
+                .long("double")
+                .takes_value(false)
+                .help("Output double barcode enrichment"),
+        )
+        .arg(
+            Arg::with_name("single")
+                .long("single")
+                .takes_value(false)
+                .help("Output single barcode enrichment"),
+        )
+        .arg(
             Arg::with_name("barcodes_errors")
                 .long("barcodes_errors")
                 .takes_value(true)
@@ -162,6 +176,18 @@ impl Args {
         } else {
             merge_output = false
         }
+        let double_barcode_enrichment;
+        if args.is_present("double") {
+            double_barcode_enrichment = true
+        } else {
+            double_barcode_enrichment = false
+        }
+        let single_barcode_enrichment;
+        if args.is_present("single") {
+            single_barcode_enrichment = true
+        } else {
+            single_barcode_enrichment = false
+        }
         let fastq = args.value_of("fastq").unwrap().to_string();
         let format = args.value_of("sequence_format").unwrap().to_string();
         let output_dir = args.value_of("output_dir").unwrap().to_string();
@@ -186,6 +212,8 @@ impl Args {
             sample_errors_option,
             constant_errors_option,
             min_average_quality_score,
+            double_barcode_enrichment,
+            single_barcode_enrichment,
         })
     }
 }
