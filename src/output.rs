@@ -1,4 +1,5 @@
 use chrono::{DateTime, Local};
+use custom_error::custom_error;
 use num_format::{Locale, ToFormattedString};
 use std::{
     collections::{HashMap, HashSet},
@@ -14,9 +15,22 @@ use std::{
 
 use itertools::Itertools;
 
+// Errors associated with checking the fastq format to make sure it is correct
+custom_error! {EnrichedErrors
+    MismatchedType = "Does not work with Full enrichment type.  Only Single and Double",
+}
+
+#[derive(PartialEq, Clone)]
+enum EnrichedType {
+    Single,
+    Double,
+    Full,
+}
+
 /// A struct setup to output results and stat information into files
 pub struct WriteFiles {
     results: crate::info::Results,
+    results_enriched: crate::info::ResultsEnrichment,
     sequence_format: crate::info::SequenceFormat,
     counted_barcodes_hash: Vec<HashMap<String, String>>,
     samples_barcode_hash: HashMap<String, String>,
@@ -39,6 +53,7 @@ impl WriteFiles {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
         Ok(WriteFiles {
             results,
+            results_enriched: crate::info::ResultsEnrichment::new(),
             sequence_format,
             counted_barcodes_hash,
             samples_barcode_hash,
@@ -69,6 +84,10 @@ impl WriteFiles {
                 .cloned()
                 .collect::<Vec<String>>(),
         };
+
+        if self.args.double_barcode_enrichment || self.args.single_barcode_enrichment {
+            self.results_enriched.add_sample_barcodes(&sample_barcodes);
+        }
 
         // If there was a sample conversion file, sort the barcodes by the sample IDs so that the columns for the merged file are in order
         if !self.samples_barcode_hash.is_empty() {
@@ -118,13 +137,15 @@ impl WriteFiles {
         // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
         header.push_str(",Count\n");
 
+        // For each sample, write the counts file
         for sample_barcode in &sample_barcodes {
             let file_name;
             if !self.samples_barcode_hash.is_empty() {
                 let sample_name = self
                     .samples_barcode_hash
                     .get(sample_barcode)
-                    .unwrap_or(&unknown_sample);
+                    .unwrap_or(&unknown_sample)
+                    .to_string();
                 file_name = format!("{}_{}{}", self.args.prefix, sample_name, "_counts.csv");
             } else {
                 file_name = format!("{}{}", self.args.prefix, "_all_counts.csv");
@@ -140,14 +161,25 @@ impl WriteFiles {
                 crate::info::FormatType::RandomBarcode => {
                     self.write_random(sample_barcode, &sample_barcodes, &mut output)?
                 }
-                crate::info::FormatType::NoRandomBarcode => {
-                    self.write_counts(sample_barcode, &sample_barcodes, &mut output)?
-                }
+                crate::info::FormatType::NoRandomBarcode => self.write_counts(
+                    sample_barcode,
+                    &sample_barcodes,
+                    &mut output,
+                    EnrichedType::Full,
+                )?,
             };
             self.output_counts.push(count);
         }
         if self.args.merge_output {
             self.output_counts.insert(0, self.merged_count);
+        }
+        if self.args.single_barcode_enrichment {
+            self.merged_count = 0;
+            self.write_enriched_files(EnrichedType::Single)?;
+        }
+        if self.args.double_barcode_enrichment {
+            self.merged_count = 0;
+            self.write_enriched_files(EnrichedType::Double)?;
         }
         Ok(())
     }
@@ -225,6 +257,20 @@ impl WriteFiles {
             // Create the row for the sample file and write
             let row = format!("{},{}\n", written_barcodes, random_barcodes.len());
             output.write_all(row.as_bytes())?;
+            if self.args.double_barcode_enrichment {
+                self.results_enriched.add_double(
+                    sample_barcode,
+                    &written_barcodes,
+                    random_barcodes.len() as u32,
+                )
+            }
+            if self.args.single_barcode_enrichment {
+                self.results_enriched.add_single(
+                    sample_barcode,
+                    &written_barcodes,
+                    random_barcodes.len() as u32,
+                )
+            }
         }
         print!(
             "Barcodes counted: {}\r",
@@ -240,11 +286,26 @@ impl WriteFiles {
         sample_barcode: &str,
         sample_barcodes: &[String],
         output: &mut File,
+        enrichment: EnrichedType, // In order to make this non redundant with writing single and double barcodes, this enum determines some aspects
     ) -> Result<usize, Box<dyn Error>> {
-        let sample_counts_hash = self.results.count_hashmap.get(sample_barcode).unwrap();
+        let mut hash_holder: HashMap<String, HashMap<String, u32>> = HashMap::new(); // a hodler hash to hold the hashmap from sample_counts_hash for a longer lifetime.  Also used later
+                                                                                     // Select from the hashmap connected the the EnrichedType
+        let sample_counts_hash = match enrichment {
+            EnrichedType::Single => {
+                hash_holder = self.results_enriched.single_hashmap.clone();
+                hash_holder.get(sample_barcode).unwrap()
+            }
+            EnrichedType::Double => {
+                hash_holder = self.results_enriched.double_hashmap.clone();
+                hash_holder.get(sample_barcode).unwrap()
+            }
+            EnrichedType::Full => self.results.count_hashmap.get(sample_barcode).unwrap(),
+        };
+
         let mut barcode_num = 0;
         for (line_num, (code, count)) in sample_counts_hash.iter().enumerate() {
             barcode_num = line_num + 1;
+            // Print the number counted so far ever 50,000 writes
             if barcode_num % 50000 == 0 {
                 print!(
                     "Barcodes counted: {}\r",
@@ -252,7 +313,7 @@ impl WriteFiles {
                 );
             }
             let written_barcodes;
-            if !self.counted_barcodes_hash.is_empty() {
+            if enrichment == EnrichedType::Full && !self.counted_barcodes_hash.is_empty() {
                 // Convert the building block DNA barcodes and join them back to comma separated
                 written_barcodes = convert_code(code, &self.counted_barcodes_hash);
             } else {
@@ -270,8 +331,23 @@ impl WriteFiles {
                     // For every sample, retrieve the count and add to the row with a comma
                     for sample_barcode in sample_barcodes {
                         merged_row.push(',');
-                        merged_row.push_str(
-                            &self
+                        // Get teh sample count from the hashmap that corresponds to the EnrichedType.  For single and double, it is the holding hashmap created earlier
+                        let sample_count = match enrichment {
+                            EnrichedType::Single => hash_holder
+                                .get(sample_barcode)
+                                .unwrap()
+                                .get(code)
+                                .unwrap_or(&0)
+                                .to_string(),
+
+                            EnrichedType::Double => hash_holder
+                                .get(sample_barcode)
+                                .unwrap()
+                                .get(code)
+                                .unwrap_or(&0)
+                                .to_string(),
+
+                            EnrichedType::Full => self
                                 .results
                                 .count_hashmap
                                 .get(sample_barcode)
@@ -279,7 +355,8 @@ impl WriteFiles {
                                 .get(code)
                                 .unwrap_or(&0)
                                 .to_string(),
-                        )
+                        };
+                        merged_row.push_str(&sample_count);
                     }
                     merged_row.push('\n');
                     // write to the merged file
@@ -289,6 +366,17 @@ impl WriteFiles {
             // Create the row for the sample file and write
             let row = format!("{},{}\n", written_barcodes, count);
             output.write_all(row.as_bytes())?;
+            // If enrichment type is Full, which is neither single nor double, and either single or double flag is called, add these to enriched results
+            if enrichment == EnrichedType::Full {
+                if self.args.double_barcode_enrichment {
+                    self.results_enriched
+                        .add_double(sample_barcode, &written_barcodes, *count)
+                }
+                if self.args.single_barcode_enrichment {
+                    self.results_enriched
+                        .add_single(sample_barcode, &written_barcodes, *count)
+                }
+            }
         }
         print!(
             "Barcodes counted: {}\r",
@@ -297,6 +385,121 @@ impl WriteFiles {
         println!();
         Ok(barcode_num)
     }
+
+    /// Write enriched files for either single or double barcodes if either flag is called
+    fn write_enriched_files(&mut self, enrichment: EnrichedType) -> Result<(), Box<dyn Error>> {
+        let unknown_sample = "Unknown_sample_name".to_string();
+        // Pull all sample IDs from either single or double hashmap, which was added to in either random or counts write
+        let mut sample_barcodes = match enrichment {
+            EnrichedType::Single => self
+                .results_enriched
+                .single_hashmap
+                .keys()
+                .cloned()
+                .collect::<Vec<String>>(),
+            EnrichedType::Double => self
+                .results_enriched
+                .double_hashmap
+                .keys()
+                .cloned()
+                .collect::<Vec<String>>(),
+            EnrichedType::Full => return Err(Box::new(EnrichedErrors::MismatchedType)),
+        };
+
+        // If there was a sample conversion file, sort the barcodes by the sample IDs so that the columns for the merged file are in order
+        if !self.samples_barcode_hash.is_empty() {
+            sample_barcodes.sort_by_key(|barcode| {
+                self.samples_barcode_hash
+                    .get(barcode)
+                    .unwrap_or(&unknown_sample)
+            })
+        }
+
+        // Create a descriptor for output file names
+        let descriptor = match enrichment {
+            EnrichedType::Single => "Single",
+            EnrichedType::Double => "Double",
+            EnrichedType::Full => return Err(Box::new(EnrichedErrors::MismatchedType)),
+        };
+
+        // create the directory variable to join the file to
+        let output_dir = self.args.output_dir.clone();
+        let directory = Path::new(&output_dir);
+
+        let mut header = self.create_header();
+        // If merged called, create the header with the sample names as columns and write
+        if self.args.merge_output {
+            // Create the merge file and push the header, if merged called within arguments
+            let merged_file_name = format!("{}_counts.all.{}.csv", self.args.prefix, descriptor);
+            println!("{}", merged_file_name);
+            self.output_files.push(merged_file_name.clone());
+            let merged_output_path = directory.join(merged_file_name);
+
+            self.merged_output_file_option = Some(File::create(merged_output_path)?);
+            let mut merged_header = header.clone();
+            for sample_barcode in &sample_barcodes {
+                // Get the sample name from the sample barcode
+                let sample_name = self
+                    .samples_barcode_hash
+                    .get(sample_barcode)
+                    .unwrap_or(&unknown_sample);
+                merged_header.push(',');
+                merged_header.push_str(sample_name);
+            }
+            merged_header.push('\n');
+            self.merged_output_file_option
+                .as_ref()
+                .unwrap()
+                .write_all(merged_header.as_bytes())?;
+        }
+
+        // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
+        header.push_str(",Count\n");
+
+        // For each sample, write the enriched file
+        for sample_barcode in &sample_barcodes {
+            // Create the file_name with the single or double descriptor
+            let file_name;
+            if !self.samples_barcode_hash.is_empty() {
+                let sample_name = self
+                    .samples_barcode_hash
+                    .get(sample_barcode)
+                    .unwrap_or(&unknown_sample)
+                    .to_string();
+                file_name = format!(
+                    "{}_{}_counts.{}.csv",
+                    self.args.prefix, sample_name, descriptor
+                );
+            } else {
+                file_name = format!("{}_all_counts.{}.csv", self.args.prefix, descriptor);
+            }
+            println!("{}", file_name);
+            self.output_files.push(file_name.clone());
+            // join the filename with the directory to create the full path
+            let output_path = directory.join(file_name);
+            let mut output = File::create(output_path)?; // Create the output file
+
+            output.write_all(header.as_bytes())?; // Write the header to the file
+            let count = self.write_counts(
+                sample_barcode,
+                &sample_barcodes,
+                &mut output,
+                enrichment.clone(),
+            )?;
+            // add the counts to output to stats later
+            self.output_counts.push(count);
+        }
+        // Add the count of merged barcodes if the flag is called
+        if self.args.merge_output {
+            self.output_counts.insert(
+                self.output_counts.len() - sample_barcodes.len(),
+                self.merged_count,
+            );
+        }
+        Ok(())
+    }
+
+    /// Appends the stats information for record keeping
     pub fn write_stats_file(
         &self,
         start_time: DateTime<Local>,

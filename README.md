@@ -166,7 +166,9 @@ barcode --fastq <fastq_file> \
 	--prefix <file_prefix> \
 	--threads <num_of_threads> \
 	--merge_output \
-	--min_quality <min_barcode_read_quality>
+	--min_quality <min_barcode_read_quality>\
+	--single\
+	--double\
 ```
 
 <br>
@@ -191,6 +193,12 @@ barcode --fastq <fastq_file> \
 </li>
 <li>
 --min_quality will filter out reads where any of the barcodes have an average quality score below the threshold set here.  Default is 0 and no filtering.
+</li>
+<li>
+--single argument flag that will find the counts for each barcode if there are 2 or more counted barcodes included, and output the file. Useful for DEL
+</li>
+<li>
+--double argument flag that will find the counts for each pair of barcodes if there are 3 or more counted barcodes included, and output the file. Useful for DEL
 </li>
 </ul>
 
@@ -247,7 +255,8 @@ If `--merge_output` is called, an additional file is created with the format (fo
 </tr>
 </table>
 
-An additional barcode_stats.txt file is also written/appended to the output folder.  This keeps track of running information.
+An additional barcode_stats.txt file is also written/appended to the output folder.  This keeps track of running information.<br><br>
+If either `--single` or `--double` arguments are called, single or double barcode count files are ouptut.
 
 
 ## Tests results
