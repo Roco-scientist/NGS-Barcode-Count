@@ -265,12 +265,12 @@ If either `--single` or `--double` arguments are called, single or double barcod
 Setup as shown with all example files used throughout this README.  This program was originally written for DEL. Typically you will use 3 x '[]' for counting barcodes, which represents 3 building blocks, within the format file.
 
 ### CRISPR-seq
-Same setup as with DEL but typically with only one '[]' counted barcode in the format file.  As such, within the counted barcode conversion file, the third column will contain all '1's
+Same setup as with DEL, but typically with only one '[]' counted barcode in the format file.  As such, within the counted barcode conversion file, the third column will contain all '1's
 
 ### Barcode-seq
 If the intention is to count the random barcodes and have the counts associated with these random barcodes, which is the case with bar-seq of cell pools for lineage evolution etc., 
-then the random barcode is actually the counted barcode and represented with '[]' in the format file.  A counted barcode conversion file will not be included.  In this situation, 
-the program will output the counted random barcode sequence and the associated count.  Afterwards clustering or any other analysis can be applied.
+then the random barcode, within this situation, is the counted barcode and represented with '[]' in the format file.  A counted barcode conversion file will not be included.  Without the counted barcode conversion file, 
+the program will output the counted random barcode sequence and the associated count.  Afterwards, clustering or any other analysis can be applied.
 
 ## Tests results
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in just under 1 hour.
