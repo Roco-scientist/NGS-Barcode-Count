@@ -18,6 +18,7 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 <li><a href=#installation>Installation</a></li>
 <li><a href=#files-needed>Files Needed</a></li>
 <li><a href=#run>Run</a></li>
+<li><a href=#uses>Uses</a></li>
 <li><a href=#test-results>Test Results</a></li>
 <li><a href=#notes>Notes</a></li>
 </ul>
@@ -45,7 +46,7 @@ Currently supports FASTQ, sequence format, sample barcode conversion, and buildi
 <li><a href=#fastq-file>FASTQ</a></li>
 <li><a href=#sequence-format-file>Sequence format file</a></li>
 <li><a href=#sample-barcode-file>Sample barcode file (optional)</a></li>
-<li><a href=#barcode-file>Barcode file (optional)</a></li>
+<li><a href=#counted-barcode-conversion-file>Counted barcode conversion file (optional)</a></li>
 </ul>
 
 
@@ -103,7 +104,7 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 
 An example can be found in [sample_barcode.example.csv](sample_barcode.example.csv).
 
-### Barcode File
+### Counted Barcode Conversion File
 <b>Optional</b><br>
 The barcode_file is a comma separate file with the following format:<br>
 <table>
@@ -258,6 +259,18 @@ If `--merge_output` is called, an additional file is created with the format (fo
 An additional barcode_stats.txt file is also written/appended to the output folder.  This keeps track of running information.<br><br>
 If either `--single` or `--double` arguments are called, single or double barcode count files are ouptut.
 
+## Uses
+
+### DEL
+Setup as shown with all example files used throughout this README.  This program was originally written for DEL. Typically you will use 3 x '[]' for counting barcodes, which represents 3 building blocks, within the format file.
+
+### CRISPR-seq
+Same setup as with DEL but typically with only one '[]' counted barcode in the format file.  As such, within the counted barcode conversion file, the third column will contain all '1's
+
+### Barcode-seq
+If the intention is to count the random barcodes and have the counts associated with these random barcodes, which is the case with bar-seq of cell pools for lineage evolution etc., 
+then the random barcode is actually the counted barcode and represented with '[]' in the format file.  A counted barcode conversion file will not be included.  In this situation, 
+the program will output the counted random barcode sequence and the associated count.  Afterwards clustering or any other analysis can be applied.
 
 ## Tests results
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in just under 1 hour.
