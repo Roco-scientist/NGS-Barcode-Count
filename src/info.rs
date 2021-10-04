@@ -934,31 +934,35 @@ impl ResultsEnrichment {
         let barcode_num = barcode_string.split(",").count();
         // split the barcodes into a vec from their comma separated form
         let barcode_split = barcode_string.split(",").collect::<Vec<&str>>();
-        // iterate through the number of barcode_num - 1, and take two barcodes at a tiem
-        for index in 0..(barcode_num - 1) {
-            // Initiate the new barcode string
-            let mut double_barcode_string = String::new();
-            // Iterate at a second depth for recreating the barcode string and only added the two adjacent barcodes
-            for second_index in 0..barcode_num {
-                // If it is either the first or second barcode, add comma separated to the new string
-                if second_index == index {
-                    double_barcode_string.push_str(barcode_split[index])
-                } else if second_index == (index + 1) {
-                    double_barcode_string.push_str(barcode_split[(index + 1)])
+        // iterate through the number of barcode_num - 1, and take this index for the first barcode
+        for first_barcode_index in 0..(barcode_num - 1) {
+            // Get the amount needed to add to the first index in order to get the second index.  This is iterated to account for the second being the next barcode or two away etc. Eg from 1,2,3 = 1,2,, and 1,,3
+            for next_barcode_add in 1..(barcode_num - first_barcode_index) {
+                // Initiate the new barcode string
+                let mut double_barcode_string = String::new();
+                // Iterate over each comma separated column and insert the barcode if needed
+                for column_index in 0..barcode_num {
+                    // If it is either the first or second barcode, add comma separated to the new string
+                    if column_index == first_barcode_index {
+                        double_barcode_string.push_str(barcode_split[first_barcode_index])
+                    } else if column_index == (first_barcode_index + next_barcode_add) {
+                        double_barcode_string
+                            .push_str(barcode_split[(first_barcode_index + next_barcode_add)])
+                    }
+                    // If we are not on the last barcode, add a comma
+                    if column_index != (barcode_num - 1) {
+                        double_barcode_string.push(',')
+                    }
                 }
-                // If we are not on the last barcode, add a comma
-                if second_index != (barcode_num - 1) {
-                    double_barcode_string.push(',')
-                }
+                // Insert 0 if the barcodes are not within the double_hashmap -> barcodes
+                // Then add one regardless
+                *self
+                    .double_hashmap
+                    .get_mut(sample_id)
+                    .unwrap_or(&mut self.empty_count_hash.clone())
+                    .entry(double_barcode_string)
+                    .or_insert(0) += count;
             }
-            // Insert 0 if the barcodes are not within the double_hashmap -> barcodes
-            // Then add one regardless
-            *self
-                .double_hashmap
-                .get_mut(sample_id)
-                .unwrap_or(&mut self.empty_count_hash.clone())
-                .entry(double_barcode_string)
-                .or_insert(0) += count;
         }
     }
 }
