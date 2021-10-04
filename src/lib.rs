@@ -100,13 +100,13 @@ impl Args {
             Arg::with_name("double")
                 .long("double")
                 .takes_value(false)
-                .help("Output double barcode enrichment"),
+                .help("Output double barcode enrichment counts"),
         )
         .arg(
             Arg::with_name("single")
                 .long("single")
                 .takes_value(false)
-                .help("Output single barcode enrichment"),
+                .help("Output single barcode enrichment counts"),
         )
         .arg(
             Arg::with_name("barcodes_errors")
