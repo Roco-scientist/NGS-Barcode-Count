@@ -137,6 +137,7 @@ impl WriteFiles {
         // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
         header.push_str(",Count\n");
 
+        // For each sample, write the counts file
         for sample_barcode in &sample_barcodes {
             let file_name;
             if !self.samples_barcode_hash.is_empty() {
@@ -285,9 +286,10 @@ impl WriteFiles {
         sample_barcode: &str,
         sample_barcodes: &[String],
         output: &mut File,
-        enrichment: EnrichedType,
+        enrichment: EnrichedType, // In order to make this non redundant with writing single and double barcodes, this enum determines some aspects
     ) -> Result<usize, Box<dyn Error>> {
-        let mut hash_holder: HashMap<String, HashMap<String, u32>> = HashMap::new();
+        let mut hash_holder: HashMap<String, HashMap<String, u32>> = HashMap::new(); // a hodler hash to hold the hashmap from sample_counts_hash for a longer lifetime.  Also used later
+                                                                                     // Select from the hashmap connected the the EnrichedType
         let sample_counts_hash = match enrichment {
             EnrichedType::Single => {
                 hash_holder = self.results_enriched.single_hashmap.clone();
@@ -303,6 +305,7 @@ impl WriteFiles {
         let mut barcode_num = 0;
         for (line_num, (code, count)) in sample_counts_hash.iter().enumerate() {
             barcode_num = line_num + 1;
+            // Print the number counted so far ever 50,000 writes
             if barcode_num % 50000 == 0 {
                 print!(
                     "Barcodes counted: {}\r",
@@ -328,6 +331,7 @@ impl WriteFiles {
                     // For every sample, retrieve the count and add to the row with a comma
                     for sample_barcode in sample_barcodes {
                         merged_row.push(',');
+                        // Get teh sample count from the hashmap that corresponds to the EnrichedType.  For single and double, it is the holding hashmap created earlier
                         let sample_count = match enrichment {
                             EnrichedType::Single => hash_holder
                                 .get(sample_barcode)
@@ -362,6 +366,7 @@ impl WriteFiles {
             // Create the row for the sample file and write
             let row = format!("{},{}\n", written_barcodes, count);
             output.write_all(row.as_bytes())?;
+            // If enrichment type is Full, which is neither single nor double, and either single or double flag is called, add these to enriched results
             if enrichment == EnrichedType::Full {
                 if self.args.double_barcode_enrichment {
                     self.results_enriched
@@ -381,9 +386,10 @@ impl WriteFiles {
         Ok(barcode_num)
     }
 
+    /// Write enriched files for either single or double barcodes if either flag is called
     fn write_enriched_files(&mut self, enrichment: EnrichedType) -> Result<(), Box<dyn Error>> {
         let unknown_sample = "Unknown_sample_name".to_string();
-        // Pull all sample IDs from either random hashmap or counts hashmap
+        // Pull all sample IDs from either single or double hashmap, which was added to in either random or counts write
         let mut sample_barcodes = match enrichment {
             EnrichedType::Single => self
                 .results_enriched
@@ -409,6 +415,7 @@ impl WriteFiles {
             })
         }
 
+        // Create a descriptor for output file names
         let descriptor = match enrichment {
             EnrichedType::Single => "Single",
             EnrichedType::Double => "Double",
@@ -449,7 +456,9 @@ impl WriteFiles {
         // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
         header.push_str(",Count\n");
 
+        // For each sample, write the enriched file
         for sample_barcode in &sample_barcodes {
+            // Create the file_name with the single or double descriptor
             let file_name;
             if !self.samples_barcode_hash.is_empty() {
                 let sample_name = self
@@ -477,8 +486,10 @@ impl WriteFiles {
                 &mut output,
                 enrichment.clone(),
             )?;
+            // add the counts to output to stats later
             self.output_counts.push(count);
         }
+        // Add the count of merged barcodes if the flag is called
         if self.args.merge_output {
             self.output_counts.insert(
                 self.output_counts.len() - sample_barcodes.len(),
@@ -488,6 +499,7 @@ impl WriteFiles {
         Ok(())
     }
 
+    /// Appends the stats information for record keeping
     pub fn write_stats_file(
         &self,
         start_time: DateTime<Local>,
