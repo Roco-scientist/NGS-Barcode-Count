@@ -581,6 +581,11 @@ impl WriteFiles {
             )?;
         }
         stat_file.write_all("\n".as_bytes())?;
+        if self.args.fastq.ends_with("gz") && total_reads.load(Ordering::Relaxed) < 1_000_000 {
+            let warning = "WARNING: The program may have stopped early with the gzipped file.  Unzip the fastq.gz and rerun the algorithm on the unzipped fastq file if the number of reads is expected to be above 1,000,000 ";
+            println!("\n{}\n", warning);
+            stat_file.write_all(format!("\n{}\n", warning).as_bytes())?;
+        }
         // Close the writing with dashes so that it is separated from the next analysis if it is done on the same day
         stat_file.write_all("--------------------------------------------------------------------------------------------------\n\n\n".as_bytes())?;
         Ok(())
