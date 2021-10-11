@@ -266,7 +266,7 @@ If either `--single` or `--double` arguments are called, single or double barcod
 ## Uses
 
 ### DEL
-Setup as shown with all example files used throughout this README.  This program was originally written for DEL. Typically you will use 3 x '[]' for counting barcodes, which represents 3 building blocks, within the format file.
+Setup as shown with all example files used throughout this README.  Typically you will use 3 x '[]' for counting barcodes, which represents 3 building blocks, within the format file.
 
 ### CRISPR-seq
 Same setup as with DEL, but typically with only one '[]' counted barcode in the format file.  As such, within the counted barcode conversion file, the third column will contain all '1's
