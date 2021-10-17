@@ -3,7 +3,7 @@ use custom_error::custom_error;
 use flate2::read::GzDecoder;
 use num_format::{Locale, ToFormattedString};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     error::Error,
     fmt,
     fs::{File, OpenOptions},
@@ -32,7 +32,7 @@ custom_error! {FastqError
 /// Line 4: Quality score
 pub fn read_fastq(
     fastq: String,
-    seq_clone: Arc<Mutex<Vec<String>>>,
+    seq_clone: Arc<Mutex<VecDeque<String>>>,
     exit_clone: Arc<AtomicBool>,
     total_reads_arc: Arc<AtomicU32>,
 ) -> Result<(), Box<dyn Error>> {
@@ -100,13 +100,13 @@ struct FastqLineReader {
     line_num: u8, // the current line number 1-4.  Resets back to 1
     total_reads: u32, // total sequences read within the fastq file
     raw_sequence_read_string: String,
-    seq_clone: Arc<Mutex<Vec<String>>>, // the vector that is passed between threads which containst the sequences
+    seq_clone: Arc<Mutex<VecDeque<String>>>, // the vector that is passed between threads which containst the sequences
     exit_clone: Arc<AtomicBool>, // a bool which is set to true when one of the other threads panic.  This is the prevent hanging and is used to exit this thread
 }
 
 impl FastqLineReader {
     /// Creates a new FastqLineReader struct
-    pub fn new(seq_clone: Arc<Mutex<Vec<String>>>, exit_clone: Arc<AtomicBool>) -> Self {
+    pub fn new(seq_clone: Arc<Mutex<VecDeque<String>>>, exit_clone: Arc<AtomicBool>) -> Self {
         FastqLineReader {
             test: true,
             line_num: 0,
@@ -151,7 +151,7 @@ impl FastqLineReader {
         self.seq_clone
             .lock()
             .unwrap()
-            .insert(0, self.raw_sequence_read_string.clone());
+            .push_front(self.raw_sequence_read_string.clone());
         Ok(())
     }
 }

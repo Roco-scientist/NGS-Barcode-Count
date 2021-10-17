@@ -1,7 +1,7 @@
 use custom_error::custom_error;
 use regex::Captures;
 use std::{
-    collections::HashSet,
+    collections::{HashSet, VecDeque},
     error::Error,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -83,7 +83,7 @@ impl SequenceParser {
 
     fn get_seqeunce(&mut self) -> Result<bool, Box<dyn Error>> {
         // Pop off the last sequence from the seq vec
-        if let Some(new_raw_sequence) = self.shared_mut_clone.seq.lock().unwrap().pop() {
+        if let Some(new_raw_sequence) = self.shared_mut_clone.seq.lock().unwrap().pop_back() {
             self.raw_sequence = RawSequenceRead::unpack(new_raw_sequence)?;
             Ok(true)
         } else {
@@ -169,14 +169,14 @@ impl SequenceParser {
 }
 
 pub struct SharedMutData {
-    pub seq: Arc<Mutex<Vec<String>>>,
+    pub seq: Arc<Mutex<VecDeque<String>>>,
     pub finished: Arc<AtomicBool>,
     pub results: Arc<Mutex<crate::info::Results>>,
 }
 
 impl SharedMutData {
     pub fn new(
-        seq: Arc<Mutex<Vec<String>>>,
+        seq: Arc<Mutex<VecDeque<String>>>,
         finished: Arc<AtomicBool>,
         results: Arc<Mutex<crate::info::Results>>,
     ) -> Self {

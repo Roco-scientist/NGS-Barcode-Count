@@ -1,7 +1,10 @@
 use chrono::Local;
-use std::sync::{
-    atomic::{AtomicBool, AtomicU32, Ordering},
-    Arc, Mutex,
+use std::{
+    collections::VecDeque,
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Arc, Mutex,
+    },
 };
 
 fn main() {
@@ -74,7 +77,7 @@ fn main() {
     // Start the multithreading scope
     rayon::scope(|s| {
         // Create a sequence vec which will have sequences entered by the reading thread, and sequences removed by the processing threads
-        let seq = Arc::new(Mutex::new(Vec::new()));
+        let seq = Arc::new(Mutex::new(VecDeque::new()));
         // Create a passed variable to let the processing threads know the reading thread is done
         let finished = Arc::new(AtomicBool::new(false));
 
