@@ -284,12 +284,12 @@ impl SequenceFormat {
         SequenceFormat {
             format_string: self.format_string.clone(),
             regions_string: self.regions_string.clone(),
-            length: self.length.clone(),
+            length: self.length,
             format_regex: self.format_regex.clone(),
             regex_string: self.regex_string.clone(),
-            barcode_num: self.barcode_num.clone(),
+            barcode_num: self.barcode_num,
             format_data: self.format_data.clone(),
-            random_barcode: self.random_barcode.clone(),
+            random_barcode: self.random_barcode,
             starts: Arc::clone(&self.starts),
             start_found: Arc::clone(&self.start_found),
             start: Arc::clone(&self.start),
@@ -902,9 +902,9 @@ impl ResultsEnrichment {
     /// Adds the count the the single barcode enrichment hashmap
     pub fn add_single(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
         // get the number of barcodes to know homu much to iterate
-        let barcode_num = barcode_string.split(",").count();
+        let barcode_num = barcode_string.split(',').count();
         // For each single barcode in the comma separate barcodes, create a new string with just one barcode and empty other columns
-        for (index, single_barcode) in barcode_string.split(",").enumerate() {
+        for (index, single_barcode) in barcode_string.split(',').enumerate() {
             let mut single_barcode_string = String::new();
             // Recreate the new comma separated barcode with only one barcode
             for x in 0..barcode_num {
@@ -931,9 +931,9 @@ impl ResultsEnrichment {
     /// Adds the count to the double barcode enrichment hashmap
     pub fn add_double(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
         // get the number of barcodes to know homu much to iterate
-        let barcode_num = barcode_string.split(",").count();
+        let barcode_num = barcode_string.split(',').count();
         // split the barcodes into a vec from their comma separated form
-        let barcode_split = barcode_string.split(",").collect::<Vec<&str>>();
+        let barcode_split = barcode_string.split(',').collect::<Vec<&str>>();
         // iterate through the number of barcode_num - 1, and take this index for the first barcode
         for first_barcode_index in 0..(barcode_num - 1) {
             // Get the amount needed to add to the first index in order to get the second index.  This is iterated to account for the second being the next barcode or two away etc. Eg from 1,2,3 = 1,2,, and 1,,3
