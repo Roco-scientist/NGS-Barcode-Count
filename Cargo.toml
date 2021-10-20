@@ -1,5 +1,6 @@
 [package]
 name = "barcode-count"
+description = "NGS barcode counter for DEL, CRISPR-seq, and Barcode-seq"
 version = "0.8.2"
 edition = "2018"
 license = "Apache-2.0"
