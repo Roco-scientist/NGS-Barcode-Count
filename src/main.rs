@@ -12,9 +12,9 @@ fn main() {
     let start_time = Local::now();
 
     // get the argument inputs
-    let mut args = barcode::Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
+    let mut args = barcode_count::Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
 
-    let sequence_format = barcode::info::SequenceFormat::new(args.format.clone())
+    let sequence_format = barcode_count::info::SequenceFormat::new(args.format.clone())
         .unwrap_or_else(|err| panic!("sequence format error: {}", err));
     println!("{}\n", sequence_format);
 
@@ -30,7 +30,7 @@ fn main() {
     }
 
     // Start getting the barcode conversion with the BarcodeConversions struct
-    let mut barcode_conversions = barcode::info::BarcodeConversions::new();
+    let mut barcode_conversions = barcode_count::info::BarcodeConversions::new();
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     if let Some(ref samples) = args.sample_barcodes_option {
         barcode_conversions
@@ -40,7 +40,7 @@ fn main() {
     }
 
     // Create a results struct that will contain the counts.  This is passed between threads
-    let results = Arc::new(Mutex::new(barcode::info::Results::new(
+    let results = Arc::new(Mutex::new(barcode_count::info::Results::new(
         &barcode_conversions.samples_barcode_hash,
         sequence_format.random_barcode,
     )));
@@ -54,13 +54,13 @@ fn main() {
     }
 
     // Create a sequencing errors Struct to track errors.  This is passed between threads
-    let sequence_errors = barcode::info::SequenceErrors::new();
+    let sequence_errors = barcode_count::info::SequenceErrors::new();
 
     // Create a passed exit passed variable to stop reading when a thread has panicked
     let exit = Arc::new(AtomicBool::new(false));
 
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
-    let max_errors = barcode::info::MaxSeqErrors::new(
+    let max_errors = barcode_count::info::MaxSeqErrors::new(
         args.sample_errors_option,
         sequence_format.sample_length_option().unwrap(),
         args.barcodes_errors_option,
@@ -88,7 +88,7 @@ fn main() {
         let fastq = args.fastq.clone();
         let total_reads_arc_clone = Arc::clone(&total_reads_arc);
         s.spawn(move |_| {
-            barcode::input::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone)
+            barcode_count::input::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone)
                 .unwrap_or_else(|err| {
                     finished_clone.store(true, Ordering::Relaxed);
                     panic!("Error: {}", err)
@@ -96,7 +96,7 @@ fn main() {
             finished_clone.store(true, Ordering::Relaxed);
         });
 
-        let shared_mut = barcode::parse::SharedMutData::new(seq, finished, Arc::clone(&results));
+        let shared_mut = barcode_count::parse::SharedMutData::new(seq, finished, Arc::clone(&results));
         // Create processing threads.  One less than the total threads because of the single reading thread
         for _ in 1..args.threads {
             // Clone all variables needed to pass into each thread
@@ -111,7 +111,7 @@ fn main() {
 
             // Create a processing thread
             s.spawn(move |_| {
-                let mut parser = barcode::parse::SequenceParser::new(
+                let mut parser = barcode_count::parse::SequenceParser::new(
                     shared_mut_clone,
                     sequence_errors_clone,
                     sequence_format_clone,
@@ -138,12 +138,12 @@ fn main() {
         elapsed_time.num_hours(),
         elapsed_time.num_minutes() % 60,
         elapsed_time.num_seconds() % 60,
-        barcode::output::millisecond_decimal(elapsed_time)
+        barcode_count::output::millisecond_decimal(elapsed_time)
     );
     println!();
 
     println!("-WRITING COUNTS-");
-    let mut output = barcode::output::WriteFiles::new(
+    let mut output = barcode_count::output::WriteFiles::new(
         results,
         sequence_format.clone_arcs(),
         barcode_conversions.counted_barcodes_hash,
@@ -173,6 +173,6 @@ fn main() {
         elapsed_time.num_hours(),
         elapsed_time.num_minutes() % 60,
         elapsed_time.num_seconds() % 60,
-        barcode::output::millisecond_decimal(elapsed_time)
+        barcode_count::output::millisecond_decimal(elapsed_time)
     );
 }
