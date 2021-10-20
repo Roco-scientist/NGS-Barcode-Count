@@ -41,7 +41,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 git clone https://github.com/Roco-scientist/NGS-Barcode-Count
 cd NGS-Barcode-Count
 cargo build --release
-mv ./target/release/barcode ./
+mv ./target/release/barcode-count ./
 ```
 
 ## Files Needed
@@ -163,7 +163,7 @@ After compilation, the `barcode` binary can be moved anywhere.
 Run DEL-Decode<br>
 
 ```
-barcode --fastq <fastq_file> \
+barcode-count --fastq <fastq_file> \
 	--sample_barcodes <sample_barcode_file> \
 	--sequence_format <sequence_format_file> \
 	--barcodes_file <barcodes_file> \

@@ -544,7 +544,7 @@ impl SequenceMatchResult {
 /// # Example
 ///
 /// ```
-/// use barcode::parse_sequences::fix_error;
+/// use barcode_count::parse::fix_error;
 ///
 /// let barcode = "AGTAG";
 ///
