@@ -35,7 +35,7 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-### NGS-Barcode-Count downoaded and compile
+### NGS-Barcode-Count downoad and compile
 
 ```
 cargo install barcode-count
