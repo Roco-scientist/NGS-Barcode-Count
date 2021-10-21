@@ -35,13 +35,10 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-### NGS-Barcode-Count downoaded and compiled
+### NGS-Barcode-Count downoaded and compile
 
 ```
-git clone https://github.com/Roco-scientist/NGS-Barcode-Count
-cd NGS-Barcode-Count
-cargo build --release
-mv ./target/release/barcode-count ./
+cargo install barcode-count
 ```
 
 ## Files Needed
