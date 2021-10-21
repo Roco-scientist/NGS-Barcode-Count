@@ -5,8 +5,8 @@ version = "0.8.2"
 edition = "2018"
 license = "Apache-2.0"
 readme = "README.md"
-keyword = ["DEL", "CRISPR-seq"]
-categories = ["Next Generation Sequencing", "DNA Encoded Library", "CRISPR-seq", "Barcode-seq"]
+keyword = ["DEL", "CRISPR-seq", "Barcode-seq", "NGS"]
+categories = ["science"]
 repository = "https://github.com/Roco-scientist/NGS-Barcode-Count"
 
 [[bin]]
