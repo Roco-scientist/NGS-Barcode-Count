@@ -13,7 +13,7 @@ pub struct Args {
     pub fastq: String,                          // fastq file path
     pub format: String,                         // format scheme file path
     pub sample_barcodes_option: Option<String>, // sample barcode file path.  Optional
-    pub barcodes_option: Option<String>,        // building block barcode file path. Optional
+    pub counted_barcodes_option: Option<String>,        // building block barcode file path. Optional
     pub output_dir: String,                     // output directory.  Deafaults to './'
     pub threads: u8, // Number of threads to use.  Defaults to number of threads on the machine
     pub prefix: String, // Prefix string for the output files
@@ -32,7 +32,7 @@ impl Args {
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
-        .version("0.8.3")
+        .version("0.8.4")
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts barcodes located in sequencing data")
         .arg(
@@ -59,11 +59,11 @@ impl Args {
                 .help("Sample barcodes file"),
         )
         .arg(
-            Arg::with_name("barcodes_file")
-                .short("b")
-                .long("barcodes_file")
+            Arg::with_name("counted_barcodes")
+                .short("c")
+                .long("counted_barcodes")
                 .takes_value(true)
-                .help("Building block barcodes file"),
+                .help("Counted barcodes file"),
         )
         .arg(
             Arg::with_name("threads")
@@ -142,11 +142,11 @@ impl Args {
             sample_barcodes_option = None
         }
 
-        let barcodes_option;
-        if let Some(barcodes) = args.value_of("barcodes_file") {
-            barcodes_option = Some(barcodes.to_string())
+        let counted_barcodes_option;
+        if let Some(barcodes) = args.value_of("counted_barcodes") {
+            counted_barcodes_option = Some(barcodes.to_string())
         } else {
-            barcodes_option = None
+            counted_barcodes_option = None
         }
 
         let barcodes_errors_option;
@@ -203,7 +203,7 @@ impl Args {
             fastq,
             format,
             sample_barcodes_option,
-            barcodes_option,
+            counted_barcodes_option,
             output_dir,
             threads,
             prefix,
