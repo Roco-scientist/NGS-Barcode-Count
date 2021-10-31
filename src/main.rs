@@ -46,7 +46,7 @@ fn main() {
     )));
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
-    if let Some(ref barcodes) = args.barcodes_option {
+    if let Some(ref barcodes) = args.counted_barcodes_option {
         barcode_conversions
             .barcode_file_conversion(barcodes, sequence_format.barcode_num)
             .unwrap();

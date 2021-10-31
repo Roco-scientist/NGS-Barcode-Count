@@ -547,7 +547,7 @@ impl WriteFiles {
                     .as_ref()
                     .unwrap_or(&"None".to_string()),
                 self.args
-                    .barcodes_option
+                    .counted_barcodes_option
                     .as_ref()
                     .unwrap_or(&"None".to_string())
             )

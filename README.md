@@ -161,9 +161,9 @@ Run DEL-Decode<br>
 
 ```
 barcode-count --fastq <fastq_file> \
-	--sample_barcodes <sample_barcode_file> \
+	--sample_barcodes <sample_barcodes_file> \
 	--sequence_format <sequence_format_file> \
-	--barcodes_file <barcodes_file> \
+	--counted_barcodes <counted_barcodes_file> \
 	--output_dir <output_dir> \
 	--prefix <file_prefix> \
 	--threads <num_of_threads> \
@@ -176,7 +176,7 @@ barcode-count --fastq <fastq_file> \
 <br>
 <ul>
 <li>
---barcodes_file is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
+--counted_barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
 </li>
 <li>
 --sample_barcodes is optional.  If it is not used, all samples are marked as unknown.
