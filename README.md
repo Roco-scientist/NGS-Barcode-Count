@@ -160,7 +160,7 @@ representing one of the three barcodes. For CRISPR or barcode seq, where there m
 After compilation, the `barcode` binary can be moved anywhere.
 <br>
 <br>
-Run DEL-Decode<br>
+Run NGS-Barcode-Count<br>
 
 ```
 barcode-count --fastq <fastq_file> \
