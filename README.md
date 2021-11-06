@@ -15,6 +15,9 @@ it is not counted.
 <br>
 Filtering by read quality score is also an option.  If used, each barcode has its read quality average calculated and if it is below the set threshold, the read is not counted.  The algorithm is defaulted to not filter unless the --min_quality argument is called.  See fastq documentation to understand read quality scores. The scores used are after ascii conversion and 33 subtraction.
 <br><br>
+If there is a random barcode included, sequences with a duplicated random barcode are not counted.
+<br>
+<br>
 Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/decode target="_blank" rel="noopener noreferrer">decode</a>
 
 ## Table of Contents

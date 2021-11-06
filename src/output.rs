@@ -148,7 +148,7 @@ impl WriteFiles {
                     .to_string();
                 file_name = format!("{}_{}{}", self.args.prefix, sample_name, "_counts.csv");
             } else {
-                file_name = format!("{}{}", self.args.prefix, "_all_counts.csv");
+                file_name = format!("{}{}", self.args.prefix, "_barcode_counts.csv");
             }
             println!("{}", file_name);
             self.output_files.push(file_name.clone());
