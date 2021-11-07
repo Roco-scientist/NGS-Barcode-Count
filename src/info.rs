@@ -146,7 +146,7 @@ impl fmt::Display for SequenceErrors {
             Correctly matched sequences: {}\n\
             Constant region mismatches:  {}\n\
             Sample barcode mismatches:   {}\n\
-            Barcode mismatches:          {}\n\
+            Counted barcode mismatches:  {}\n\
             Duplicates:                  {}\n\
             Low quality barcodes:        {}",
             self.matched
