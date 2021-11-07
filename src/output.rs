@@ -85,7 +85,7 @@ impl WriteFiles {
                 .collect::<Vec<String>>(),
         };
 
-        if self.args.double_barcode_enrichment || self.args.single_barcode_enrichment {
+        if self.args.enrich {
             self.results_enriched.add_sample_barcodes(&sample_barcodes);
         }
 
@@ -173,13 +173,12 @@ impl WriteFiles {
         if self.args.merge_output {
             self.output_counts.insert(0, self.merged_count);
         }
-        if self.args.single_barcode_enrichment {
+        if self.args.enrich {
             self.merged_count = 0;
             self.write_enriched_files(EnrichedType::Single)?;
-        }
-        if self.args.double_barcode_enrichment {
-            self.merged_count = 0;
-            self.write_enriched_files(EnrichedType::Double)?;
+            if self.sequence_format.barcode_num > 2 {
+                self.write_enriched_files(EnrichedType::Double)?;
+            }
         }
         Ok(())
     }
@@ -257,19 +256,19 @@ impl WriteFiles {
             // Create the row for the sample file and write
             let row = format!("{},{}\n", written_barcodes, random_barcodes.len());
             output.write_all(row.as_bytes())?;
-            if self.args.double_barcode_enrichment {
-                self.results_enriched.add_double(
-                    sample_barcode,
-                    &written_barcodes,
-                    random_barcodes.len() as u32,
-                )
-            }
-            if self.args.single_barcode_enrichment {
+            if self.args.enrich {
                 self.results_enriched.add_single(
                     sample_barcode,
                     &written_barcodes,
                     random_barcodes.len() as u32,
-                )
+                );
+                if self.sequence_format.barcode_num > 2 {
+                    self.results_enriched.add_double(
+                        sample_barcode,
+                        &written_barcodes,
+                        random_barcodes.len() as u32,
+                    )
+                }
             }
         }
         print!(
@@ -368,13 +367,13 @@ impl WriteFiles {
             output.write_all(row.as_bytes())?;
             // If enrichment type is Full, which is neither single nor double, and either single or double flag is called, add these to enriched results
             if enrichment == EnrichedType::Full {
-                if self.args.double_barcode_enrichment {
+                if self.args.enrich {
                     self.results_enriched
-                        .add_double(sample_barcode, &written_barcodes, *count)
-                }
-                if self.args.single_barcode_enrichment {
-                    self.results_enriched
-                        .add_single(sample_barcode, &written_barcodes, *count)
+                        .add_single(sample_barcode, &written_barcodes, *count);
+                    if self.sequence_format.barcode_num > 2 {
+                        self.results_enriched
+                            .add_double(sample_barcode, &written_barcodes, *count);
+                    }
                 }
             }
         }
