@@ -172,8 +172,7 @@ barcode-count --fastq <fastq_file> \
 	--threads <num_of_threads> \
 	--merge-output \
 	--min-quality <min_barcode_read_quality>\
-	--single\
-	--double\
+	--enrich
 ```
 
 <br>
@@ -200,10 +199,7 @@ barcode-count --fastq <fastq_file> \
 --min-quality will filter out reads where any of the barcodes have an average quality score below the threshold set here.  Default is 0 and no filtering.
 </li>
 <li>
---single argument flag that will find the counts for each barcode if there are 2 or more counted barcodes included, and output the file. Useful for DEL
-</li>
-<li>
---double argument flag that will find the counts for each pair of barcodes if there are 3 or more counted barcodes included, and output the file. Useful for DEL
+--enrich argument flag that will find the counts for each barcode if there are 2 or more counted barcodes included, and output the file. Also will do the same with double barcodes if there are 3+. Useful for DEL
 </li>
 </ul>
 
