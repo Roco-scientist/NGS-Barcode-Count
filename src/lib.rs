@@ -4,17 +4,17 @@ pub mod output;
 pub mod parse;
 
 use chrono::Local;
-use clap::{App, Arg};
+use clap::{crate_version, App, Arg};
 // use rayon::prelude::*;
 use std::error::Error;
 
 /// A struct that contains and initiates all input arguments
 pub struct Args {
-    pub fastq: String,                          // fastq file path
-    pub format: String,                         // format scheme file path
-    pub sample_barcodes_option: Option<String>, // sample barcode file path.  Optional
-    pub counted_barcodes_option: Option<String>,        // building block barcode file path. Optional
-    pub output_dir: String,                     // output directory.  Deafaults to './'
+    pub fastq: String,                           // fastq file path
+    pub format: String,                          // format scheme file path
+    pub sample_barcodes_option: Option<String>,  // sample barcode file path.  Optional
+    pub counted_barcodes_option: Option<String>, // building block barcode file path. Optional
+    pub output_dir: String,                      // output directory.  Deafaults to './'
     pub threads: u8, // Number of threads to use.  Defaults to number of threads on the machine
     pub prefix: String, // Prefix string for the output files
     pub merge_output: bool, // Whether or not to create an additional output file that merges all samples
@@ -22,8 +22,7 @@ pub struct Args {
     pub sample_errors_option: Option<u8>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
     pub constant_errors_option: Option<u8>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
     pub min_average_quality_score: f32,
-    pub double_barcode_enrichment: bool,
-    pub single_barcode_enrichment: bool,
+    pub enrich: bool,
 }
 
 impl Args {
@@ -32,7 +31,7 @@ impl Args {
         let today = Local::today().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
-        .version("0.8.6")
+        .version(crate_version!())
         .author("Rory Coffey <coffeyrt@gmail.com>")
         .about("Counts barcodes located in sequencing data")
         .arg(
@@ -44,24 +43,24 @@ impl Args {
                 .help("FASTQ file unzipped"),
         )
         .arg(
-            Arg::with_name("sequence_format")
+            Arg::with_name("format_file")
                 .short("q")
-                .long("sequence_format")
+                .long("sequence-format")
                 .takes_value(true)
                 .required(true)
                 .help("Sequence format file"),
         )
         .arg(
-            Arg::with_name("sample_barcodes")
+            Arg::with_name("sample_file")
                 .short("s")
-                .long("sample_barcodes")
+                .long("sample-barcodes")
                 .takes_value(true)
                 .help("Sample barcodes file"),
         )
         .arg(
-            Arg::with_name("counted_barcodes")
+            Arg::with_name("barcode_file")
                 .short("c")
-                .long("counted_barcodes")
+                .long("counted-barcodes")
                 .takes_value(true)
                 .help("Counted barcodes file"),
         )
@@ -74,9 +73,9 @@ impl Args {
                 .help("Number of threads"),
         )
         .arg(
-            Arg::with_name("output_dir")
+            Arg::with_name("dir")
                 .short("o")
-                .long("output_dir")
+                .long("output-dir")
                 .takes_value(true)
                 .default_value("./")
                 .help("Directory to output the counts to"),
@@ -90,45 +89,40 @@ impl Args {
                 .help("File prefix name.  THe output will end with '_<sample_name>_counts.csv'"),
         )
         .arg(
-            Arg::with_name("merge_output")
+            Arg::with_name("merge-output")
                 .short("m")
-                .long("merge_output")
+                .long("merge-output")
                 .takes_value(false)
                 .help("Merge sample output counts into a single file.  Not necessary when there is only one sample"),
         )
         .arg(
-            Arg::with_name("double")
-                .long("double")
+            Arg::with_name("enrich")
+                .long("enrich")
+                .short("e")
                 .takes_value(false)
-                .help("Output double barcode enrichment counts"),
+                .help("Create output files of enrichment for single and double synthons/barcodes"),
         )
         .arg(
-            Arg::with_name("single")
-                .long("single")
-                .takes_value(false)
-                .help("Output single barcode enrichment counts"),
-        )
-        .arg(
-            Arg::with_name("barcodes_errors")
-                .long("barcodes_errors")
+            Arg::with_name("max_barcode")
+                .long("max-errors-counted-barcode")
                 .takes_value(true)
                 .help("Maximimum number of sequence errors allowed within each counted barcode. Defaults to 20% of the total."),
         )
         .arg(
-            Arg::with_name("sample_errors")
-                .long("sample_errors")
+            Arg::with_name("max_sample")
+                .long("max-errors-sample")
                 .takes_value(true)
                 .help("Maximimum number of sequence errors allowed within sample barcode. Defaults to 20% of the total."),
         )
         .arg(
-            Arg::with_name("contant_errors")
-                .long("constant_errors")
+            Arg::with_name("max_constant")
+                .long("max-errors-constant")
                 .takes_value(true)
                 .help("Maximimum number of sequence errors allowed within constant region. Defaults to 20% of the total."),
         )
         .arg(
-            Arg::with_name("min_quality")
-                .long("min_quality")
+            Arg::with_name("min")
+                .long("min-quality")
                 .takes_value(true)
                 .default_value("0")
                 .help("Minimum average read quality score per barcode"),
@@ -136,65 +130,59 @@ impl Args {
         .get_matches();
 
         let sample_barcodes_option;
-        if let Some(sample) = args.value_of("sample_barcodes") {
+        if let Some(sample) = args.value_of("sample_file") {
             sample_barcodes_option = Some(sample.to_string())
         } else {
             sample_barcodes_option = None
         }
 
         let counted_barcodes_option;
-        if let Some(barcodes) = args.value_of("counted_barcodes") {
+        if let Some(barcodes) = args.value_of("barcode_file") {
             counted_barcodes_option = Some(barcodes.to_string())
         } else {
             counted_barcodes_option = None
         }
 
         let barcodes_errors_option;
-        if let Some(barcodes) = args.value_of("barcodes_errors") {
+        if let Some(barcodes) = args.value_of("max_barcode") {
             barcodes_errors_option = Some(barcodes.parse::<u8>()?)
         } else {
             barcodes_errors_option = None
         }
 
         let sample_errors_option;
-        if let Some(sample) = args.value_of("sample_errors") {
+        if let Some(sample) = args.value_of("max_sample") {
             sample_errors_option = Some(sample.parse::<u8>()?)
         } else {
             sample_errors_option = None
         }
 
         let constant_errors_option;
-        if let Some(constant) = args.value_of("constant_errors") {
+        if let Some(constant) = args.value_of("max_constant") {
             constant_errors_option = Some(constant.parse::<u8>()?)
         } else {
             constant_errors_option = None
         }
 
         let merge_output;
-        if args.is_present("merge_output") {
+        if args.is_present("merge-output") {
             merge_output = true
         } else {
             merge_output = false
         }
-        let double_barcode_enrichment;
-        if args.is_present("double") {
-            double_barcode_enrichment = true
+        let enrich;
+        if args.is_present("enrich") {
+            enrich = true
         } else {
-            double_barcode_enrichment = false
-        }
-        let single_barcode_enrichment;
-        if args.is_present("single") {
-            single_barcode_enrichment = true
-        } else {
-            single_barcode_enrichment = false
+            enrich = false
         }
         let fastq = args.value_of("fastq").unwrap().to_string();
-        let format = args.value_of("sequence_format").unwrap().to_string();
-        let output_dir = args.value_of("output_dir").unwrap().to_string();
+        let format = args.value_of("format_file").unwrap().to_string();
+        let output_dir = args.value_of("dir").unwrap().to_string();
         let threads = args.value_of("threads").unwrap().parse::<u8>().unwrap();
         let prefix = args.value_of("prefix").unwrap().to_string();
         let min_average_quality_score = args
-            .value_of("min_quality")
+            .value_of("min")
             .unwrap()
             .parse::<f32>()
             .unwrap();
@@ -212,8 +200,7 @@ impl Args {
             sample_errors_option,
             constant_errors_option,
             min_average_quality_score,
-            double_barcode_enrichment,
-            single_barcode_enrichment,
+            enrich,
         })
     }
 }

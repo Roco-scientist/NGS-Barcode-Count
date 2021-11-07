@@ -164,28 +164,27 @@ Run NGS-Barcode-Count<br>
 
 ```
 barcode-count --fastq <fastq_file> \
-	--sample_barcodes <sample_barcodes_file> \
-	--sequence_format <sequence_format_file> \
-	--counted_barcodes <counted_barcodes_file> \
-	--output_dir <output_dir> \
+	--sample-barcodes <sample_barcodes_file> \
+	--sequence-format <sequence_format_file> \
+	--counted-barcodes <counted_barcodes_file> \
+	--output-dir <output_dir> \
 	--prefix <file_prefix> \
 	--threads <num_of_threads> \
-	--merge_output \
-	--min_quality <min_barcode_read_quality>\
-	--single\
-	--double\
+	--merge-output \
+	--min-quality <min_barcode_read_quality>\
+	--enrich
 ```
 
 <br>
 <ul>
 <li>
---counted_barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
+--counted-barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
 </li>
 <li>
---sample_barcodes is optional.  If it is not used, all samples are marked as unknown.
+--sample-barcodes is optional.  If it is not used, all samples are marked as unknown.
 </li>
 <li>
---output_dir defaults to the current directory if not used.
+--output-dir defaults to the current directory if not used.
 </li>
 <li>
 --prefix defaults to the current date.  All files end with _sample_name_counts.csv
@@ -194,16 +193,13 @@ barcode-count --fastq <fastq_file> \
 --threads defaults to the number of threads on the machine if not used.
 </li>
 <li>
---merge_output flag that merges the output csv file so that each sample has one column
+--merge-output flag that merges the output csv file so that each sample has one column
 </li>
 <li>
---min_quality will filter out reads where any of the barcodes have an average quality score below the threshold set here.  Default is 0 and no filtering.
+--min-quality will filter out reads where any of the barcodes have an average quality score below the threshold set here.  Default is 0 and no filtering.
 </li>
 <li>
---single argument flag that will find the counts for each barcode if there are 2 or more counted barcodes included, and output the file. Useful for DEL
-</li>
-<li>
---double argument flag that will find the counts for each pair of barcodes if there are 3 or more counted barcodes included, and output the file. Useful for DEL
+--enrich argument flag that will find the counts for each barcode if there are 2 or more counted barcodes included, and output the file. Also will do the same with double barcodes if there are 3+. Useful for DEL
 </li>
 </ul>
 
