@@ -257,7 +257,7 @@ If `--merge_output` is called, an additional file is created with the format (fo
 </table>
 
 An additional barcode_stats.txt file is also written/appended to the output folder.  This keeps track of running information.<br><br>
-If either `--single` or `--double` arguments are called, single or double barcode count files are ouptut.
+If the `--enrich` arguments is called, single and double barcode count files are ouptut.
 
 ## Uses
 
