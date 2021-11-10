@@ -276,7 +276,7 @@ the program will output the counted random barcode sequence and the associated c
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in about a half hour.
 Results below:
 ```
-jTotal sequences:             418,770,347
+Total sequences:             418,770,347
 Correctly matched sequences: 257,807,865
 Constant region mismatches:  151,955,695
 Sample barcode mismatches:   3,324,481
