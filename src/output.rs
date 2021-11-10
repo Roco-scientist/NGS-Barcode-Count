@@ -40,6 +40,8 @@ pub struct WriteFiles {
     output_files: Vec<String>,
     output_counts: Vec<usize>,
     merged_count: usize,
+    merge_text: String,
+    sample_text: String,
 }
 
 impl WriteFiles {
@@ -63,6 +65,8 @@ impl WriteFiles {
             output_files: Vec::new(),
             output_counts: Vec::new(),
             merged_count: 0,
+            merge_text: String::new(),
+            sample_text: String::new(),
         })
     }
 
@@ -121,13 +125,10 @@ impl WriteFiles {
                         .get(sample_barcode)
                         .unwrap_or(&unknown_sample);
                     merged_header.push(',');
-                    merged_header.push_str(sample_name);
+                    merged_header.push_str(&sample_name);
                 }
                 merged_header.push('\n');
-                self.merged_output_file_option
-                    .as_ref()
-                    .unwrap()
-                    .write_all(merged_header.as_bytes())?;
+                self.merge_text.push_str(&merged_header);
             } else {
                 eprintln!("Merged file cannot be created without multiple sample barcodes");
                 println!()
@@ -156,21 +157,24 @@ impl WriteFiles {
             let output_path = directory.join(file_name);
             let mut output = File::create(output_path)?; // Create the output file
 
-            output.write_all(header.as_bytes())?; // Write the header to the file
+            self.sample_text.push_str(&header);
             let count = match self.results.format_type {
                 crate::info::FormatType::RandomBarcode => {
-                    self.write_random(sample_barcode, &sample_barcodes, &mut output)?
+                    self.write_random(sample_barcode, &sample_barcodes)?
                 }
                 crate::info::FormatType::NoRandomBarcode => self.write_counts(
                     sample_barcode,
                     &sample_barcodes,
-                    &mut output,
                     EnrichedType::Full,
                 )?,
             };
+            output.write_all(self.sample_text.as_bytes())?;
+            self.sample_text.clear();
             self.output_counts.push(count);
         }
         if self.args.merge_output {
+            self.merged_output_file_option.as_ref().unwrap().write_all(self.merge_text.as_bytes())?;
+            self.merge_text.clear();
             self.output_counts.insert(0, self.merged_count);
         }
         if self.args.enrich {
@@ -203,7 +207,6 @@ impl WriteFiles {
         &mut self,
         sample_barcode: &str,
         sample_barcodes: &[String],
-        output: &mut File,
     ) -> Result<usize, Box<dyn Error>> {
         let sample_random_hash = self.results.random_hashmap.get(sample_barcode).unwrap();
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
@@ -226,7 +229,7 @@ impl WriteFiles {
             }
 
             // If merge output argument is called, pull data for the compound and write to merged file
-            if let Some(ref mut merged_output_file) = self.merged_output_file_option {
+            if self.merged_output_file_option.is_some() {
                 // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                 let new = self.compounds_written.insert(code.clone());
                 if new {
@@ -250,12 +253,12 @@ impl WriteFiles {
                     }
                     merged_row.push('\n');
                     // write to the merged file
-                    merged_output_file.write_all(merged_row.as_bytes())?;
+                    self.merge_text.push_str(&merged_row);
                 }
             }
             // Create the row for the sample file and write
             let row = format!("{},{}\n", written_barcodes, random_barcodes.len());
-            output.write_all(row.as_bytes())?;
+            self.sample_text.push_str(&row);
             if self.args.enrich {
                 self.results_enriched.add_single(
                     sample_barcode,
@@ -284,7 +287,6 @@ impl WriteFiles {
         &mut self,
         sample_barcode: &str,
         sample_barcodes: &[String],
-        output: &mut File,
         enrichment: EnrichedType, // In order to make this non redundant with writing single and double barcodes, this enum determines some aspects
     ) -> Result<usize, Box<dyn Error>> {
         let mut hash_holder: HashMap<String, HashMap<String, u32>> = HashMap::new(); // a hodler hash to hold the hashmap from sample_counts_hash for a longer lifetime.  Also used later
@@ -320,7 +322,7 @@ impl WriteFiles {
             }
 
             // If merge output argument is called, pull data for the compound and write to merged file
-            if let Some(ref mut merged_output_file) = self.merged_output_file_option {
+            if self.merged_output_file_option.is_some() {
                 // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                 let new = self.compounds_written.insert(code.clone());
                 if new {
@@ -359,12 +361,12 @@ impl WriteFiles {
                     }
                     merged_row.push('\n');
                     // write to the merged file
-                    merged_output_file.write_all(merged_row.as_bytes())?;
+                    self.merge_text.push_str(&merged_row);
                 }
             }
             // Create the row for the sample file and write
             let row = format!("{},{}\n", written_barcodes, count);
-            output.write_all(row.as_bytes())?;
+            self.sample_text.push_str(&row);
             // If enrichment type is Full, which is neither single nor double, and either single or double flag is called, add these to enriched results
             if enrichment == EnrichedType::Full {
                 if self.args.enrich {
@@ -443,13 +445,10 @@ impl WriteFiles {
                     .get(sample_barcode)
                     .unwrap_or(&unknown_sample);
                 merged_header.push(',');
-                merged_header.push_str(sample_name);
+                merged_header.push_str(&sample_name);
             }
             merged_header.push('\n');
-            self.merged_output_file_option
-                .as_ref()
-                .unwrap()
-                .write_all(merged_header.as_bytes())?;
+            self.merge_text.push_str(&merged_header);
         }
 
         // Crate the header to be used with each sample file.  This is just Barcode_1..Barcode_n and Count
@@ -478,18 +477,20 @@ impl WriteFiles {
             let output_path = directory.join(file_name);
             let mut output = File::create(output_path)?; // Create the output file
 
-            output.write_all(header.as_bytes())?; // Write the header to the file
+            self.sample_text.push_str(&header);
             let count = self.write_counts(
                 sample_barcode,
                 &sample_barcodes,
-                &mut output,
                 enrichment.clone(),
             )?;
             // add the counts to output to stats later
+            output.write_all(self.sample_text.as_bytes())?;
+            self.sample_text.clear();
             self.output_counts.push(count);
         }
         // Add the count of merged barcodes if the flag is called
         if self.args.merge_output {
+            self.merged_output_file_option.as_ref();
             self.output_counts.insert(
                 self.output_counts.len() - sample_barcodes.len(),
                 self.merged_count,
