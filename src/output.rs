@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     error::Error,
     fs::{File, OpenOptions},
-    io::Write,
+    io::{Write, stdout},
     path::Path,
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -34,7 +34,6 @@ pub struct WriteFiles {
     sequence_format: crate::info::SequenceFormat,
     counted_barcodes_hash: Vec<HashMap<String, String>>,
     samples_barcode_hash: HashMap<String, String>,
-    merged_output_file_option: Option<File>,
     compounds_written: HashSet<String>,
     args: crate::Args,
     output_files: Vec<String>,
@@ -59,7 +58,6 @@ impl WriteFiles {
             sequence_format,
             counted_barcodes_hash,
             samples_barcode_hash,
-            merged_output_file_option: None,
             compounds_written: HashSet::new(),
             args,
             output_files: Vec::new(),
@@ -110,13 +108,7 @@ impl WriteFiles {
         // If merged called, create the header with the sample names as columns and write
         if self.args.merge_output {
             if !self.samples_barcode_hash.is_empty() {
-                // Create the merge file and push the header, if merged called within arguments
-                let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
-                println!("{}", merged_file_name);
-                self.output_files.push(merged_file_name.clone());
-                let merged_output_path = directory.join(merged_file_name);
-
-                self.merged_output_file_option = Some(File::create(merged_output_path)?);
+                // Create the merge file and push the header
                 let mut merged_header = header.clone();
                 for sample_barcode in &sample_barcodes {
                     // Get the sample name from the sample barcode
@@ -125,7 +117,7 @@ impl WriteFiles {
                         .get(sample_barcode)
                         .unwrap_or(&unknown_sample);
                     merged_header.push(',');
-                    merged_header.push_str(&sample_name);
+                    merged_header.push_str(sample_name);
                 }
                 merged_header.push('\n');
                 self.merge_text.push_str(&merged_header);
@@ -155,30 +147,39 @@ impl WriteFiles {
             self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
             let output_path = directory.join(file_name);
-            let mut output = File::create(output_path)?; // Create the output file
 
             self.sample_text.push_str(&header);
             let count = match self.results.format_type {
                 crate::info::FormatType::RandomBarcode => {
-                    self.write_random(sample_barcode, &sample_barcodes)?
+                    self.add_random_string(sample_barcode, &sample_barcodes)?
                 }
-                crate::info::FormatType::NoRandomBarcode => self.write_counts(
+                crate::info::FormatType::NoRandomBarcode => self.add_counts_string(
                     sample_barcode,
                     &sample_barcodes,
                     EnrichedType::Full,
                 )?,
             };
+            let mut output = File::create(output_path)?; // Create the output file
             output.write_all(self.sample_text.as_bytes())?;
             self.sample_text.clear();
             self.output_counts.push(count);
         }
         if self.args.merge_output {
-            self.merged_output_file_option.as_ref().unwrap().write_all(self.merge_text.as_bytes())?;
+            let merged_file_name = format!("{}{}", self.args.prefix, "_counts.all.csv");
+            println!("{}", merged_file_name);
+            println!(
+                "Barcodes counted: {}",
+                self.merged_count.to_formatted_string(&Locale::en)
+            );
+            self.output_files.push(merged_file_name.clone());
+            let merged_output_path = directory.join(merged_file_name);
+            let mut merged_output_file = File::create(merged_output_path)?;
+            merged_output_file.write_all(self.merge_text.as_bytes())?;
             self.merge_text.clear();
             self.output_counts.insert(0, self.merged_count);
+            self.merged_count = 0;
         }
         if self.args.enrich {
-            self.merged_count = 0;
             self.write_enriched_files(EnrichedType::Single)?;
             if self.sequence_format.barcode_num > 2 {
                 self.write_enriched_files(EnrichedType::Double)?;
@@ -203,7 +204,7 @@ impl WriteFiles {
     }
 
     /// Writes the files for when a random barcode is included
-    fn write_random(
+    fn add_random_string(
         &mut self,
         sample_barcode: &str,
         sample_barcodes: &[String],
@@ -219,6 +220,7 @@ impl WriteFiles {
                     "Barcodes counted: {}\r",
                     barcode_num.to_formatted_string(&Locale::en)
                 );
+                stdout().flush()?;
             }
             let written_barcodes;
             if !self.counted_barcodes_hash.is_empty() {
@@ -229,7 +231,7 @@ impl WriteFiles {
             }
 
             // If merge output argument is called, pull data for the compound and write to merged file
-            if self.merged_output_file_option.is_some() {
+            if self.args.merge_output {
                 // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                 let new = self.compounds_written.insert(code.clone());
                 if new {
@@ -283,7 +285,7 @@ impl WriteFiles {
     }
 
     /// Writes the files for when a random barcode is not included
-    fn write_counts(
+    fn add_counts_string(
         &mut self,
         sample_barcode: &str,
         sample_barcodes: &[String],
@@ -312,6 +314,7 @@ impl WriteFiles {
                     "Barcodes counted: {}\r",
                     barcode_num.to_formatted_string(&Locale::en)
                 );
+                stdout().flush()?;
             }
             let written_barcodes;
             if enrichment == EnrichedType::Full && !self.counted_barcodes_hash.is_empty() {
@@ -322,7 +325,7 @@ impl WriteFiles {
             }
 
             // If merge output argument is called, pull data for the compound and write to merged file
-            if self.merged_output_file_option.is_some() {
+            if self.args.merge_output {
                 // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
                 let new = self.compounds_written.insert(code.clone());
                 if new {
@@ -367,16 +370,17 @@ impl WriteFiles {
             // Create the row for the sample file and write
             let row = format!("{},{}\n", written_barcodes, count);
             self.sample_text.push_str(&row);
-            // If enrichment type is Full, which is neither single nor double, and either single or double flag is called, add these to enriched results
-            if enrichment == EnrichedType::Full {
-                if self.args.enrich {
+            // If enrichment type is Full, which is neither single nor double for adding string,
+            // and enrich is called.  Add 1 and 2 synthon enrichment.  This is becuase this smae
+            // method is called to create the 1 and 2 synthon strings, and therefore should only
+            // run when Full is used
+            if enrichment == EnrichedType::Full && self.args.enrich {
                     self.results_enriched
                         .add_single(sample_barcode, &written_barcodes, *count);
                     if self.sequence_format.barcode_num > 2 {
                         self.results_enriched
                             .add_double(sample_barcode, &written_barcodes, *count);
                     }
-                }
             }
         }
         print!(
@@ -430,13 +434,6 @@ impl WriteFiles {
         let mut header = self.create_header();
         // If merged called, create the header with the sample names as columns and write
         if self.args.merge_output {
-            // Create the merge file and push the header, if merged called within arguments
-            let merged_file_name = format!("{}_counts.all.{}.csv", self.args.prefix, descriptor);
-            println!("{}", merged_file_name);
-            self.output_files.push(merged_file_name.clone());
-            let merged_output_path = directory.join(merged_file_name);
-
-            self.merged_output_file_option = Some(File::create(merged_output_path)?);
             let mut merged_header = header.clone();
             for sample_barcode in &sample_barcodes {
                 // Get the sample name from the sample barcode
@@ -445,7 +442,7 @@ impl WriteFiles {
                     .get(sample_barcode)
                     .unwrap_or(&unknown_sample);
                 merged_header.push(',');
-                merged_header.push_str(&sample_name);
+                merged_header.push_str(sample_name);
             }
             merged_header.push('\n');
             self.merge_text.push_str(&merged_header);
@@ -475,26 +472,38 @@ impl WriteFiles {
             self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
             let output_path = directory.join(file_name);
-            let mut output = File::create(output_path)?; // Create the output file
 
             self.sample_text.push_str(&header);
-            let count = self.write_counts(
+            let count = self.add_counts_string(
                 sample_barcode,
                 &sample_barcodes,
                 enrichment.clone(),
             )?;
-            // add the counts to output to stats later
+            let mut output = File::create(output_path)?; // Create the output file
             output.write_all(self.sample_text.as_bytes())?;
             self.sample_text.clear();
+            // add the counts to output to stats later
             self.output_counts.push(count);
         }
         // Add the count of merged barcodes if the flag is called
         if self.args.merge_output {
-            self.merged_output_file_option.as_ref();
+            // Create the merge file and push the header, if merged called within arguments
+            let merged_file_name = format!("{}_counts.all.{}.csv", self.args.prefix, descriptor);
+            println!("{}", merged_file_name);
+            self.output_files.push(merged_file_name.clone());
+            let merged_output_path = directory.join(merged_file_name);
+            let mut merged_output_file = File::create(merged_output_path)?;
+            merged_output_file.write_all(self.merge_text.as_bytes())?;
+            println!(
+                "Barcodes counted: {}",
+                self.merged_count.to_formatted_string(&Locale::en)
+            );
+            self.merge_text.clear();
             self.output_counts.insert(
                 self.output_counts.len() - sample_barcodes.len(),
                 self.merged_count,
             );
+            self.merged_count = 0;
         }
         Ok(())
     }
@@ -527,8 +536,8 @@ impl WriteFiles {
         stat_file.write_all(
             format!(
                 "-TIME INFORMATION-\nStart: {}\nFinish: {}\nTotal time: {} hours, {} minutes, {}.{} seconds\n\n",
-                start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
-                now.format("%Y-%m-%d %H:%M:%S").to_string(),
+                start_time.format("%Y-%m-%d %H:%M:%S"),
+                now.format("%Y-%m-%d %H:%M:%S"),
                 elapsed_time.num_hours(),
                 elapsed_time.num_minutes() % 60,
                 elapsed_time.num_seconds() % 60,
