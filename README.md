@@ -204,7 +204,7 @@ barcode-count --fastq <fastq_file> \
 </ul>
 
 ### Output files
-Each sample name will get a file in the default format of year-month-day_<sample_name>_counts.csv in the following format (for 3 building blocks):
+Each sample name will get a file in the default format of year-month-day_<sample_name>_counts.csv in the following format (for 3 counted barcodes):
 <table>
 <tr>
 <th>Barcode_1</th>
@@ -226,7 +226,7 @@ Each sample name will get a file in the default format of year-month-day_<sample
 </tr>
 </table>
 
-Where Barcode_ID is used if there is a building block conversion file, otherwise the DNA code is used. `#` represents the count number<br><br>
+Where Barcode_ID is used if there is a counted barcode conversion file, otherwise the DNA code is used. `#` represents the count number<br><br>
 If `--merge_output` is called, an additional file is created with the format (for 3 samples):
 
 <table>
