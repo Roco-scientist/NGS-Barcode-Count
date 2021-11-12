@@ -46,7 +46,8 @@ pub fn read_fastq(
 
         // go line by line
         for line_result in BufReader::new(fastq_file).lines() {
-            let line = line_result?;
+            let mut line = line_result?;
+            line.push('\n');
             // post the line to the shared vector and keep track of the number of sequences etc
             fastq_line_reader.read(line)?;
             if fastq_line_reader.line_num == 4 {
@@ -72,7 +73,7 @@ pub fn read_fastq(
             // move the read line to the line variable and get the response to check if it is 0 and therefore the file is done
             read_response = reader.read_line(&mut line)?;
             // post the line to the shared vector and keep track of the number of sequences etc
-            fastq_line_reader.read(line.replace('\n', ""))?;
+            fastq_line_reader.read(line)?;
             if fastq_line_reader.line_num == 4 {
                 fastq_line_reader.post()?;
             }
@@ -131,13 +132,13 @@ impl FastqLineReader {
             self.total_reads += 1;
             self.raw_sequence_read_string = line;
         } else {
-            self.raw_sequence_read_string.push('\n');
             self.raw_sequence_read_string.push_str(&line);
         }
         Ok(())
     }
 
     pub fn post(&mut self) -> Result<(), Box<dyn Error>> {
+        self.raw_sequence_read_string.pop(); // removes the last \n
         // Insert the sequence into the vec.  This will be popped out by other threads
         if self.test {
             crate::parse::RawSequenceRead::unpack(self.raw_sequence_read_string.clone())?
