@@ -303,11 +303,11 @@ Counted barcode mismatches:  5,682,306
 Duplicates:                  0
 Low quality barcodes:        0
 
-Compute time: 0 hours, 50 minutes, 28.203 seconds
+Compute time: 0 hours, 28 minutes, 43.359 seconds
 
 -WRITING COUNTS-
 
-Total time: 0 hours, 50 minutes, 53.416 seconds
+Total time: 0 hours, 29 minutes, 8.219 seconds
 ```
 
 ## Notes
