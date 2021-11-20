@@ -40,7 +40,7 @@ impl Args {
                 .long("fastq")
                 .takes_value(true)
                 .required(true)
-                .help("FASTQ file unzipped"),
+                .help("FastQ file"),
         )
         .arg(
             Arg::with_name("format_file")
