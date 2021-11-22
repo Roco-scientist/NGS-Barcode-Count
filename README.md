@@ -52,7 +52,7 @@ Currently supports FASTQ, sequence format, sample barcode conversion, and buildi
 
 
 ### Fastq File
-Accepts unzipped fastq files.\
+Accepts unzipped fastq files.  
 Accepts gzipped fastq files, but if the program stops before the expected number of sequencing reads, unzip and rerun.
 
 ### Sequence Format File
@@ -115,7 +115,6 @@ barcode-count --fastq <fastq_file> \
 	--min-quality <min_barcode_read_quality>\
 	--enrich
 ```
-
   
 - --counted-barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
 - --sample-barcodes is optional.  If it is not used, all samples are marked as unknown.
