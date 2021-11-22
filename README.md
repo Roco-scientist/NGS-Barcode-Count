@@ -22,14 +22,12 @@ If there is a random barcode included, sequences with a duplicated random barcod
 Inspired by and some ideas adopted from [decode](https://github.com/sunghunbae/decode)
 
 ## Table of Contents
-<ul>
-<li><a href=#installation>Installation</a></li>
-<li><a href=#files-needed>Files Needed</a></li>
-<li><a href=#run>Run</a></li>
-<li><a href=#uses>Uses</a></li>
-<li><a href=#test-results>Test Results</a></li>
-<li><a href=#notes>Notes</a></li>
-</ul>
+- [Installation](#installation)
+- [Files Needed](#files-needed)
+- [Run](#run)
+- [Uses](#uses)
+- [Test Results](#test-results)
+- [Notes](#notes)
 
 ## Installation
 
@@ -47,20 +45,18 @@ cargo install barcode-count
 
 ## Files Needed
 Currently supports FASTQ, sequence format, sample barcode conversion, and building block barcode conversion.
-<ul>
-<li><a href=#fastq-file>FASTQ</a></li>
-<li><a href=#sequence-format-file>Sequence format file</a></li>
-<li><a href=#sample-barcode-file>Sample barcode file (optional)</a></li>
-<li><a href=#counted-barcode-conversion-file>Counted barcode conversion file (optional)</a></li>
-</ul>
+- [FASTQ](#fastq-file)
+- [Sequence format file](#sequence-format-file)
+- [Sample barcode file (optional)](#sample-barcode-file)
+- [Counted barcode conversion file (optional)](#counted-barcode-conversion-file)
 
 
 ### Fastq File
-Accepts unzipped fastq files.\
+Accepts unzipped fastq files.  
 Accepts gzipped fastq files, but if the program stops before the expected number of sequencing reads, unzip and rerun.
 
 ### Sequence Format File
-The sequence format file should be a text file that is line separated by the type of format.  The following is supported where the '#' should be replaced by the number of nucleotides corresponding to the barcode:\
+The sequence format file should be a text file that is line separated by the type of format.  The following is supported where the '#' should be replaced by the number of nucleotides corresponding to the barcode:  
 <table>
 <tr>
 <th>Sequence Type</th>
@@ -91,7 +87,7 @@ An example can be found in [scheme.example.txt](scheme.example.txt).  Since the 
 
 ### Sample Barcode File
 **Optional**\
-The sample_barcode_file is a comma separate file with the following format:\
+The sample_barcode_file is a comma separate file with the following format:  
 <table>
 <tr>
 <th>Barcode</th>
@@ -111,7 +107,7 @@ An example can be found in [sample_barcode.example.csv](sample_barcode.example.c
 
 ### Counted Barcode Conversion File
 **Optional**\
-The barcode_file is a comma separate file with the following format:\
+The barcode_file is a comma separate file with the following format:  
 <table>
 <tr>
 <th>Barcode</th>
@@ -162,7 +158,7 @@ representing one of the three barcodes. For CRISPR or barcode seq, where there m
 After compilation, the `barcode` binary can be moved anywhere.
 \
 \
-Run NGS-Barcode-Count\
+Run NGS-Barcode-Count  
 
 ```
 barcode-count --fastq <fastq_file> \
@@ -177,33 +173,15 @@ barcode-count --fastq <fastq_file> \
 	--enrich
 ```
 
-\
-<ul>
-<li>
---counted-barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
-</li>
-<li>
---sample-barcodes is optional.  If it is not used, all samples are marked as unknown.
-</li>
-<li>
---output-dir defaults to the current directory if not used.
-</li>
-<li>
---prefix defaults to the current date.  All files end with _sample_name_counts.csv
-</li>
-<li>
---threads defaults to the number of threads on the machine if not used.
-</li>
-<li>
---merge-output flag that merges the output csv file so that each sample has one column
-</li>
-<li>
---min-quality will filter out reads where any of the barcodes have an average quality score below the threshold set here.  Default is 0 and no filtering.
-</li>
-<li>
---enrich argument flag that will find the counts for each barcode if there are 2 or more counted barcodes included, and output the file. Also will do the same with double barcodes if there are 3+. Useful for DEL
-</li>
-</ul>
+
+- --counted-barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
+- --sample-barcodes is optional.  If it is not used, all samples are marked as unknown.
+- --output-dir defaults to the current directory if not used.
+- --prefix defaults to the current date.  All files end with _sample_name_counts.csv
+- --threads defaults to the number of threads on the machine if not used.
+- --merge-output flag that merges the output csv file so that each sample has one column
+- --min-quality will filter out reads where any of the barcodes have an average quality score below the threshold set here.  Default is 0 and no filtering.
+- --enrich argument flag that will find the counts for each barcode if there are 2 or more counted barcodes included, and output the file. Also will do the same with double barcodes if there are 3+. Useful for DEL
 
 ### Output files
 Each sample name will get a file in the default format of year-month-day_<sample_name>_counts.csv in the following format (for 3 counted barcodes):
@@ -276,7 +254,8 @@ the program will output the counted random barcode sequence and the associated c
 
 ## Tests results
 On an 8 threaded i7-4790K CPU @ 4.00GHz with 16gb RAM, this algorithm was able to decode over 400 million sequencing reads in about a half hour.
-Results below: <br><br>
+Results below:  
+\
 Unzipped fastq:
 ```
 Total sequences:             418,770,347
