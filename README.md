@@ -2,23 +2,24 @@
 Fast and memory efficient DNA barcode counter and decoder for next generation sequencing data.  Includes error handling and a sequencing quality filter.  Works for DEL (DNA encoded libraries), high throughput CRISPR sequencing, barcode sequencing.  If the barcode file is included, the program will convert to barcode names and correct for errors. If a random barcode is included to collapse PCR duplicates, these duplicates will not be counted.  Parsing over 400 million sequencing reads took under a half hour with 8 threads and around 2GB of RAM use.<br>
 \
 \
-For DEL analysis, a companion python package was created: <a href=https://github.com/Roco-scientist/DEL-Analysis>DEL-Analysis</a>
-<br>
-<br>
+For DEL analysis, a companion python package was created: [DEL-Analysis](https://github.com/Roco-scientist/DEL-Analysis)
+\
+\
 Multithreaded and low resource use.  Uses one thread to read and the rest to process the data, so at least a 2 threaded machine is essential.
 This program does not store all data within RAM but instead sequentially processes the sequencing data in order to remain memory efficient.  
-<br>
-<br>
+\
+\
 Error handling is defaulted at 20% maximum sequence error per constant region and barcode. This can be changed through CLI arguments.  The algorithm fixes any sequenced constant region or barcode with the best match possible.  If there are two or more best matches,
 it is not counted.
-<br>
-<br>
+\
+\
 Filtering by read quality score is also an option.  If used, each barcode has its read quality average calculated and if it is below the set threshold, the read is not counted.  The algorithm is defaulted to not filter unless the --min_quality argument is called.  See fastq documentation to understand read quality scores. The scores used are after ascii conversion and 33 subtraction.
-<br><br>
+\
+\
 If there is a random barcode included, sequences with a duplicated random barcode are not counted.
-<br>
-<br>
-Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/decode target="_blank" rel="noopener noreferrer">decode</a>
+\
+\
+Inspired by and some ideas adopted from [decode](https://github.com/sunghunbae/decode)
 
 ## Table of Contents
 <ul>
@@ -32,7 +33,7 @@ Inspired by and some ideas adopted from <a href=https://github.com/sunghunbae/de
 
 ## Installation
 
-### Rust installed locally: <a href=https://www.rust-lang.org/tools/install target="_blank" rel="noopener noreferrer">instructions here</a>
+### Rust installed locally: [instructions here](https://www.rust-lang.org/tools/install)
 
 ```
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -55,11 +56,11 @@ Currently supports FASTQ, sequence format, sample barcode conversion, and buildi
 
 
 ### Fastq File
-Accepts unzipped fastq files.<br>
+Accepts unzipped fastq files.\
 Accepts gzipped fastq files, but if the program stops before the expected number of sequencing reads, unzip and rerun.
 
 ### Sequence Format File
-The sequence format file should be a text file that is line separated by the type of format.  The following is supported where the '#' should be replaced by the number of nucleotides corresponding to the barcode:<br>
+The sequence format file should be a text file that is line separated by the type of format.  The following is supported where the '#' should be replaced by the number of nucleotides corresponding to the barcode:\
 <table>
 <tr>
 <th>Sequence Type</th>
@@ -89,8 +90,8 @@ The sequence format file should be a text file that is line separated by the typ
 An example can be found in [scheme.example.txt](scheme.example.txt).  Since the algorthm uses a regex search to find the scheme, the scheme can exist anywhere within the sequence read.
 
 ### Sample Barcode File
-<b>Optional</b><br>
-The sample_barcode_file is a comma separate file with the following format:<br>
+**Optional**\
+The sample_barcode_file is a comma separate file with the following format:\
 <table>
 <tr>
 <th>Barcode</th>
@@ -109,8 +110,8 @@ The sample_barcode_file is a comma separate file with the following format:<br>
 An example can be found in [sample_barcode.example.csv](sample_barcode.example.csv).
 
 ### Counted Barcode Conversion File
-<b>Optional</b><br>
-The barcode_file is a comma separate file with the following format:<br>
+**Optional**\
+The barcode_file is a comma separate file with the following format:\
 <table>
 <tr>
 <th>Barcode</th>
@@ -149,8 +150,9 @@ The barcode_file is a comma separate file with the following format:<br>
 </tr>
 </table>
 
-An example can be found in [barcode.example.csv](barcode.example.csv).<br><br>
-
+An example can be found in [barcode.example.csv](barcode.example.csv).
+\
+\
 Where the first column is the DNA barcode, the second column is the barcode ID which can be a smile string for DEL, CRISPR target ID, etc. but cannot contain commas. 
 The last column is the barcode number as an integer.  The barcode numbers are in the same order as the sequence format file and starting
 at 1. For example, if there are a total of 3 barcodes, which may be the case with DEL, you would only have 1, 2, or 3 within this column for each row, with each number
@@ -158,9 +160,9 @@ representing one of the three barcodes. For CRISPR or barcode seq, where there m
 
 ## Run
 After compilation, the `barcode` binary can be moved anywhere.
-<br>
-<br>
-Run NGS-Barcode-Count<br>
+\
+\
+Run NGS-Barcode-Count\
 
 ```
 barcode-count --fastq <fastq_file> \
@@ -175,7 +177,7 @@ barcode-count --fastq <fastq_file> \
 	--enrich
 ```
 
-<br>
+\
 <ul>
 <li>
 --counted-barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
