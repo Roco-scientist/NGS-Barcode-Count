@@ -1,7 +1,7 @@
 # NGS-Barcode-Count
 Fast and memory efficient DNA barcode counter and decoder for next generation sequencing data.  Includes error handling and a sequencing quality filter.  Works for DEL (DNA encoded libraries), high throughput CRISPR sequencing, barcode sequencing.  If the barcode file is included, the program will convert to barcode names and correct for errors. If a random barcode is included to collapse PCR duplicates, these duplicates will not be counted.  Parsing over 400 million sequencing reads took under a half hour with 8 threads and around 2GB of RAM use.<br>
-<br>
-<br>
+\
+\
 For DEL analysis, a companion python package was created: <a href=https://github.com/Roco-scientist/DEL-Analysis>DEL-Analysis</a>
 <br>
 <br>
