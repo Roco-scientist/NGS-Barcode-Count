@@ -112,7 +112,7 @@ barcode-count --fastq <fastq_file> \
 ```
   
 - --counted-barcodes is optional.  If it is not used, the output counts uses the DNA barcode to count with no error handling on these barcodes.
-- --sample-barcodes is optional.  If it is not used, all samples are marked as unknown.
+- --sample-barcodes is optional.  If it is not used, the DNA barcode will be used if included within the sequence format. Otherwise no identifier will be used.
 - --output-dir defaults to the current directory if not used.
 - --prefix defaults to the current date.  All files end with _sample_name_counts.csv
 - --threads defaults to the number of threads on the machine if not used.
