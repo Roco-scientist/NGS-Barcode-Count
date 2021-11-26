@@ -39,6 +39,7 @@ fn main() {
     let results = Arc::new(Mutex::new(barcode_count::info::Results::new(
         &barcode_conversions.samples_barcode_hash,
         sequence_format.random_barcode,
+        sequence_format.sample_barcode,
     )));
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
