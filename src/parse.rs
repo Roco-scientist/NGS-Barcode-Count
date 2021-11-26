@@ -463,18 +463,22 @@ impl SequenceMatchResult {
         // If 'sample' is within the regex returned search continue with checking and fixing
         if let Some(sample_barcode_match) = barcodes.name("sample") {
             let sample_barcode_str = sample_barcode_match.as_str();
-            // If the sample barcode is known save it
-            if sample_seqs.contains(sample_barcode_str) {
+            if sample_seqs.is_empty() {
                 sample_barcode = sample_barcode_str.to_string();
             } else {
-                // Otherwise try and fix it.  If the fix returns none, then save the error and an empty string
-                let sample_barcode_fix_option =
-                    fix_error(sample_barcode_str, sample_seqs, sample_seqs_max_errors)?;
-                if let Some(fixed_barcode) = sample_barcode_fix_option {
-                    sample_barcode = fixed_barcode;
+                // If the sample barcode is known save it
+                if sample_seqs.contains(sample_barcode_str) {
+                    sample_barcode = sample_barcode_str.to_string();
                 } else {
-                    sample_barcode = String::new();
-                    sample_barcode_error = true;
+                    // Otherwise try and fix it.  If the fix returns none, then save the error and an empty string
+                    let sample_barcode_fix_option =
+                        fix_error(sample_barcode_str, sample_seqs, sample_seqs_max_errors)?;
+                    if let Some(fixed_barcode) = sample_barcode_fix_option {
+                        sample_barcode = fixed_barcode;
+                    } else {
+                        sample_barcode = String::new();
+                        sample_barcode_error = true;
+                    }
                 }
             }
         } else {

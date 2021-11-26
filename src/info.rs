@@ -182,6 +182,7 @@ pub struct SequenceFormat {
     pub barcode_num: usize,
     format_data: String,
     pub random_barcode: bool,
+    pub sample_barcode: bool,
     starts: Arc<Mutex<Vec<usize>>>,
     start_found: Arc<AtomicBool>,
     start: Arc<AtomicUsize>,
@@ -198,6 +199,7 @@ impl SequenceFormat {
 
         let regex_string = build_regex_captures(&format_data)?; // Build the regex string from the input format file information
         let random_barcode = regex_string.contains("random");
+        let sample_barcode = regex_string.contains("sample");
         let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
         let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
         let regions_string = build_regions_string(&format_data)?; // Create the string which indicates where the barcodes are located
@@ -214,6 +216,7 @@ impl SequenceFormat {
             barcode_num,
             format_data,
             random_barcode,
+            sample_barcode,
             starts: Arc::new(Mutex::new(Vec::new())),
             start_found: Arc::new(AtomicBool::new(false)),
             start: Arc::new(AtomicUsize::new(0)),
@@ -290,6 +293,7 @@ impl SequenceFormat {
             barcode_num: self.barcode_num,
             format_data: self.format_data.clone(),
             random_barcode: self.random_barcode,
+            sample_barcode: self.sample_barcode,
             starts: Arc::clone(&self.starts),
             start_found: Arc::clone(&self.start_found),
             start: Arc::clone(&self.start),
@@ -780,11 +784,17 @@ pub struct Results {
     pub count_hashmap: HashMap<String, HashMap<String, u32>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
     pub format_type: FormatType, // Whether it is with a random barcode or not
     empty_count_hash: HashMap<String, u32>, // An empty hashmap that is used a few times and therefor stored within the struct
+    empty_random_hash: HashMap<String, HashSet<String>>,
+    sample_conversion_omited: bool,
 }
 
 impl Results {
     /// Create a new Results struct
-    pub fn new(samples_barcode_hash: &HashMap<String, String>, random_barcode: bool) -> Self {
+    pub fn new(
+        samples_barcode_hash: &HashMap<String, String>,
+        random_barcode: bool,
+        sample_barcode: bool,
+    ) -> Self {
         // Record and keep the format type of whether or not the random barcode is included
         let format_type;
         if random_barcode {
@@ -801,16 +811,19 @@ impl Results {
         let empty_count_hash: HashMap<String, u32> = HashMap::new();
 
         // If sample name conversion was included, add all sample names to the hashmaps used to count
+        let mut sample_conversion_omited = false;
         if !samples_barcode_hash.is_empty() {
             for sample in samples_barcode_hash.keys() {
                 let sample_barcode = sample.to_string();
                 random_hashmap.insert(sample_barcode.clone(), empty_random_hash.clone());
                 count_hashmap.insert(sample_barcode, empty_count_hash.clone());
             }
-        } else {
+        } else if !sample_barcode {
             // If sample names are not included, insert unknown name into the hashmaps
-            random_hashmap.insert("Unknown_sample_name".to_string(), empty_random_hash);
-            count_hashmap.insert("Unknown_sample_name".to_string(), empty_count_hash.clone());
+            random_hashmap.insert("barcode".to_string(), empty_random_hash.clone());
+            count_hashmap.insert("barcode".to_string(), empty_count_hash.clone());
+        } else {
+            sample_conversion_omited = true;
         }
         // return the Results struct
         Results {
@@ -818,6 +831,8 @@ impl Results {
             count_hashmap,
             format_type,
             empty_count_hash,
+            empty_random_hash,
+            sample_conversion_omited,
         }
     }
 
@@ -828,10 +843,15 @@ impl Results {
         random_barcode: &str,
         barcode_string: String,
     ) -> bool {
+        if self.sample_conversion_omited && !self.random_hashmap.contains_key(sample_barcode) {
+            self.random_hashmap
+                .insert(sample_barcode.to_string(), self.empty_random_hash.clone());
+        };
+
         // Get the hashmap for the sample
         let barcodes_hashmap_option;
         if sample_barcode.is_empty() {
-            barcodes_hashmap_option = self.random_hashmap.get_mut("Unknown_sample_name");
+            barcodes_hashmap_option = self.random_hashmap.get_mut("barcode");
         } else {
             barcodes_hashmap_option = self.random_hashmap.get_mut(sample_barcode);
         }
@@ -864,6 +884,10 @@ impl Results {
 
     /// Adds to the count for the barcode_id connected to the sample. This is used when a random barcode is not included in the scheme
     pub fn add_count(&mut self, sample_barcode: &str, barcode_string: String) {
+        if self.sample_conversion_omited && !self.count_hashmap.contains_key(sample_barcode) {
+            self.count_hashmap
+                .insert(sample_barcode.to_string(), self.empty_count_hash.clone());
+        };
         // Insert 0 if the barcodes are not within the sample_name -> barcodes
         // Then add one regardless
         *self

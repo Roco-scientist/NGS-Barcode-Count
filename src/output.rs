@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     error::Error,
     fs::{File, OpenOptions},
-    io::{Write, stdout},
+    io::{stdout, Write},
     path::Path,
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -70,7 +70,7 @@ impl WriteFiles {
 
     /// Sets up and writes the results file.  Works for either with or without a random barcode
     pub fn write_counts_files(&mut self) -> Result<(), Box<dyn Error>> {
-        let unknown_sample = "Unknown_sample_name".to_string();
+        let unknown_sample = "barcode".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_barcodes = match self.results.format_type {
             crate::info::FormatType::RandomBarcode => self
@@ -107,23 +107,29 @@ impl WriteFiles {
         let mut header = self.create_header();
         // If merged called, create the header with the sample names as columns and write
         if self.args.merge_output {
-            if !self.samples_barcode_hash.is_empty() {
+            if sample_barcodes.len() == 1 {
+                eprintln!("Merged file cannot be created without multiple sample barcodes");
+                println!();
+                self.args.merge_output = false;
+            } else {
                 // Create the merge file and push the header
                 let mut merged_header = header.clone();
                 for sample_barcode in &sample_barcodes {
-                    // Get the sample name from the sample barcode
-                    let sample_name = self
-                        .samples_barcode_hash
-                        .get(sample_barcode)
-                        .unwrap_or(&unknown_sample);
+                    let sample_name;
+                    if self.samples_barcode_hash.is_empty() {
+                        sample_name = sample_barcode
+                    } else {
+                        // Get the sample name from the sample barcode
+                        sample_name = self
+                            .samples_barcode_hash
+                            .get(sample_barcode)
+                            .unwrap_or(&unknown_sample);
+                    }
                     merged_header.push(',');
                     merged_header.push_str(sample_name);
                 }
                 merged_header.push('\n');
                 self.merge_text.push_str(&merged_header);
-            } else {
-                eprintln!("Merged file cannot be created without multiple sample barcodes");
-                println!()
             }
         }
 
@@ -132,17 +138,16 @@ impl WriteFiles {
 
         // For each sample, write the counts file
         for sample_barcode in &sample_barcodes {
-            let file_name;
+            let sample_name;
             if !self.samples_barcode_hash.is_empty() {
-                let sample_name = self
+                sample_name = self
                     .samples_barcode_hash
                     .get(sample_barcode)
-                    .unwrap_or(&unknown_sample)
-                    .to_string();
-                file_name = format!("{}_{}{}", self.args.prefix, sample_name, "_counts.csv");
+                    .unwrap_or(&unknown_sample);
             } else {
-                file_name = format!("{}{}", self.args.prefix, "_barcode_counts.csv");
+                sample_name = sample_barcode
             }
+            let file_name = format!("{}_{}_counts.csv", self.args.prefix, sample_name);
             println!("{}", file_name);
             self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
@@ -153,11 +158,9 @@ impl WriteFiles {
                 crate::info::FormatType::RandomBarcode => {
                     self.add_random_string(sample_barcode, &sample_barcodes)?
                 }
-                crate::info::FormatType::NoRandomBarcode => self.add_counts_string(
-                    sample_barcode,
-                    &sample_barcodes,
-                    EnrichedType::Full,
-                )?,
+                crate::info::FormatType::NoRandomBarcode => {
+                    self.add_counts_string(sample_barcode, &sample_barcodes, EnrichedType::Full)?
+                }
             };
             let mut output = File::create(output_path)?; // Create the output file
             output.write_all(self.sample_text.as_bytes())?;
@@ -375,12 +378,12 @@ impl WriteFiles {
             // method is called to create the 1 and 2 synthon strings, and therefore should only
             // run when Full is used
             if enrichment == EnrichedType::Full && self.args.enrich {
+                self.results_enriched
+                    .add_single(sample_barcode, &written_barcodes, *count);
+                if self.sequence_format.barcode_num > 2 {
                     self.results_enriched
-                        .add_single(sample_barcode, &written_barcodes, *count);
-                    if self.sequence_format.barcode_num > 2 {
-                        self.results_enriched
-                            .add_double(sample_barcode, &written_barcodes, *count);
-                    }
+                        .add_double(sample_barcode, &written_barcodes, *count);
+                }
             }
         }
         print!(
@@ -393,7 +396,7 @@ impl WriteFiles {
 
     /// Write enriched files for either single or double barcodes if either flag is called
     fn write_enriched_files(&mut self, enrichment: EnrichedType) -> Result<(), Box<dyn Error>> {
-        let unknown_sample = "Unknown_sample_name".to_string();
+        let unknown_sample = "barcode".to_string();
         // Pull all sample IDs from either single or double hashmap, which was added to in either random or counts write
         let mut sample_barcodes = match enrichment {
             EnrichedType::Single => self
@@ -436,11 +439,16 @@ impl WriteFiles {
         if self.args.merge_output {
             let mut merged_header = header.clone();
             for sample_barcode in &sample_barcodes {
-                // Get the sample name from the sample barcode
-                let sample_name = self
-                    .samples_barcode_hash
-                    .get(sample_barcode)
-                    .unwrap_or(&unknown_sample);
+                let sample_name;
+                if self.samples_barcode_hash.is_empty() {
+                    sample_name = sample_barcode
+                } else {
+                    // Get the sample name from the sample barcode
+                    sample_name = self
+                        .samples_barcode_hash
+                        .get(sample_barcode)
+                        .unwrap_or(&unknown_sample);
+                }
                 merged_header.push(',');
                 merged_header.push_str(sample_name);
             }
@@ -454,31 +462,27 @@ impl WriteFiles {
         // For each sample, write the enriched file
         for sample_barcode in &sample_barcodes {
             // Create the file_name with the single or double descriptor
-            let file_name;
+            let sample_name;
             if !self.samples_barcode_hash.is_empty() {
-                let sample_name = self
+                sample_name = self
                     .samples_barcode_hash
                     .get(sample_barcode)
                     .unwrap_or(&unknown_sample)
-                    .to_string();
-                file_name = format!(
-                    "{}_{}_counts.{}.csv",
-                    self.args.prefix, sample_name, descriptor
-                );
             } else {
-                file_name = format!("{}_all_counts.{}.csv", self.args.prefix, descriptor);
+                sample_name = sample_barcode;
             }
+            let file_name = format!(
+                "{}_{}_counts.{}.csv",
+                self.args.prefix, sample_name, descriptor
+            );
             println!("{}", file_name);
             self.output_files.push(file_name.clone());
             // join the filename with the directory to create the full path
             let output_path = directory.join(file_name);
 
             self.sample_text.push_str(&header);
-            let count = self.add_counts_string(
-                sample_barcode,
-                &sample_barcodes,
-                enrichment.clone(),
-            )?;
+            let count =
+                self.add_counts_string(sample_barcode, &sample_barcodes, enrichment.clone())?;
             let mut output = File::create(output_path)?; // Create the output file
             output.write_all(self.sample_text.as_bytes())?;
             self.sample_text.clear();
@@ -630,6 +634,6 @@ pub fn convert_sample_barcode(
     if let Some(sample_results) = sample_barcodes_hash.get(sample_barcode) {
         sample_results.to_string()
     } else {
-        "Unknown_sample_name".to_string()
+        "barcode".to_string()
     }
 }

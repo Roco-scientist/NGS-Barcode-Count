@@ -181,11 +181,7 @@ impl Args {
         let output_dir = args.value_of("dir").unwrap().to_string();
         let threads = args.value_of("threads").unwrap().parse::<u8>().unwrap();
         let prefix = args.value_of("prefix").unwrap().to_string();
-        let min_average_quality_score = args
-            .value_of("min")
-            .unwrap()
-            .parse::<f32>()
-            .unwrap();
+        let min_average_quality_score = args.value_of("min").unwrap().parse::<f32>().unwrap();
 
         Ok(Args {
             fastq,
