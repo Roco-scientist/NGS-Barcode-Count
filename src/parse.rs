@@ -95,7 +95,7 @@ impl SequenceParser {
 
     /// Does a regex search and captures the barcodes.  Returns a struct of the results.  
     fn match_seq(&mut self) -> Result<Option<SequenceMatchResult>> {
-        self.check_and_fix_consant_region()?;
+        self.check_and_fix_consant_region();
         // if the barcodes are found continue, else return None and record a constant region error
         if let Some(barcodes) = self
             .sequence_format_clone
@@ -120,7 +120,9 @@ impl SequenceParser {
                         return Ok(None);
                     }
                 } else {
-                    return Err(anyhow!("Regex find failed after regex captures was successful"));
+                    return Err(anyhow!(
+                        "Regex find failed after regex captures was successful"
+                    ));
                 }
             }
 
@@ -132,7 +134,7 @@ impl SequenceParser {
                 self.max_errors_clone.max_barcode_errors(),
                 &self.sample_seqs,
                 self.max_errors_clone.max_sample_errors(),
-            )?;
+            );
 
             // If the sample barcode was not found, record the error and return none so that the algorithm stops for this sequence
             if match_results.sample_barcode_error {
@@ -154,7 +156,7 @@ impl SequenceParser {
     }
 
     /// Checks the constant region of the sequence then finds the best fix if it is not found.  Basically whether or not the regex search worked
-    fn check_and_fix_consant_region(&mut self) -> Result<()> {
+    fn check_and_fix_consant_region(&mut self) {
         // If the regex search does not work, try to fix the constant region
         if !self
             .sequence_format_clone
@@ -164,9 +166,8 @@ impl SequenceParser {
             self.raw_sequence.fix_constant_region(
                 &self.sequence_format_clone.format_string,
                 self.max_errors_clone.max_constant_errors(),
-            )?;
+            );
         }
-        Ok(())
     }
 }
 
@@ -246,7 +247,13 @@ impl RawSequenceRead {
             2 => self.sequence = line,
             3 => self.add_description = line,
             4 => self.quality_values = line,
-            _ => return Err(anyhow!("Too many new lines found within fastq read\nCurrent read\n{}\nCurrent line: {}", self, line)),
+            _ => {
+                return Err(anyhow!(
+                "Too many new lines found within fastq read\nCurrent read\n{}\nCurrent line: {}",
+                self,
+                line
+            ))
+            }
         }
         Ok(())
     }
@@ -289,7 +296,7 @@ impl RawSequenceRead {
         &mut self,
         format_string: &str,
         max_constant_errors: u8,
-    ) -> Result<()> {
+    ) {
         // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
         // Get the length difference between what was sequenced and the barcode region with constant regions
         // This is to stop the iteration in the next step
@@ -308,14 +315,12 @@ impl RawSequenceRead {
             possible_seqs.push(possible_seq);
         }
         // Find the closest match within what was sequenced to the constant region
-        let best_sequence_option = fix_error(format_string, &possible_seqs, max_constant_errors)?;
+        let best_sequence_option = fix_error(format_string, &possible_seqs, max_constant_errors);
 
         if let Some(best_sequence) = best_sequence_option {
             self.insert_barcodes_constant_region(format_string, best_sequence);
-            Ok(())
         } else {
             self.sequence = "".to_string();
-            Ok(())
         }
     }
 
@@ -403,10 +408,11 @@ impl RawSequenceRead {
 
 impl fmt::Display for RawSequenceRead {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, 
+        write!(
+            f,
             "Line 1: {}\nLine 2: {}\nLine 3: {}\nLine 4: {}",
             self.description, self.sequence, self.add_description, self.quality_values
-            )
+        )
     }
 }
 
@@ -449,7 +455,7 @@ impl SequenceMatchResult {
         counted_barcode_max_errors: &[u8], // The maximum errors allowed for each counted barcode
         sample_seqs: &HashSet<String>, // A hashset of all known sample barcodes. Will be empty if none are known or included
         sample_seqs_max_errors: u8,    // Maximum allowed sample barcode sequencing errors
-    ) -> Result<SequenceMatchResult> {
+    ) -> SequenceMatchResult {
         // Check for sample barcode and start with setting error to false
         let mut sample_barcode_error = false;
         let sample_barcode;
@@ -465,7 +471,7 @@ impl SequenceMatchResult {
                 } else {
                     // Otherwise try and fix it.  If the fix returns none, then save the error and an empty string
                     let sample_barcode_fix_option =
-                        fix_error(sample_barcode_str, sample_seqs, sample_seqs_max_errors)?;
+                        fix_error(sample_barcode_str, sample_seqs, sample_seqs_max_errors);
                     if let Some(fixed_barcode) = sample_barcode_fix_option {
                         sample_barcode = fixed_barcode;
                     } else {
@@ -497,7 +503,7 @@ impl SequenceMatchResult {
                             &counted_barcode,
                             &counted_barcode_seqs[index],
                             counted_barcode_max_errors[index],
-                        )?;
+                        );
                         if let Some(fixed_barcode) = barcode_seq_fix_option {
                             counted_barcode = fixed_barcode;
                         } else {
@@ -520,13 +526,13 @@ impl SequenceMatchResult {
         } else {
             random_barcode = String::new()
         }
-        Ok(SequenceMatchResult {
+        SequenceMatchResult {
             sample_barcode,
             counted_barcodes,
             counted_barcode_error,
             sample_barcode_error,
             random_barcode,
-        })
+        }
     }
 
     /// Returns a comma separated counted barcodes string.  Perfect for CSV file writing
@@ -550,8 +556,8 @@ impl SequenceMatchResult {
 ///
 /// let max_mismatches = barcode.chars().count() as u8 / 5; // allow up to 20% mismatches
 ///
-/// let fixed_error_one = fix_error(barcode, &possible_barcodes_one_match, max_mismatches).unwrap();
-/// let fixed_error_two = fix_error(barcode, &possible_barcodes_two_match, max_mismatches).unwrap();
+/// let fixed_error_one = fix_error(barcode, &possible_barcodes_one_match, max_mismatches);
+/// let fixed_error_two = fix_error(barcode, &possible_barcodes_two_match, max_mismatches);
 ///
 /// assert_eq!(fixed_error_one, Some("AGCAG".to_string()));
 /// assert_eq!(fixed_error_two, None);
@@ -560,7 +566,7 @@ pub fn fix_error<'a, I>(
     mismatch_seq: &str,
     possible_seqs: I,
     mismatches: u8,
-) -> Result<Option<String>>
+) -> Option<String>
 where
     I: IntoIterator<Item = &'a String>,
 {
@@ -596,8 +602,8 @@ where
     }
     // If there is one best match and it is some, return it.  Otherwise return None
     if keep && best_match.is_some() {
-        Ok(best_match)
+        best_match
     } else {
-        Ok(None)
+        None
     }
 }

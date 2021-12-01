@@ -405,7 +405,11 @@ impl WriteFiles {
                 .keys()
                 .cloned()
                 .collect::<Vec<String>>(),
-            EnrichedType::Full => return Err(anyhow!("Does not work with Full enrichment type.  Only Single and Double")),
+            EnrichedType::Full => {
+                return Err(anyhow!(
+                    "Does not work with Full enrichment type.  Only Single and Double"
+                ))
+            }
         };
 
         // If there was a sample conversion file, sort the barcodes by the sample IDs so that the columns for the merged file are in order
@@ -421,7 +425,11 @@ impl WriteFiles {
         let descriptor = match enrichment {
             EnrichedType::Single => "Single",
             EnrichedType::Double => "Double",
-            EnrichedType::Full => return Err(anyhow!("Does not work with Full enrichment type.  Only Single and Double")),
+            EnrichedType::Full => {
+                return Err(anyhow!(
+                    "Does not work with Full enrichment type.  Only Single and Double"
+                ))
+            }
         };
 
         // create the directory variable to join the file to

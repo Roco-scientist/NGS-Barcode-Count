@@ -12,6 +12,8 @@ use std::{
     },
 };
 
+use crate::parse::RawSequenceRead;
+
 /// Reads in the FASTQ file line by line, then pushes every 2 out of 4 lines, which corresponds to the sequence line, into a Vec that is passed to other threads
 ///
 /// FASTQ format:
@@ -25,7 +27,8 @@ pub fn read_fastq(
     exit_clone: Arc<AtomicBool>,
     total_reads_arc: Arc<AtomicU32>,
 ) -> Result<()> {
-    let fastq_file = File::open(fastq.clone()).with_context(|| format!("Failed to open file: {}", fastq))?; // open file
+    let fastq_file =
+        File::open(fastq.clone()).with_context(|| format!("Failed to open file: {}", fastq))?; // open file
 
     // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
     let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
@@ -133,8 +136,7 @@ impl FastqLineReader {
         self.raw_sequence_read_string.pop(); // removes the last \n
                                              // Insert the sequence into the vec.  This will be popped out by other threads
         if self.test {
-            crate::parse::RawSequenceRead::unpack(self.raw_sequence_read_string.clone())?
-                .check_fastq_format()?;
+            RawSequenceRead::unpack(self.raw_sequence_read_string.clone())?.check_fastq_format()?;
             self.test = false;
         }
         self.seq_clone
