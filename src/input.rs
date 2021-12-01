@@ -1,9 +1,8 @@
-use custom_error::custom_error;
+use anyhow::{anyhow, Context, Result};
 use flate2::read::GzDecoder;
 use num_format::{Locale, ToFormattedString};
 use std::{
     collections::VecDeque,
-    error::Error,
     fmt,
     fs::File,
     io::{BufRead, BufReader, Write},
@@ -12,12 +11,6 @@ use std::{
         Arc, Mutex,
     },
 };
-
-// Errors associated with checking the fastq format to make sure it is correct
-custom_error! {FastqError
-    NotFastq = "This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental",
-    LeftOver = "Sequence lines left over.  Check code",
-}
 
 /// Reads in the FASTQ file line by line, then pushes every 2 out of 4 lines, which corresponds to the sequence line, into a Vec that is passed to other threads
 ///
@@ -31,8 +24,8 @@ pub fn read_fastq(
     seq_clone: Arc<Mutex<VecDeque<String>>>,
     exit_clone: Arc<AtomicBool>,
     total_reads_arc: Arc<AtomicU32>,
-) -> Result<(), Box<dyn Error>> {
-    let fastq_file = File::open(fastq.clone())?; // open file
+) -> Result<()> {
+    let fastq_file = File::open(fastq.clone()).with_context(|| format!("Failed to open file: {}", fastq))?; // open file
 
     // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
     let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
@@ -41,7 +34,7 @@ pub fn read_fastq(
     if !fastq.ends_with("fastq.gz") {
         // If the file does not end with fastq, return with an error
         if !fastq.ends_with("fastq") {
-            return Err(Box::new(FastqError::NotFastq));
+            return Err(anyhow!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental"));
         }
 
         // go line by line
@@ -49,7 +42,7 @@ pub fn read_fastq(
             let mut line = line_result?;
             line.push('\n');
             // post the line to the shared vector and keep track of the number of sequences etc
-            fastq_line_reader.read(line)?;
+            fastq_line_reader.read(line);
             if fastq_line_reader.line_num == 4 {
                 fastq_line_reader.post()?;
             }
@@ -73,7 +66,7 @@ pub fn read_fastq(
             // move the read line to the line variable and get the response to check if it is 0 and therefore the file is done
             read_response = reader.read_line(&mut line)?;
             // post the line to the shared vector and keep track of the number of sequences etc
-            fastq_line_reader.read(line)?;
+            fastq_line_reader.read(line);
             if fastq_line_reader.line_num == 4 {
                 fastq_line_reader.post()?;
             }
@@ -115,7 +108,7 @@ impl FastqLineReader {
     }
 
     /// Reads in the line and either passes to the vec or discards it, depending if it is a sequence line.  Also increments on line count, sequence count etc.
-    pub fn read(&mut self, line: String) -> Result<(), Box<dyn Error>> {
+    pub fn read(&mut self, line: String) {
         // Pause if there are already 10000 sequences in the vec so memory is not overloaded
         while self.seq_clone.lock().unwrap().len() >= 10000 {
             // if threads have failed exit out of this thread
@@ -134,10 +127,9 @@ impl FastqLineReader {
         } else {
             self.raw_sequence_read_string.push_str(&line);
         }
-        Ok(())
     }
 
-    pub fn post(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn post(&mut self) -> Result<()> {
         self.raw_sequence_read_string.pop(); // removes the last \n
                                              // Insert the sequence into the vec.  This will be popped out by other threads
         if self.test {

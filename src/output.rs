@@ -1,9 +1,8 @@
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
-use custom_error::custom_error;
 use num_format::{Locale, ToFormattedString};
 use std::{
     collections::{HashMap, HashSet},
-    error::Error,
     fs::{File, OpenOptions},
     io::{stdout, Write},
     path::Path,
@@ -14,11 +13,6 @@ use std::{
 };
 
 use itertools::Itertools;
-
-// Errors associated with checking the fastq format to make sure it is correct
-custom_error! {EnrichedErrors
-    MismatchedType = "Does not work with Full enrichment type.  Only Single and Double",
-}
 
 #[derive(PartialEq, Clone)]
 enum EnrichedType {
@@ -50,7 +44,7 @@ impl WriteFiles {
         counted_barcodes_hash: Vec<HashMap<String, String>>,
         samples_barcode_hash: HashMap<String, String>,
         args: crate::Args,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
         Ok(WriteFiles {
             results,
@@ -69,7 +63,7 @@ impl WriteFiles {
     }
 
     /// Sets up and writes the results file.  Works for either with or without a random barcode
-    pub fn write_counts_files(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn write_counts_files(&mut self) -> Result<()> {
         let unknown_sample = "barcode".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_barcodes = match self.results.format_type {
@@ -211,7 +205,7 @@ impl WriteFiles {
         &mut self,
         sample_barcode: &str,
         sample_barcodes: &[String],
-    ) -> Result<usize, Box<dyn Error>> {
+    ) -> Result<usize> {
         let sample_random_hash = self.results.random_hashmap.get(sample_barcode).unwrap();
         // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
         // If there is an included building block barcode file, it is converted here
@@ -293,7 +287,7 @@ impl WriteFiles {
         sample_barcode: &str,
         sample_barcodes: &[String],
         enrichment: EnrichedType, // In order to make this non redundant with writing single and double barcodes, this enum determines some aspects
-    ) -> Result<usize, Box<dyn Error>> {
+    ) -> Result<usize> {
         let mut hash_holder: HashMap<String, HashMap<String, u32>> = HashMap::new(); // a hodler hash to hold the hashmap from sample_counts_hash for a longer lifetime.  Also used later
                                                                                      // Select from the hashmap connected the the EnrichedType
         let sample_counts_hash = match enrichment {
@@ -395,7 +389,7 @@ impl WriteFiles {
     }
 
     /// Write enriched files for either single or double barcodes if either flag is called
-    fn write_enriched_files(&mut self, enrichment: EnrichedType) -> Result<(), Box<dyn Error>> {
+    fn write_enriched_files(&mut self, enrichment: EnrichedType) -> Result<()> {
         let unknown_sample = "barcode".to_string();
         // Pull all sample IDs from either single or double hashmap, which was added to in either random or counts write
         let mut sample_barcodes = match enrichment {
@@ -411,7 +405,7 @@ impl WriteFiles {
                 .keys()
                 .cloned()
                 .collect::<Vec<String>>(),
-            EnrichedType::Full => return Err(Box::new(EnrichedErrors::MismatchedType)),
+            EnrichedType::Full => return Err(anyhow!("Does not work with Full enrichment type.  Only Single and Double")),
         };
 
         // If there was a sample conversion file, sort the barcodes by the sample IDs so that the columns for the merged file are in order
@@ -427,7 +421,7 @@ impl WriteFiles {
         let descriptor = match enrichment {
             EnrichedType::Single => "Single",
             EnrichedType::Double => "Double",
-            EnrichedType::Full => return Err(Box::new(EnrichedErrors::MismatchedType)),
+            EnrichedType::Full => return Err(anyhow!("Does not work with Full enrichment type.  Only Single and Double")),
         };
 
         // create the directory variable to join the file to
@@ -520,7 +514,7 @@ impl WriteFiles {
         seq_errors: crate::info::SequenceErrors,
         total_reads: Arc<AtomicU32>,
         sequence_format: crate::info::SequenceFormat,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         // Create the stat file name
         let output_dir = self.args.output_dir.clone();
         let directory = Path::new(&output_dir);
