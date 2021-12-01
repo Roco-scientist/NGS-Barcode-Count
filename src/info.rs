@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use regex::Regex;
@@ -190,9 +191,9 @@ pub struct SequenceFormat {
 
 impl SequenceFormat {
     /// Creates a new SequenceFormat struct which holds the sequencing format information, such as, where the barcodes are located within the sequence
-    pub fn new(format: String) -> Result<Self, Box<dyn Error>> {
+    pub fn new(format: String) -> Result<Self> {
         // Read sequenc format file to string
-        let format_data = fs::read_to_string(format)?
+        let format_data = fs::read_to_string(format.clone()).with_context(||format!("Failed to open {}", format))?
             .lines() // split into lines
             .filter(|line| !line.starts_with('#')) // remove any line that starts with '#'
             .collect::<String>(); // collect into a String
@@ -224,7 +225,7 @@ impl SequenceFormat {
     }
 
     /// Returns a Vec of the size of all counted barcodes within the seqeunce format
-    pub fn barcode_lengths(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    pub fn barcode_lengths(&self) -> Result<Vec<u8>> {
         let barcode_search = Regex::new(r"(\{\d+\})")?; // Create a search that finds the '{#}'
         let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the number
         let mut barcode_lengths = Vec::new(); // Create a Vec that will contain the counted barcode lengths
@@ -245,7 +246,7 @@ impl SequenceFormat {
     }
 
     /// Returns the sample barcode length found in the format file string
-    pub fn sample_length_option(&self) -> Result<Option<u8>, Box<dyn Error>> {
+    pub fn sample_length_option(&self) -> Result<Option<u8>> {
         let sample_search = Regex::new(r"(\[\d+\])")?; // Create a search that finds the '[#]'
         let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the numeric value
 
@@ -335,7 +336,7 @@ impl fmt::Display for SequenceFormat {
 ///
 /// assert_eq!(build_format_string(&format_data).unwrap(),  "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string())
 /// ```
-pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> {
+pub fn build_format_string(format_data: &str) -> Result<String> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     let mut final_format = String::new();
@@ -364,7 +365,7 @@ pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> 
 ///
 /// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRCCCCCC".to_string())
 /// ```
-pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>> {
+pub fn build_regions_string(format_data: &str) -> Result<String> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|[ATGCN]+")?;
     let mut final_format = String::new();
@@ -401,7 +402,7 @@ pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>>
 ///
 /// assert_eq!(build_regex_captures(&format_data).unwrap(),  "(?P<sample>.{8})AGCTAGATC(?P<barcode1>.{6})TGGA(?P<barcode2>.{6})TGGA(?P<barcode3>.{6})TGATTGCGC(?P<random>.{6}).{4}AT".to_string())
 /// ```
-pub fn build_regex_captures(format_data: &str) -> Result<String, Box<dyn Error>> {
+pub fn build_regex_captures(format_data: &str) -> Result<String> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     // the previous does not bumber each barcode but names each caputre with barcode#
@@ -476,9 +477,9 @@ impl BarcodeConversions {
     pub fn sample_barcode_file_conversion(
         &mut self,
         barcode_path: &str,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         // read in the sample barcode file
-        for (barcode, sample_id) in fs::read_to_string(barcode_path)?
+        for (barcode, sample_id) in fs::read_to_string(barcode_path).with_context(|| format!("Failed to open {}", barcode_path))?
             .lines() // split the lines
             .skip(1) // skip the first line which should be the header
             .map(|line| {
