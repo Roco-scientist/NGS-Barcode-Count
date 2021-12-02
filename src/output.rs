@@ -14,6 +14,11 @@ use std::{
 
 use itertools::Itertools;
 
+use crate::{
+    arguments::Args,
+    info::{FormatType, MaxSeqErrors, Results, ResultsEnrichment, SequenceErrors, SequenceFormat},
+};
+
 #[derive(PartialEq, Clone)]
 enum EnrichedType {
     Single,
@@ -23,13 +28,13 @@ enum EnrichedType {
 
 /// A struct setup to output results and stat information into files
 pub struct WriteFiles {
-    results: crate::info::Results,
-    results_enriched: crate::info::ResultsEnrichment,
-    sequence_format: crate::info::SequenceFormat,
+    results: Results,
+    results_enriched: ResultsEnrichment,
+    sequence_format: SequenceFormat,
     counted_barcodes_hash: Vec<HashMap<String, String>>,
     samples_barcode_hash: HashMap<String, String>,
     compounds_written: HashSet<String>,
-    args: crate::Args,
+    args: Args,
     output_files: Vec<String>,
     output_counts: Vec<usize>,
     merged_count: usize,
@@ -39,16 +44,16 @@ pub struct WriteFiles {
 
 impl WriteFiles {
     pub fn new(
-        results_arc: Arc<Mutex<crate::info::Results>>,
-        sequence_format: crate::info::SequenceFormat,
+        results_arc: Arc<Mutex<Results>>,
+        sequence_format: SequenceFormat,
         counted_barcodes_hash: Vec<HashMap<String, String>>,
         samples_barcode_hash: HashMap<String, String>,
-        args: crate::Args,
+        args: Args,
     ) -> Result<Self> {
         let results = Arc::try_unwrap(results_arc).unwrap().into_inner().unwrap();
         Ok(WriteFiles {
             results,
-            results_enriched: crate::info::ResultsEnrichment::new(),
+            results_enriched: ResultsEnrichment::new(),
             sequence_format,
             counted_barcodes_hash,
             samples_barcode_hash,
@@ -67,13 +72,13 @@ impl WriteFiles {
         let unknown_sample = "barcode".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
         let mut sample_barcodes = match self.results.format_type {
-            crate::info::FormatType::RandomBarcode => self
+            FormatType::RandomBarcode => self
                 .results
                 .random_hashmap
                 .keys()
                 .cloned()
                 .collect::<Vec<String>>(),
-            crate::info::FormatType::NoRandomBarcode => self
+            FormatType::NoRandomBarcode => self
                 .results
                 .count_hashmap
                 .keys()
@@ -149,10 +154,10 @@ impl WriteFiles {
 
             self.sample_text.push_str(&header);
             let count = match self.results.format_type {
-                crate::info::FormatType::RandomBarcode => {
+                FormatType::RandomBarcode => {
                     self.add_random_string(sample_barcode, &sample_barcodes)?
                 }
-                crate::info::FormatType::NoRandomBarcode => {
+                FormatType::NoRandomBarcode => {
                     self.add_counts_string(sample_barcode, &sample_barcodes, EnrichedType::Full)?
                 }
             };
@@ -518,10 +523,10 @@ impl WriteFiles {
     pub fn write_stats_file(
         &self,
         start_time: DateTime<Local>,
-        max_sequence_errors: crate::info::MaxSeqErrors,
-        seq_errors: crate::info::SequenceErrors,
+        max_sequence_errors: MaxSeqErrors,
+        seq_errors: SequenceErrors,
         total_reads: Arc<AtomicU32>,
-        sequence_format: crate::info::SequenceFormat,
+        sequence_format: SequenceFormat,
     ) -> Result<()> {
         // Create the stat file name
         let output_dir = self.args.output_dir.clone();

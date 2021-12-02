@@ -28,7 +28,7 @@ pub fn read_fastq(
     total_reads_arc: Arc<AtomicU32>,
 ) -> Result<()> {
     let fastq_file =
-        File::open(fastq.clone()).with_context(|| format!("Failed to open file: {}", fastq))?; // open file
+        File::open(fastq.clone()).context(format!("Failed to open file: {}", fastq))?; // open file
 
     // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
     let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
@@ -42,7 +42,8 @@ pub fn read_fastq(
 
         // go line by line
         for line_result in BufReader::new(fastq_file).lines() {
-            let mut line = line_result?;
+            let mut line =
+                line_result.context(format!("Bufread could not read line for file: {}", fastq))?;
             line.push('\n');
             // post the line to the shared vector and keep track of the number of sequences etc
             fastq_line_reader.read(line);

@@ -292,11 +292,7 @@ impl RawSequenceRead {
 
     /// Fixes the constant region by finding the closest match within the full seqeuence that has fewer than the max errors allowed,
     /// then uses the format string to flip the barcodes into the 'N's and have a fixed constant region string
-    pub fn fix_constant_region(
-        &mut self,
-        format_string: &str,
-        max_constant_errors: u8,
-    ) {
+    pub fn fix_constant_region(&mut self, format_string: &str, max_constant_errors: u8) {
         // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
         // Get the length difference between what was sequenced and the barcode region with constant regions
         // This is to stop the iteration in the next step
@@ -562,11 +558,7 @@ impl SequenceMatchResult {
 /// assert_eq!(fixed_error_one, Some("AGCAG".to_string()));
 /// assert_eq!(fixed_error_two, None);
 /// ```
-pub fn fix_error<'a, I>(
-    mismatch_seq: &str,
-    possible_seqs: I,
-    mismatches: u8,
-) -> Option<String>
+pub fn fix_error<'a, I>(mismatch_seq: &str, possible_seqs: I, mismatches: u8) -> Option<String>
 where
     I: IntoIterator<Item = &'a String>,
 {
