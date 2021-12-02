@@ -1,9 +1,9 @@
+use anyhow::{anyhow, Context, Result};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
-    error::Error,
     fmt, fs,
     sync::{
         atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
@@ -190,9 +190,10 @@ pub struct SequenceFormat {
 
 impl SequenceFormat {
     /// Creates a new SequenceFormat struct which holds the sequencing format information, such as, where the barcodes are located within the sequence
-    pub fn new(format: String) -> Result<Self, Box<dyn Error>> {
+    pub fn new(format: String) -> Result<Self> {
         // Read sequenc format file to string
-        let format_data = fs::read_to_string(format)?
+        let format_data = fs::read_to_string(format.clone())
+            .context(format!("Failed to open {}", format))?
             .lines() // split into lines
             .filter(|line| !line.starts_with('#')) // remove any line that starts with '#'
             .collect::<String>(); // collect into a String
@@ -224,7 +225,7 @@ impl SequenceFormat {
     }
 
     /// Returns a Vec of the size of all counted barcodes within the seqeunce format
-    pub fn barcode_lengths(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+    pub fn barcode_lengths(&self) -> Result<Vec<u8>> {
         let barcode_search = Regex::new(r"(\{\d+\})")?; // Create a search that finds the '{#}'
         let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the number
         let mut barcode_lengths = Vec::new(); // Create a Vec that will contain the counted barcode lengths
@@ -245,7 +246,7 @@ impl SequenceFormat {
     }
 
     /// Returns the sample barcode length found in the format file string
-    pub fn sample_length_option(&self) -> Result<Option<u8>, Box<dyn Error>> {
+    pub fn sample_length_option(&self) -> Result<Option<u8>> {
         let sample_search = Regex::new(r"(\[\d+\])")?; // Create a search that finds the '[#]'
         let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the numeric value
 
@@ -335,7 +336,7 @@ impl fmt::Display for SequenceFormat {
 ///
 /// assert_eq!(build_format_string(&format_data).unwrap(),  "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string())
 /// ```
-pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> {
+pub fn build_format_string(format_data: &str) -> Result<String> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     let mut final_format = String::new();
@@ -364,7 +365,7 @@ pub fn build_format_string(format_data: &str) -> Result<String, Box<dyn Error>> 
 ///
 /// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRCCCCCC".to_string())
 /// ```
-pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>> {
+pub fn build_regions_string(format_data: &str) -> Result<String> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|[ATGCN]+")?;
     let mut final_format = String::new();
@@ -401,7 +402,7 @@ pub fn build_regions_string(format_data: &str) -> Result<String, Box<dyn Error>>
 ///
 /// assert_eq!(build_regex_captures(&format_data).unwrap(),  "(?P<sample>.{8})AGCTAGATC(?P<barcode1>.{6})TGGA(?P<barcode2>.{6})TGGA(?P<barcode3>.{6})TGATTGCGC(?P<random>.{6}).{4}AT".to_string())
 /// ```
-pub fn build_regex_captures(format_data: &str) -> Result<String, Box<dyn Error>> {
+pub fn build_regex_captures(format_data: &str) -> Result<String> {
     let digit_search = Regex::new(r"\d+")?;
     let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
     // the previous does not bumber each barcode but names each caputre with barcode#
@@ -473,12 +474,10 @@ impl BarcodeConversions {
 
     /// Reads in comma separated barcode file (CSV).  The columns need to have headers.  The first column needs to be the nucleotide barcode
     /// and the second needs to be the ID
-    pub fn sample_barcode_file_conversion(
-        &mut self,
-        barcode_path: &str,
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn sample_barcode_file_conversion(&mut self, barcode_path: &str) -> Result<()> {
         // read in the sample barcode file
-        for (barcode, sample_id) in fs::read_to_string(barcode_path)?
+        for (barcode, sample_id) in fs::read_to_string(barcode_path)
+            .context(format!("Failed to open {}", barcode_path))?
             .lines() // split the lines
             .skip(1) // skip the first line which should be the header
             .map(|line| {
@@ -505,9 +504,10 @@ impl BarcodeConversions {
         &mut self,
         barcode_path: &str,
         barcode_num: usize,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         // read in the sample barcode file
-        let barcode_vecs = fs::read_to_string(barcode_path)?
+        let barcode_vecs = fs::read_to_string(barcode_path)
+            .context(format!("Failed to read {}", barcode_path))?
             .lines() // split the lines
             .skip(1) // skip the first line which should be the header
             .map(|line| {
@@ -523,9 +523,8 @@ impl BarcodeConversions {
         }
         let mut barcode_num_contained = HashSet::new();
         for (barcode, id, barcode_num) in barcode_vecs {
-            let barcode_num_usize = barcode_num.parse::<usize>().unwrap_or_else(|err| {
-            panic!("Third column of barcode file contains something other than an integer: {}\nError: {}", barcode_num, err)
-        }) - 1;
+            let barcode_num_usize = barcode_num.parse::<usize>()
+                .context(format!("Third column of barcode file contains something other than an integer: {}", barcode_num))?  - 1;
             barcode_num_contained.insert(barcode_num_usize);
             self.counted_barcodes_hash[barcode_num_usize].insert(barcode, id);
         }
@@ -536,10 +535,10 @@ impl BarcodeConversions {
             }
         }
         if !missing_barcode_num.is_empty() {
-            panic!(
+            return Err(anyhow!(format!(
                 "Barcode conversion file missing barcode numers {:?} in the third column",
                 missing_barcode_num
-            )
+            )));
         }
         Ok(())
     }
@@ -597,7 +596,7 @@ impl MaxSeqErrors {
     /// let constant_errors_option = None;
     /// let constant_region_size = 30;
     /// let min_quality = 0.0;
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// ```
     pub fn new(
         sample_errors_option: Option<u8>,
@@ -607,7 +606,7 @@ impl MaxSeqErrors {
         constant_errors_option: Option<u8>,
         constant_region_size: u8,
         min_quality: f32,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Self {
         let max_sample_errors;
         // start with a sample size of 0 in case there is no sample barcode.  If there is then mutate
         let mut sample_size = 0;
@@ -643,7 +642,7 @@ impl MaxSeqErrors {
             // errors allowed is the length of the constant region - the Ns / 5 or 20%
         }
 
-        Ok(MaxSeqErrors {
+        MaxSeqErrors {
             constant_region: max_constant_errors,
             constant_region_size,
             sample_barcode: max_sample_errors,
@@ -651,7 +650,7 @@ impl MaxSeqErrors {
             barcode: max_barcode_errors,
             barcode_sizes,
             min_quality,
-        })
+        }
     }
 
     /// Returns the maximum allowed constant region errors
@@ -667,11 +666,11 @@ impl MaxSeqErrors {
     /// let constant_errors_option = None;
     /// let constant_region_size = 30;
     /// let min_quality = 0.0;
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 6);
     /// let barcode_sizes = vec![8,8,8];
     /// let constant_errors_option = Some(3);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
     /// ```
     pub fn max_constant_errors(&self) -> u8 {
@@ -691,11 +690,11 @@ impl MaxSeqErrors {
     /// let constant_errors_option = None;
     /// let constant_region_size = 30;
     /// let min_quality = 0.0;
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 2);
     /// let barcode_sizes = vec![8,8,8];
     /// let sample_errors_option = Some(3);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 3);
     /// ```
     pub fn max_sample_errors(&self) -> u8 {
@@ -715,11 +714,11 @@ impl MaxSeqErrors {
     /// let constant_errors_option = None;
     /// let constant_region_size = 30;
     /// let min_quality = 0.0;
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![1,1,1]);
     /// let barcode_sizes = vec![8,8,8];
     /// let barcode_errors_option = Some(2);
-    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality).unwrap();
+    /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![2,2,2]);
     /// ```
     pub fn max_barcode_errors(&self) -> &[u8] {

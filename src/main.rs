@@ -1,3 +1,4 @@
+use anyhow::Result;
 use chrono::Local;
 use std::{
     collections::VecDeque,
@@ -7,16 +8,14 @@ use std::{
     },
 };
 
-fn main() {
+fn main() -> Result<()> {
     // Start a clock to measure how long the algorithm takes
     let start_time = Local::now();
 
     // get the argument inputs
-    let mut args =
-        barcode_count::Args::new().unwrap_or_else(|err| panic!("Argument error: {}", err));
+    let mut args = barcode_count::arguments::Args::new()?;
 
-    let sequence_format = barcode_count::info::SequenceFormat::new(args.format.clone())
-        .unwrap_or_else(|err| panic!("sequence format error: {}", err));
+    let sequence_format = barcode_count::info::SequenceFormat::new(args.format.clone())?;
     println!("{}\n", sequence_format);
 
     // Check how many barcodes occur if either single or double barcode enrichment is callsed.  If there are too few, ignore the argument flag
@@ -29,9 +28,7 @@ fn main() {
     let mut barcode_conversions = barcode_count::info::BarcodeConversions::new();
     // Create a hashmap of the sample barcodes in order to convert sequence to sample ID
     if let Some(ref samples) = args.sample_barcodes_option {
-        barcode_conversions
-            .sample_barcode_file_conversion(samples)
-            .unwrap();
+        barcode_conversions.sample_barcode_file_conversion(samples)?;
         barcode_conversions.get_sample_seqs();
     }
 
@@ -44,9 +41,7 @@ fn main() {
 
     // Create a hashmap of the building block barcodes in order to convert sequence to building block
     if let Some(ref barcodes) = args.counted_barcodes_option {
-        barcode_conversions
-            .barcode_file_conversion(barcodes, sequence_format.barcode_num)
-            .unwrap();
+        barcode_conversions.barcode_file_conversion(barcodes, sequence_format.barcode_num)?;
         barcode_conversions.get_barcode_seqs();
     }
 
@@ -65,8 +60,7 @@ fn main() {
         args.constant_errors_option,
         sequence_format.constant_region_length(),
         args.min_average_quality_score,
-    )
-    .unwrap_or_else(|err| panic!("Max Sequencing Errors error: {}", err));
+    );
     // Display region sizes and errors allowed
     println!("{}\n", max_errors);
 
@@ -88,7 +82,7 @@ fn main() {
             barcode_count::input::read_fastq(fastq, seq_clone, exit_clone, total_reads_arc_clone)
                 .unwrap_or_else(|err| {
                     finished_clone.store(true, Ordering::Relaxed);
-                    panic!("Error: {}", err)
+                    panic!("Read Fastq error: {}", err)
                 });
             finished_clone.store(true, Ordering::Relaxed);
         });
@@ -149,9 +143,7 @@ fn main() {
         args,
     )
     .unwrap_or_else(|err| panic!("Output error: {}", err));
-    output
-        .write_counts_files()
-        .unwrap_or_else(|err| panic!("Writing error: {}", err));
+    output.write_counts_files()?;
     // Get the end time and print total time for the algorithm
     output
         .write_stats_file(
@@ -160,9 +152,7 @@ fn main() {
             sequence_errors,
             total_reads_arc,
             sequence_format,
-        )
-        .unwrap_or_else(|err| panic!("Writing stats error: {}", err));
-
+        )?;
     // Get the end time and print total time for the algorithm
     let elapsed_time = Local::now() - start_time;
     println!();
@@ -173,4 +163,5 @@ fn main() {
         elapsed_time.num_seconds() % 60,
         barcode_count::output::millisecond_decimal(elapsed_time)
     );
+    Ok(())
 }
