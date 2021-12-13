@@ -174,19 +174,27 @@ impl fmt::Display for SequenceErrors {
 // Struct to keep the format information for the sequencing, ie barcodes, regex search etc.
 #[derive(Debug, Clone)]
 pub struct SequenceFormat {
-    pub format_string: String,
-    pub regions_string: String,
-    pub length: usize,
-    pub constant_region_length: u8,
-    pub format_regex: Regex,
-    pub barcode_num: usize,
-    pub barcode_lengths: Vec<u8>,
-    pub sample_length_option: Option<u8>,
-    pub random_barcode: bool,
-    pub sample_barcode: bool,
+    pub format_string: String,      // sequence with 'N's replacing barcodes
+    pub regions_string: String,     // String with each region contain a code
+    pub length: usize,              // Total length of format sequence
+    pub constant_region_length: u8, // Length of only the consant nucleotides
+    pub format_regex: Regex,        // The regex search used to find barcodes
+    pub barcode_num: usize,         // Number of counted barcodes.  More for DEL
+    pub barcode_lengths: Vec<u8>,   // The length of each counted barcode
+    pub sample_length_option: Option<u8>, // Sample barcode length
+    pub random_barcode: bool,       // Whether a random barcode is included
+    pub sample_barcode: bool,       // Whether a sammple barcode is included
 }
 
 impl SequenceFormat {
+    /// Creates a new empty SequenceFormat struct
+    ///
+    /// # Example
+    /// ```
+    /// use barcode_count::info::SequenceFormat;
+    ///
+    /// let sequence_format = SequenceFormat::new();
+    /// ```
     pub fn new() -> Result<Self> {
         let empty_regex = Regex::new("")?;
         Ok(SequenceFormat {
@@ -213,13 +221,22 @@ impl SequenceFormat {
             .filter(|line| !line.starts_with('#')) // remove any line that starts with '#'
             .collect::<String>(); // collect into a String
 
+        // Starts the string that is used to create the regex search
         let mut regex_string = String::new();
+        // Digit search to find the number within any format group
         let digit_search = Regex::new(r"\d+")?;
+        // Search groups separated by '|' or statements in order to iterate through each group
+        // within the format data from the format file and create the regex search string, along
+        // with add the other needed information.  Uses the {#}, [#], (#), [ATGC], and 'N's as
+        // groups
         let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
-        // For each character, if the character is #, replace with the sequential barcode number
         for group in barcode_search.find_iter(&format_data) {
             let group_str = group.as_str();
+            // Holds the capture group name.  Is non-barcode regions
             let mut group_name_option = None;
+
+            // If the group is a barcode group, add the capture group name, and set barcode
+            // included fields to true
             if group_str.contains('[') {
                 group_name_option = Some("sample".to_string());
                 sequence_format.sample_barcode = true;
@@ -240,12 +257,17 @@ impl SequenceFormat {
                     .as_str()
                     .parse::<u8>()
                     .unwrap();
+
+                // Create the capture group with the group name for the barcode and add it to the
+                // string created for the regex search
                 let mut capture_group = format!("(?P<{}>.", group_name);
                 capture_group.push('{');
                 capture_group.push_str(&digits.to_string());
                 capture_group.push_str("})");
                 regex_string.push_str(&capture_group);
 
+                // Add lengths of any of the barcodes to the sequence_format struct fields.  Also
+                // set the code for the regions_string
                 let mut push_char = '\0';
                 if group_name == "sample" {
                     sequence_format.sample_length_option = Some(digits);
@@ -256,18 +278,23 @@ impl SequenceFormat {
                 } else if group_name == "random" {
                     push_char = 'R'
                 }
+                // For the number of nucleotides of the barcode add 'N's to format string and the
+                // push_char just set to regions_string
                 for _ in 0..digits {
                     sequence_format.regions_string.push(push_char);
                     sequence_format.format_string.push('N')
                 }
             } else if group_str.contains('N') {
+                // Used to handle if 'N's are added to the format file.  These will be treated as
+                // 'any' nucleotide for error handling and matching
                 let num_of_ns = group_str.matches('N').count();
-                let mut n_group = ".{".to_string();
+                let mut n_group = "[AGCT]{".to_string();
                 n_group.push_str(&num_of_ns.to_string());
                 n_group.push('}');
                 regex_string.push_str(&n_group);
                 sequence_format.format_string.push_str(group_str);
             } else {
+                // Any A,G,C, or T is treated as constant region here
                 regex_string.push_str(&group_str.to_uppercase());
                 sequence_format.format_string.push_str(group_str);
                 let constant_group_length = group_str.chars().count();
@@ -307,6 +334,7 @@ impl fmt::Display for SequenceFormat {
     }
 }
 
+/// Contains all possible barcode sequences for error handling and barcode to ID conversion
 pub struct BarcodeConversions {
     pub samples_barcode_hash: HashMap<String, String>,
     pub sample_seqs: HashSet<String>,
@@ -321,6 +349,7 @@ impl Default for BarcodeConversions {
 }
 
 impl BarcodeConversions {
+    /// Creates an empty BarcodeConversions struct
     pub fn new() -> Self {
         BarcodeConversions {
             samples_barcode_hash: HashMap::new(),
@@ -427,7 +456,7 @@ impl BarcodeConversions {
     }
 }
 
-// Struct of how many sequencing errrors are allowed
+/// Struct of how many sequencing errrors are allowed
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaxSeqErrors {
     // errors within the constant region
