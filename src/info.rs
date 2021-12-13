@@ -6,8 +6,8 @@ use std::{
     collections::{HashMap, HashSet},
     fmt, fs,
     sync::{
-        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
-        {Arc, Mutex},
+        atomic::{AtomicU32, Ordering},
+        Arc,
     },
 };
 
@@ -172,133 +172,118 @@ impl fmt::Display for SequenceErrors {
 }
 
 // Struct to keep the format information for the sequencing, ie barcodes, regex search etc.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SequenceFormat {
     pub format_string: String,
     pub regions_string: String,
     pub length: usize,
+    pub constant_region_length: u8,
     pub format_regex: Regex,
-    pub regex_string: String,
     pub barcode_num: usize,
-    format_data: String,
+    pub barcode_lengths: Vec<u8>,
+    pub sample_length_option: Option<u8>,
     pub random_barcode: bool,
     pub sample_barcode: bool,
-    starts: Arc<Mutex<Vec<usize>>>,
-    start_found: Arc<AtomicBool>,
-    start: Arc<AtomicUsize>,
 }
 
 impl SequenceFormat {
-    /// Creates a new SequenceFormat struct which holds the sequencing format information, such as, where the barcodes are located within the sequence
-    pub fn new(format: String) -> Result<Self> {
-        // Read sequenc format file to string
-        let format_data = fs::read_to_string(format.clone())
-            .context(format!("Failed to open {}", format))?
+
+    pub fn parse_format_file(format_path: &str) -> Result<Self> {
+        // Read sequence format file to string
+        let format_data = fs::read_to_string(format_path)
+            .context(format!("Failed to open {}", format_path))?
             .lines() // split into lines
             .filter(|line| !line.starts_with('#')) // remove any line that starts with '#'
             .collect::<String>(); // collect into a String
 
-        let regex_string = build_regex_captures(&format_data)?; // Build the regex string from the input format file information
-        let random_barcode = regex_string.contains("random");
-        let sample_barcode = regex_string.contains("sample");
-        let format_regex = Regex::new(&regex_string)?; // Convert the regex string to a Regex
-        let format_string = build_format_string(&format_data)?; // Create the format string replacing 'N's where there is a barcode
-        let regions_string = build_regions_string(&format_data)?; // Create the string which indicates where the barcodes are located
-        let barcode_num = regex_string.matches("barcode").count(); // Count the number of barcodes.  This is used later for retrieving barcodes etc.
-        let length = format_string.chars().count();
+        let mut format_string = String::new();
+        let mut regions_string = String::new();
+        let mut regex_string = String::new();
+        let mut random_barcode = false;
+        let mut sample_barcode = false;
+        let mut sample_length_option = None;
+        let mut barcode_lengths = Vec::new();
+        let mut constant_region_length = 0;
+        let digit_search = Regex::new(r"\d+")?;
+        let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
+        // the previous does not number each barcode but names each caputre with barcode#
+        // The '#' needs to be replaced with the sequential number
+        let mut barcode_num = 0;
+        // For each character, if the character is #, replace with the sequential barcode number
+        for group in barcode_search.find_iter(&format_data) {
+            let group_str = group.as_str();
+            let mut group_name_option = None;
+            if group_str.contains('[') {
+                group_name_option = Some("sample".to_string());
+                sample_barcode = true;
+            } else if group_str.contains('{') {
+                barcode_num += 1;
+                group_name_option = Some(format!("barcode{}", barcode_num));
+            } else if group_str.contains('(') {
+                group_name_option = Some("random".to_string());
+                random_barcode = true;
+            }
 
-        // Create and return the SequenceFormat struct
+            if let Some(group_name) = group_name_option {
+                let digits = digit_search
+                    .captures(group_str)
+                    .unwrap()
+                    .get(0)
+                    .unwrap()
+                    .as_str()
+                    .parse::<u8>()
+                    .unwrap();
+                let mut capture_group = format!("(?P<{}>.", group_name);
+                capture_group.push('{');
+                capture_group.push_str(&digits.to_string());
+                capture_group.push_str("})");
+                regex_string.push_str(&capture_group);
+
+                let mut push_char = '\0';
+                if group_name == "sample" {
+                    sample_length_option = Some(digits);
+                    push_char = 'S'
+                } else if group_name.contains("barcode") {
+                    barcode_lengths.push(digits);
+                    push_char = 'B'
+                } else if group_name == "random" {
+                    push_char = 'R'
+                }
+                for _ in 0..digits {
+                    regions_string.push(push_char);
+                    format_string.push('N')
+                }
+            } else if group_str.contains('N') {
+                let num_of_ns = group_str.matches('N').count();
+                let mut n_group = ".{".to_string();
+                n_group.push_str(&num_of_ns.to_string());
+                n_group.push('}');
+                regex_string.push_str(&n_group);
+                format_string.push_str(group_str);
+            } else {
+                regex_string.push_str(&group_str.to_uppercase());
+                format_string.push_str(group_str);
+                let constant_group_length = group_str.chars().count();
+                for _ in 0.. constant_group_length{
+                    regions_string.push('C');
+                }
+                constant_region_length += constant_group_length as u8;
+            }
+        }
+        let length = format_string.chars().count();
+        let format_regex = Regex::new(&regex_string)?;
         Ok(SequenceFormat {
             format_string,
             regions_string,
             length,
+            constant_region_length,
             format_regex,
-            regex_string,
             barcode_num,
-            format_data,
+            barcode_lengths,
+            sample_length_option,
             random_barcode,
             sample_barcode,
-            starts: Arc::new(Mutex::new(Vec::new())),
-            start_found: Arc::new(AtomicBool::new(false)),
-            start: Arc::new(AtomicUsize::new(0)),
         })
-    }
-
-    /// Returns a Vec of the size of all counted barcodes within the seqeunce format
-    pub fn barcode_lengths(&self) -> Result<Vec<u8>> {
-        let barcode_search = Regex::new(r"(\{\d+\})")?; // Create a search that finds the '{#}'
-        let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the number
-        let mut barcode_lengths = Vec::new(); // Create a Vec that will contain the counted barcode lengths
-
-        // For each counted barcode found in the format file string.  This allows multiple counted barcodes, as found in DEL
-        for group in barcode_search.find_iter(&self.format_data) {
-            let group_str = group.as_str();
-            // Pull out the numeric value
-            let digits = digit_search
-                .find(group_str)
-                .unwrap()
-                .as_str()
-                .parse::<u8>()?;
-            // And add to the vector
-            barcode_lengths.push(digits)
-        }
-        Ok(barcode_lengths)
-    }
-
-    /// Returns the sample barcode length found in the format file string
-    pub fn sample_length_option(&self) -> Result<Option<u8>> {
-        let sample_search = Regex::new(r"(\[\d+\])")?; // Create a search that finds the '[#]'
-        let digit_search = Regex::new(r"\d+")?; // Create a search that pulls out the numeric value
-
-        // If there is a sample barcode inluded in the format file, find the size.  If not, return None
-        if let Some(sample_match) = sample_search.find(&self.format_data) {
-            let sample_str = sample_match.as_str();
-            // Get the numeric value of the sample barcode size
-            let digits = digit_search
-                .find(sample_str)
-                .unwrap()
-                .as_str()
-                .parse::<u8>()?;
-            Ok(Some(digits))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Returns the amount of nucleotides within the constant regions from the format file
-    pub fn constant_region_length(&self) -> u8 {
-        // Get the full length of the format_string and subtract the amount of 'N's found to get the constant nucleotide count
-        let diff = self.format_string.len() - self.format_string.matches('N').count();
-        diff as u8
-    }
-
-    pub fn add_start(&self, start: usize) {
-        self.starts.lock().unwrap().push(start)
-    }
-
-    pub fn start_found(&self) -> bool {
-        self.start_found.load(Ordering::Relaxed)
-    }
-
-    pub fn start(&self) -> usize {
-        self.start.load(Ordering::Relaxed)
-    }
-
-    pub fn clone_arcs(&self) -> Self {
-        SequenceFormat {
-            format_string: self.format_string.clone(),
-            regions_string: self.regions_string.clone(),
-            length: self.length,
-            format_regex: self.format_regex.clone(),
-            regex_string: self.regex_string.clone(),
-            barcode_num: self.barcode_num,
-            format_data: self.format_data.clone(),
-            random_barcode: self.random_barcode,
-            sample_barcode: self.sample_barcode,
-            starts: Arc::clone(&self.starts),
-            start_found: Arc::clone(&self.start_found),
-            start: Arc::clone(&self.start),
-        }
     }
 }
 
@@ -326,128 +311,6 @@ impl fmt::Display for SequenceFormat {
     }
 }
 
-/// Builds the format string from the file format
-///
-/// # Example
-///
-/// ```
-/// use barcode_count::info::build_format_string;
-/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT";
-///
-/// assert_eq!(build_format_string(&format_data).unwrap(),  "NNNNNNNNAGCTAGATCNNNNNNTGGANNNNNNTGGANNNNNNTGATTGCGCNNNNNNNNNNAT".to_string())
-/// ```
-pub fn build_format_string(format_data: &str) -> Result<String> {
-    let digit_search = Regex::new(r"\d+")?;
-    let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
-    let mut final_format = String::new();
-    for group in barcode_search.find_iter(format_data) {
-        let group_str = group.as_str();
-        let digits_option = digit_search.find(group_str);
-        if let Some(digit) = digits_option {
-            let digit_value = digit.as_str().parse::<u8>()?;
-            for _ in 0..digit_value {
-                final_format.push('N')
-            }
-        } else {
-            final_format.push_str(group_str)
-        }
-    }
-    Ok(final_format)
-}
-
-/// Builds the regions string from the file format
-///
-/// # Example
-///
-/// ```
-/// use barcode_count::info::build_regions_string;
-/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT";
-///
-/// assert_eq!(build_regions_string(format_data).unwrap(),  "SSSSSSSSCCCCCCCCCBBBBBBCCCCBBBBBBCCCCBBBBBBCCCCCCCCCRRRRRRCCCCCC".to_string())
-/// ```
-pub fn build_regions_string(format_data: &str) -> Result<String> {
-    let digit_search = Regex::new(r"\d+")?;
-    let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|[ATGCN]+")?;
-    let mut final_format = String::new();
-    for group in barcode_search.find_iter(format_data) {
-        let group_str = group.as_str();
-        let digits_option = digit_search.find(group_str);
-        if let Some(digit) = digits_option {
-            let digit_value = digit.as_str().parse::<u8>()?;
-            for _ in 0..digit_value {
-                if group_str.contains('[') {
-                    final_format.push('S')
-                } else if group_str.contains('{') {
-                    final_format.push('B')
-                } else if group_str.contains('(') {
-                    final_format.push('R')
-                }
-            }
-        } else {
-            for _ in 0..group_str.chars().count() {
-                final_format.push('C')
-            }
-        }
-    }
-    Ok(final_format)
-}
-
-/// Builds the catpure groups from the file format
-///
-/// # Example
-///
-/// ```
-/// use barcode_count::info::build_regex_captures;
-/// let format_data = "[8]AGCTAGATC{6}TGGA{6}TGGA{6}TGATTGCGC(6)NNNNAT".to_string();
-///
-/// assert_eq!(build_regex_captures(&format_data).unwrap(),  "(?P<sample>.{8})AGCTAGATC(?P<barcode1>.{6})TGGA(?P<barcode2>.{6})TGGA(?P<barcode3>.{6})TGATTGCGC(?P<random>.{6}).{4}AT".to_string())
-/// ```
-pub fn build_regex_captures(format_data: &str) -> Result<String> {
-    let digit_search = Regex::new(r"\d+")?;
-    let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
-    // the previous does not bumber each barcode but names each caputre with barcode#
-    // The '#' needs to bre replaced with teh sequential number
-    let mut final_format = String::new();
-    let mut barcode_num = 0;
-    // Fore each character, if the character is #, replace with the sequential barcode number
-    for group in barcode_search.find_iter(format_data) {
-        let group_str = group.as_str();
-        let mut group_name_option = None;
-        if group_str.contains('[') {
-            group_name_option = Some("sample".to_string())
-        } else if group_str.contains('{') {
-            barcode_num += 1;
-            group_name_option = Some(format!("barcode{}", barcode_num));
-        } else if group_str.contains('(') {
-            group_name_option = Some("random".to_string());
-        }
-
-        if let Some(group_name) = group_name_option {
-            let digits = digit_search
-                .captures(group_str)
-                .unwrap()
-                .get(0)
-                .unwrap()
-                .as_str()
-                .parse::<u8>()
-                .unwrap();
-            let mut capture_group = format!("(?P<{}>.", group_name);
-            capture_group.push('{');
-            capture_group.push_str(&digits.to_string());
-            capture_group.push_str("})");
-            final_format.push_str(&capture_group);
-        } else if group_str.contains('N') {
-            let num_of_ns = group_str.matches('N').count();
-            let mut n_group = ".{".to_string();
-            n_group.push_str(&num_of_ns.to_string());
-            n_group.push('}');
-            final_format.push_str(&n_group);
-        } else {
-            final_format.push_str(&group_str.to_uppercase())
-        }
-    }
-    Ok(final_format)
-}
 
 pub struct BarcodeConversions {
     pub samples_barcode_hash: HashMap<String, String>,
@@ -523,8 +386,10 @@ impl BarcodeConversions {
         }
         let mut barcode_num_contained = HashSet::new();
         for (barcode, id, barcode_num) in barcode_vecs {
-            let barcode_num_usize = barcode_num.parse::<usize>()
-                .context(format!("Third column of barcode file contains something other than an integer: {}", barcode_num))?  - 1;
+            let barcode_num_usize = barcode_num.parse::<usize>().context(format!(
+                "Third column of barcode file contains something other than an integer: {}",
+                barcode_num
+            ))? - 1;
             barcode_num_contained.insert(barcode_num_usize);
             self.counted_barcodes_hash[barcode_num_usize].insert(barcode, id);
         }

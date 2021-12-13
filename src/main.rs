@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     // get the argument inputs
     let mut args = barcode_count::arguments::Args::new()?;
 
-    let sequence_format = barcode_count::info::SequenceFormat::new(args.format.clone())?;
+    let sequence_format = barcode_count::info::SequenceFormat::parse_format_file(&args.format)?;
     println!("{}\n", sequence_format);
 
     // Check how many barcodes occur if either single or double barcode enrichment is callsed.  If there are too few, ignore the argument flag
@@ -54,11 +54,11 @@ fn main() -> Result<()> {
     // Create a MaxSeqErrors struct which holds how many sequencing errors are allowed for each sequencing region
     let max_errors = barcode_count::info::MaxSeqErrors::new(
         args.sample_errors_option,
-        sequence_format.sample_length_option().unwrap(),
+        sequence_format.sample_length_option,
         args.barcodes_errors_option,
-        sequence_format.barcode_lengths().unwrap(),
+        sequence_format.barcode_lengths.clone(),
         args.constant_errors_option,
-        sequence_format.constant_region_length(),
+        sequence_format.constant_region_length,
         args.min_average_quality_score,
     );
     // Display region sizes and errors allowed
@@ -94,7 +94,7 @@ fn main() -> Result<()> {
             // Clone all variables needed to pass into each thread
             let shared_mut_clone = shared_mut.arc_clone();
             let sequence_errors_clone = sequence_errors.arc_clone();
-            let sequence_format_clone = sequence_format.clone_arcs();
+            let sequence_format_clone = sequence_format.clone();
             let exit_clone = &exit;
             let max_errors_clone = max_errors.clone();
             let sample_seqs_clone = barcode_conversions.sample_seqs.clone();
@@ -137,7 +137,7 @@ fn main() -> Result<()> {
     println!("-WRITING COUNTS-");
     let mut output = barcode_count::output::WriteFiles::new(
         results,
-        sequence_format.clone_arcs(),
+        sequence_format.clone(),
         barcode_conversions.counted_barcodes_hash,
         barcode_conversions.samples_barcode_hash,
         args,
@@ -145,14 +145,13 @@ fn main() -> Result<()> {
     .unwrap_or_else(|err| panic!("Output error: {}", err));
     output.write_counts_files()?;
     // Get the end time and print total time for the algorithm
-    output
-        .write_stats_file(
-            start_time,
-            max_errors,
-            sequence_errors,
-            total_reads_arc,
-            sequence_format,
-        )?;
+    output.write_stats_file(
+        start_time,
+        max_errors,
+        sequence_errors,
+        total_reads_arc,
+        sequence_format,
+    )?;
     // Get the end time and print total time for the algorithm
     let elapsed_time = Local::now() - start_time;
     println!();

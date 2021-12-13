@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{bail, Context, Result};
 use flate2::read::GzDecoder;
 use num_format::{Locale, ToFormattedString};
 use std::{
@@ -27,8 +27,7 @@ pub fn read_fastq(
     exit_clone: Arc<AtomicBool>,
     total_reads_arc: Arc<AtomicU32>,
 ) -> Result<()> {
-    let fastq_file =
-        File::open(fastq.clone()).context(format!("Failed to open file: {}", fastq))?; // open file
+    let fastq_file = File::open(&fastq).context(format!("Failed to open file: {}", fastq))?; // open file
 
     // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
     let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
@@ -37,7 +36,7 @@ pub fn read_fastq(
     if !fastq.ends_with("fastq.gz") {
         // If the file does not end with fastq, return with an error
         if !fastq.ends_with("fastq") {
-            return Err(anyhow!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental"));
+            bail!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental")
         }
 
         // go line by line
