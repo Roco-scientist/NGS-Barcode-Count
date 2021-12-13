@@ -187,8 +187,25 @@ pub struct SequenceFormat {
 }
 
 impl SequenceFormat {
-
+    pub fn new() -> Result<Self> {
+        let empty_regex = Regex::new("")?;
+        Ok(SequenceFormat {
+            format_string: String::new(),
+            regions_string: String::new(),
+            length: 0,
+            constant_region_length: 0,
+            format_regex: empty_regex,
+            barcode_num: 0,
+            barcode_lengths: Vec::new(),
+            sample_length_option: None,
+            random_barcode: false,
+            sample_barcode: false,
+        })
+    }
+    /// Parses the format file into all fields of the SequenceFormat struct, including the regex
+    /// search, barcode sizes, and sequence format strings.
     pub fn parse_format_file(format_path: &str) -> Result<Self> {
+        let mut sequence_format = SequenceFormat::new()?;
         // Read sequence format file to string
         let format_data = fs::read_to_string(format_path)
             .context(format!("Failed to open {}", format_path))?
@@ -196,32 +213,22 @@ impl SequenceFormat {
             .filter(|line| !line.starts_with('#')) // remove any line that starts with '#'
             .collect::<String>(); // collect into a String
 
-        let mut format_string = String::new();
-        let mut regions_string = String::new();
         let mut regex_string = String::new();
-        let mut random_barcode = false;
-        let mut sample_barcode = false;
-        let mut sample_length_option = None;
-        let mut barcode_lengths = Vec::new();
-        let mut constant_region_length = 0;
         let digit_search = Regex::new(r"\d+")?;
         let barcode_search = Regex::new(r"(?i)(\{\d+\})|(\[\d+\])|(\(\d+\))|N+|[ATGC]+")?;
-        // the previous does not number each barcode but names each caputre with barcode#
-        // The '#' needs to be replaced with the sequential number
-        let mut barcode_num = 0;
         // For each character, if the character is #, replace with the sequential barcode number
         for group in barcode_search.find_iter(&format_data) {
             let group_str = group.as_str();
             let mut group_name_option = None;
             if group_str.contains('[') {
                 group_name_option = Some("sample".to_string());
-                sample_barcode = true;
+                sequence_format.sample_barcode = true;
             } else if group_str.contains('{') {
-                barcode_num += 1;
-                group_name_option = Some(format!("barcode{}", barcode_num));
+                sequence_format.barcode_num += 1;
+                group_name_option = Some(format!("barcode{}", sequence_format.barcode_num));
             } else if group_str.contains('(') {
                 group_name_option = Some("random".to_string());
-                random_barcode = true;
+                sequence_format.random_barcode = true;
             }
 
             if let Some(group_name) = group_name_option {
@@ -241,17 +248,17 @@ impl SequenceFormat {
 
                 let mut push_char = '\0';
                 if group_name == "sample" {
-                    sample_length_option = Some(digits);
+                    sequence_format.sample_length_option = Some(digits);
                     push_char = 'S'
                 } else if group_name.contains("barcode") {
-                    barcode_lengths.push(digits);
+                    sequence_format.barcode_lengths.push(digits);
                     push_char = 'B'
                 } else if group_name == "random" {
                     push_char = 'R'
                 }
                 for _ in 0..digits {
-                    regions_string.push(push_char);
-                    format_string.push('N')
+                    sequence_format.regions_string.push(push_char);
+                    sequence_format.format_string.push('N')
                 }
             } else if group_str.contains('N') {
                 let num_of_ns = group_str.matches('N').count();
@@ -259,31 +266,20 @@ impl SequenceFormat {
                 n_group.push_str(&num_of_ns.to_string());
                 n_group.push('}');
                 regex_string.push_str(&n_group);
-                format_string.push_str(group_str);
+                sequence_format.format_string.push_str(group_str);
             } else {
                 regex_string.push_str(&group_str.to_uppercase());
-                format_string.push_str(group_str);
+                sequence_format.format_string.push_str(group_str);
                 let constant_group_length = group_str.chars().count();
-                for _ in 0.. constant_group_length{
-                    regions_string.push('C');
+                for _ in 0..constant_group_length {
+                    sequence_format.regions_string.push('C');
                 }
-                constant_region_length += constant_group_length as u8;
+                sequence_format.constant_region_length += constant_group_length as u8;
             }
         }
-        let length = format_string.chars().count();
-        let format_regex = Regex::new(&regex_string)?;
-        Ok(SequenceFormat {
-            format_string,
-            regions_string,
-            length,
-            constant_region_length,
-            format_regex,
-            barcode_num,
-            barcode_lengths,
-            sample_length_option,
-            random_barcode,
-            sample_barcode,
-        })
+        sequence_format.length = sequence_format.format_string.chars().count();
+        sequence_format.format_regex = Regex::new(&regex_string)?;
+        Ok(sequence_format)
     }
 }
 
@@ -310,7 +306,6 @@ impl fmt::Display for SequenceFormat {
         )
     }
 }
-
 
 pub struct BarcodeConversions {
     pub samples_barcode_hash: HashMap<String, String>,
