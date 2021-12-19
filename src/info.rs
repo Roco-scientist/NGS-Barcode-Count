@@ -658,20 +658,17 @@ impl fmt::Display for MaxSeqErrors {
     }
 }
 
-// An enum for whether or not the sequencing format contains a random barcode.  This changes how the barcodes are counted and which are kept
 #[derive(Debug)]
-pub enum FormatType {
-    RandomBarcode,
-    NoRandomBarcode,
+pub enum ResultsHashmap {
+    RandomBarcode(HashMap<String, HashMap<String, HashSet<String>>>),
+    NoRandomBarcode(HashMap<String, HashMap<String, usize>>),
 }
 
 // A struct which holds the count results, whether that is for a scheme which contains a random barcode or not
 #[derive(Debug)]
 pub struct Results {
-    pub random_hashmap: HashMap<String, HashMap<String, HashSet<String>>>, // The counts for for schemes that contain random barcodes
-    pub count_hashmap: HashMap<String, HashMap<String, u32>>, // The counts for the schemes which don't contain random barcodes.  Right now it is either on or the other.  Too much memory may be needed otherwise
-    pub format_type: FormatType, // Whether it is with a random barcode or not
-    empty_count_hash: HashMap<String, u32>, // An empty hashmap that is used a few times and therefor stored within the struct
+    pub results_hashmap: ResultsHashmap,
+    empty_count_hash: HashMap<String, usize>, // An empty hashmap that is used a few times and therefor stored within the struct
     empty_random_hash: HashMap<String, HashSet<String>>,
     sample_conversion_omited: bool,
 }
@@ -683,41 +680,47 @@ impl Results {
         random_barcode: bool,
         sample_barcode: bool,
     ) -> Self {
-        // Record and keep the format type of whether or not the random barcode is included
-        let format_type;
+        let mut results_hashmap;
         if random_barcode {
-            format_type = FormatType::RandomBarcode
+            results_hashmap = ResultsHashmap::RandomBarcode(HashMap::new());
+            // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
         } else {
-            format_type = FormatType::NoRandomBarcode
+            results_hashmap = ResultsHashmap::NoRandomBarcode(HashMap::new());
         }
-
-        let mut random_hashmap = HashMap::new(); // create the hashmap that is used to count with random barcode scheme
-        let mut count_hashmap = HashMap::new(); // create the hashmap that is used ot count when a random barcode is not used.  One or the other stays empty depending on the scheme
-
-        // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
-        let empty_random_hash: HashMap<String, HashSet<String>> = HashMap::new();
-        let empty_count_hash: HashMap<String, u32> = HashMap::new();
 
         // If sample name conversion was included, add all sample names to the hashmaps used to count
         let mut sample_conversion_omited = false;
+        // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
+        let empty_random_hash: HashMap<String, HashSet<String>> = HashMap::new();
+        let empty_count_hash: HashMap<String, usize> = HashMap::new();
         if !samples_barcode_hash.is_empty() {
             for sample in samples_barcode_hash.keys() {
                 let sample_barcode = sample.to_string();
-                random_hashmap.insert(sample_barcode.clone(), empty_random_hash.clone());
-                count_hashmap.insert(sample_barcode, empty_count_hash.clone());
+                match results_hashmap {
+                    ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
+                        random_hashmap.insert(sample_barcode.clone(), empty_random_hash.clone());
+                    }
+                    ResultsHashmap::NoRandomBarcode(ref mut count_hashmap) => {
+                        count_hashmap.insert(sample_barcode, empty_count_hash.clone());
+                    }
+                }
             }
         } else if !sample_barcode {
             // If sample names are not included, insert unknown name into the hashmaps
-            random_hashmap.insert("barcode".to_string(), empty_random_hash.clone());
-            count_hashmap.insert("barcode".to_string(), empty_count_hash.clone());
+            match results_hashmap {
+                ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
+                    random_hashmap.insert("barcode".to_string(), empty_random_hash.clone());
+                }
+                ResultsHashmap::NoRandomBarcode(ref mut count_hashmap) => {
+                    count_hashmap.insert("barcode".to_string(), empty_count_hash.clone());
+                }
+            }
         } else {
             sample_conversion_omited = true;
         }
         // return the Results struct
         Results {
-            random_hashmap,
-            count_hashmap,
-            format_type,
+            results_hashmap,
             empty_count_hash,
             empty_random_hash,
             sample_conversion_omited,
@@ -725,78 +728,88 @@ impl Results {
     }
 
     /// Adds the random barcode connected to the barcode_ID that is counted and the sample.  When writing these unique barcodes are counted to get a count
-    pub fn add_random(
+    pub fn add_count(
         &mut self,
         sample_barcode: &str,
-        random_barcode: &str,
+        random_barcode: Option<&String>,
         barcode_string: String,
     ) -> bool {
-        if self.sample_conversion_omited && !self.random_hashmap.contains_key(sample_barcode) {
-            self.random_hashmap
-                .insert(sample_barcode.to_string(), self.empty_random_hash.clone());
-        };
-
-        // Get the hashmap for the sample
-        let barcodes_hashmap_option;
-        if sample_barcode.is_empty() {
-            barcodes_hashmap_option = self.random_hashmap.get_mut("barcode");
-        } else {
-            barcodes_hashmap_option = self.random_hashmap.get_mut(sample_barcode);
-        }
-        if let Some(barcodes_hashmap) = barcodes_hashmap_option {
-            // If the barcodes_hashmap is not empty
-            // but doesn't contain the barcode
-            if !barcodes_hashmap.contains_key(&barcode_string) {
-                // insert the hashmap<barcode_id, Set<random_barcodes>>
-                let mut intermediate_set = HashSet::new();
-                intermediate_set.insert(random_barcode.to_string());
-                barcodes_hashmap.insert(barcode_string, intermediate_set);
-            } else {
-                // if the hashmap<sample_id, hashmap<barcode_id, Set<>> exists, check to see if the random barcode already was inserted
-                let random_set = barcodes_hashmap.get_mut(&barcode_string).unwrap();
-                return random_set.insert(random_barcode.to_string());
+        // If conversion file does not exist, add the barcode as a key value
+        if self.sample_conversion_omited {
+            match self.results_hashmap {
+                ResultsHashmap::NoRandomBarcode(ref mut count_hashmap) => {
+                    if !count_hashmap.contains_key(sample_barcode) {
+                        count_hashmap
+                            .insert(sample_barcode.to_string(), self.empty_count_hash.clone());
+                    };
+                }
+                ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
+                    if !random_hashmap.contains_key(sample_barcode) {
+                        random_hashmap
+                            .insert(sample_barcode.to_string(), self.empty_random_hash.clone());
+                    };
+                }
             }
-        } else {
-            // create the Set<RandomBarcode>
-            let mut intermediate_set = HashSet::new();
-            intermediate_set.insert(random_barcode.to_string());
-            let mut intermediate_hash = HashMap::new();
-            // create the HashMap<barcode_id, Set<RandomBarcodes>>
-            intermediate_hash.insert(barcode_string.to_string(), intermediate_set);
-            // insert this into the random_hashmap connected to the sample_ID
-            self.random_hashmap
-                .insert(sample_barcode.to_string(), intermediate_hash);
-        }
-        true
-    }
-
-    /// Adds to the count for the barcode_id connected to the sample. This is used when a random barcode is not included in the scheme
-    pub fn add_count(&mut self, sample_barcode: &str, barcode_string: String) {
-        if self.sample_conversion_omited && !self.count_hashmap.contains_key(sample_barcode) {
-            self.count_hashmap
-                .insert(sample_barcode.to_string(), self.empty_count_hash.clone());
         };
-        // Insert 0 if the barcodes are not within the sample_name -> barcodes
-        // Then add one regardless
-        *self
-            .count_hashmap
-            .get_mut(sample_barcode)
-            .unwrap_or(&mut self.empty_count_hash.clone())
-            .entry(barcode_string)
-            .or_insert(0) += 1;
+
+        match self.results_hashmap {
+            ResultsHashmap::NoRandomBarcode(ref mut count_hashmap) => {
+                *count_hashmap
+                    .get_mut(sample_barcode)
+                    .unwrap_or(&mut self.empty_count_hash.clone())
+                    .entry(barcode_string)
+                    .or_insert(0) += 1;
+            }
+            ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
+                // Get the hashmap for the sample
+                let barcodes_hashmap_option;
+                if sample_barcode.is_empty() {
+                    barcodes_hashmap_option = random_hashmap.get_mut("barcode");
+                } else {
+                    barcodes_hashmap_option = random_hashmap.get_mut(sample_barcode);
+                }
+                if let Some(barcodes_hashmap) = barcodes_hashmap_option {
+                    // If the barcodes_hashmap is not empty
+                    // but doesn't contain the barcode
+                    if !barcodes_hashmap.contains_key(&barcode_string) {
+                        // insert the hashmap<barcode_id, Set<random_barcodes>>
+                        let mut intermediate_set = HashSet::new();
+                        intermediate_set
+                            .insert(random_barcode.unwrap_or(&"".to_string()).to_string());
+                        barcodes_hashmap.insert(barcode_string, intermediate_set);
+                    } else {
+                        // if the hashmap<sample_id, hashmap<barcode_id, Set<>> exists, check to see if the random barcode already was inserted
+                        let random_set = barcodes_hashmap.get_mut(&barcode_string).unwrap();
+                        return random_set
+                            .insert(random_barcode.unwrap_or(&"".to_string()).to_string());
+                    }
+                } else {
+                    // create the Set<RandomBarcode>
+                    let mut intermediate_set = HashSet::new();
+                    intermediate_set.insert(random_barcode.unwrap_or(&"".to_string()).to_string());
+                    let mut intermediate_hash = HashMap::new();
+                    // create the HashMap<barcode_id, Set<RandomBarcodes>>
+                    intermediate_hash.insert(barcode_string.to_string(), intermediate_set);
+                    // insert this into the random_hashmap connected to the sample_ID
+                    random_hashmap.insert(sample_barcode.to_string(), intermediate_hash);
+                }
+            }
+        }
+
+        true
     }
 }
 
 /// A struct which holds hte enriched single and double counted barcodes.  Useful for DEL.  This struct is used during output.
 pub struct ResultsEnrichment {
-    pub single_hashmap: HashMap<String, HashMap<String, u32>>, // enrichment of single barcodes hash used at output
-    pub double_hashmap: HashMap<String, HashMap<String, u32>>, // enrichment of double barcodes hash used at output
-    empty_count_hash: HashMap<String, u32>,
+    pub single_hashmap: HashMap<String, HashMap<String, usize>>, // enrichment of single barcodes hash used at output
+    pub double_hashmap: HashMap<String, HashMap<String, usize>>, // enrichment of double barcodes hash used at output
+    empty_count_hash: HashMap<String, usize>,
 }
 
 impl ResultsEnrichment {
     pub fn new() -> Self {
-        let empty_count_hash: HashMap<String, u32> = HashMap::new();
+        let empty_count_hash: HashMap<String, usize> = HashMap::new();
         ResultsEnrichment {
             single_hashmap: HashMap::new(),
             double_hashmap: HashMap::new(),
@@ -816,7 +829,7 @@ impl ResultsEnrichment {
     }
 
     /// Adds the count the the single barcode enrichment hashmap
-    pub fn add_single(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
+    pub fn add_single(&mut self, sample_id: &str, barcode_string: &str, count: usize) {
         // get the number of barcodes to know homu much to iterate
         let barcode_num = barcode_string.split(',').count();
         // For each single barcode in the comma separate barcodes, create a new string with just one barcode and empty other columns
@@ -845,7 +858,7 @@ impl ResultsEnrichment {
     }
 
     /// Adds the count to the double barcode enrichment hashmap
-    pub fn add_double(&mut self, sample_id: &str, barcode_string: &str, count: u32) {
+    pub fn add_double(&mut self, sample_id: &str, barcode_string: &str, count: usize) {
         // get the number of barcodes to know homu much to iterate
         let barcode_num = barcode_string.split(',').count();
         // split the barcodes into a vec from their comma separated form

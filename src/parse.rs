@@ -56,24 +56,15 @@ impl SequenceParser {
                 if let Some(seq_match_result) = self.match_seq()? {
                     let barcode_string = seq_match_result.barcode_string();
                     // If there is a random barcode included
-                    if seq_match_result.random_barcode.is_empty() {
-                        self.shared_mut_clone
-                            .results
-                            .lock()
-                            .unwrap()
-                            .add_count(&seq_match_result.sample_barcode, barcode_string);
+                    let added = self.shared_mut_clone.results.lock().unwrap().add_count(
+                        &seq_match_result.sample_barcode,
+                        seq_match_result.random_barcode.as_ref(),
+                        barcode_string,
+                    );
+                    if added {
                         self.sequence_errors_clone.correct_match()
                     } else {
-                        let added = self.shared_mut_clone.results.lock().unwrap().add_random(
-                            &seq_match_result.sample_barcode,
-                            &seq_match_result.random_barcode,
-                            barcode_string,
-                        );
-                        if added {
-                            self.sequence_errors_clone.correct_match()
-                        } else {
-                            self.sequence_errors_clone.duplicated();
-                        }
+                        self.sequence_errors_clone.duplicated();
                     }
                 }
             } else if self.shared_mut_clone.finished.load(Ordering::Relaxed) {
@@ -440,7 +431,7 @@ pub struct SequenceMatchResult {
     pub counted_barcodes: Vec<String>,
     pub counted_barcode_error: bool,
     pub sample_barcode_error: bool,
-    pub random_barcode: String,
+    pub random_barcode: Option<String>,
 }
 
 impl SequenceMatchResult {
@@ -518,9 +509,9 @@ impl SequenceMatchResult {
         let random_barcode;
         // If a random barcode exists, add it.  Otherwise set it to an empty string
         if let Some(random_barcode_match) = barcodes.name("random") {
-            random_barcode = random_barcode_match.as_str().to_string()
+            random_barcode = Some(random_barcode_match.as_str().to_string())
         } else {
-            random_barcode = String::new()
+            random_barcode = None
         }
         SequenceMatchResult {
             sample_barcode,
