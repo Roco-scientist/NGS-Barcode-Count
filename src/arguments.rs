@@ -9,12 +9,12 @@ pub struct Args {
     pub sample_barcodes_option: Option<String>,  // sample barcode file path.  Optional
     pub counted_barcodes_option: Option<String>, // building block barcode file path. Optional
     pub output_dir: String,                      // output directory.  Deafaults to './'
-    pub threads: u8, // Number of threads to use.  Defaults to number of threads on the machine
+    pub threads: u16, // Number of threads to use.  Defaults to number of threads on the machine
     pub prefix: String, // Prefix string for the output files
     pub merge_output: bool, // Whether or not to create an additional output file that merges all samples
-    pub barcodes_errors_option: Option<u8>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
-    pub sample_errors_option: Option<u8>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
-    pub constant_errors_option: Option<u8>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
+    pub barcodes_errors_option: Option<u16>, // Optional input of how many errors are allowed in each building block barcode.  Defaults to 20% of the length
+    pub sample_errors_option: Option<u16>, // Optional input of how many errors are allowed in each sample barcode.  Defaults to 20% of the length
+    pub constant_errors_option: Option<u16>, // Optional input of how many errors are allowed in each constant region barcode.  Defaults to 20% of the length
     pub min_average_quality_score: f32,
     pub enrich: bool,
 }
@@ -141,7 +141,7 @@ impl Args {
         if let Some(barcodes) = args.value_of("max_barcode") {
             barcodes_errors_option = Some(
                 barcodes
-                    .parse::<u8>()
+                    .parse::<u16>()
                     .context("Unable to convert maximum barcode errors to an integer")?,
             )
         } else {
@@ -152,7 +152,7 @@ impl Args {
         if let Some(sample) = args.value_of("max_sample") {
             sample_errors_option = Some(
                 sample
-                    .parse::<u8>()
+                    .parse::<u16>()
                     .context("Unable to convert maximum sample errors to an integer")?,
             )
         } else {
@@ -163,7 +163,7 @@ impl Args {
         if let Some(constant) = args.value_of("max_constant") {
             constant_errors_option = Some(
                 constant
-                    .parse::<u8>()
+                    .parse::<u16>()
                     .context("Unable to convert maximum constant errors to an integer")?,
             )
         } else {
@@ -188,7 +188,7 @@ impl Args {
         let threads = args
             .value_of("threads")
             .unwrap()
-            .parse::<u8>()
+            .parse::<u16>()
             .context("Unable to convert threads to an integer")?;
         let prefix = args.value_of("prefix").unwrap().to_string();
         let min_average_quality_score = args

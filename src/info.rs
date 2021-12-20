@@ -177,11 +177,11 @@ pub struct SequenceFormat {
     pub format_string: String,      // sequence with 'N's replacing barcodes
     pub regions_string: String,     // String with each region contain a code
     pub length: usize,              // Total length of format sequence
-    pub constant_region_length: u8, // Length of only the consant nucleotides
+    pub constant_region_length: u16, // Length of only the consant nucleotides
     pub format_regex: Regex,        // The regex search used to find barcodes
     pub barcode_num: usize,         // Number of counted barcodes.  More for DEL
-    pub barcode_lengths: Vec<u8>,   // The length of each counted barcode
-    pub sample_length_option: Option<u8>, // Sample barcode length
+    pub barcode_lengths: Vec<u16>,   // The length of each counted barcode
+    pub sample_length_option: Option<u16>, // Sample barcode length
     pub random_barcode: bool,       // Whether a random barcode is included
     pub sample_barcode: bool,       // Whether a sammple barcode is included
 }
@@ -255,7 +255,7 @@ impl SequenceFormat {
                     .get(0)
                     .unwrap()
                     .as_str()
-                    .parse::<u8>()
+                    .parse::<u16>()
                     .unwrap();
 
                 // Create the capture group with the group name for the barcode and add it to the
@@ -301,7 +301,7 @@ impl SequenceFormat {
                 for _ in 0..constant_group_length {
                     sequence_format.regions_string.push('C');
                 }
-                sequence_format.constant_region_length += constant_group_length as u8;
+                sequence_format.constant_region_length += constant_group_length as u16;
             }
         }
         sequence_format.length = sequence_format.format_string.chars().count();
@@ -460,14 +460,14 @@ impl BarcodeConversions {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaxSeqErrors {
     // errors within the constant region
-    constant_region: u8,
-    constant_region_size: u8,
+    constant_region: u16,
+    constant_region_size: u16,
     // errors within the sample barcode
-    sample_barcode: u8,
-    sample_size: u8,
+    sample_barcode: u16,
+    sample_size: u16,
     // erors within the counted barcode
-    barcode: Vec<u8>,
-    barcode_sizes: Vec<u8>,
+    barcode: Vec<u16>,
+    barcode_sizes: Vec<u16>,
     min_quality: f32,
 }
 
@@ -488,12 +488,12 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// ```
     pub fn new(
-        sample_errors_option: Option<u8>,
-        sample_barcode_size_option: Option<u8>,
-        barcode_errors_option: Option<u8>,
-        barcode_sizes: Vec<u8>,
-        constant_errors_option: Option<u8>,
-        constant_region_size: u8,
+        sample_errors_option: Option<u16>,
+        sample_barcode_size_option: Option<u16>,
+        barcode_errors_option: Option<u16>,
+        barcode_sizes: Vec<u16>,
+        constant_errors_option: Option<u16>,
+        constant_region_size: u16,
         min_quality: f32,
     ) -> Self {
         let max_sample_errors;
@@ -562,7 +562,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_constant_errors(), 3);
     /// ```
-    pub fn max_constant_errors(&self) -> u8 {
+    pub fn max_constant_errors(&self) -> u16 {
         self.constant_region
     }
 
@@ -586,7 +586,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_sample_errors(), 3);
     /// ```
-    pub fn max_sample_errors(&self) -> u8 {
+    pub fn max_sample_errors(&self) -> u16 {
         self.sample_barcode
     }
 
@@ -610,7 +610,7 @@ impl MaxSeqErrors {
     /// let mut max_sequence_errors = MaxSeqErrors::new(sample_errors_option, sample_barcode_size_option, barcode_errors_option, barcode_sizes, constant_errors_option, constant_region_size, min_quality);
     /// assert_eq!(max_sequence_errors.max_barcode_errors(), vec![2,2,2]);
     /// ```
-    pub fn max_barcode_errors(&self) -> &[u8] {
+    pub fn max_barcode_errors(&self) -> &[u16] {
         &self.barcode
     }
 }
