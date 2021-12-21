@@ -26,7 +26,6 @@ Inspired by and some ideas adopted from [decode](https://github.com/sunghunbae/d
 - [Run](#run)
 - [Uses](#uses)
 - [Test Results](#test-results)
-- [Notes](#notes)
 
 ## Installation
 
@@ -188,9 +187,3 @@ Compute time: 0 hours, 28 minutes, 43.359 seconds
 
 Total time: 0 hours, 29 minutes, 8.219 seconds
 ```
-
-## Notes
-In order to remain memory efficient, there are limits on how large each number can get<br>
-Any count: u32 with a max of 4,294,967,295 <br>
-Barcode lengths, each error max, number of barcodes in a single sequence: u8 with a max of 255 <br><br>
-If larger values are needed, edit the script and replace the u32 with u64 or u8 with u16 etc.

@@ -56,25 +56,16 @@ impl SequenceParser {
                 if let Some(seq_match_result) = self.match_seq()? {
                     let barcode_string = seq_match_result.barcode_string();
                     // If there is a random barcode included
-                    if seq_match_result.random_barcode.is_empty() {
-                        self.shared_mut_clone
+                        let added = self.shared_mut_clone
                             .results
                             .lock()
                             .unwrap()
-                            .add_count(&seq_match_result.sample_barcode, barcode_string);
-                        self.sequence_errors_clone.correct_match()
-                    } else {
-                        let added = self.shared_mut_clone.results.lock().unwrap().add_random(
-                            &seq_match_result.sample_barcode,
-                            &seq_match_result.random_barcode,
-                            barcode_string,
-                        );
+                            .add_count(&seq_match_result.sample_barcode, seq_match_result.random_barcode.as_ref(), barcode_string);
                         if added {
                             self.sequence_errors_clone.correct_match()
                         } else {
                             self.sequence_errors_clone.duplicated();
                         }
-                    }
                 }
             } else if self.shared_mut_clone.finished.load(Ordering::Relaxed) {
                 break;
@@ -241,7 +232,7 @@ impl RawSequenceRead {
         }
     }
 
-    pub fn add_line(&mut self, line_num: u8, line: String) -> Result<()> {
+    pub fn add_line(&mut self, line_num: u16, line: String) -> Result<()> {
         match line_num {
             1 => self.description = line,
             2 => self.sequence = line,
@@ -268,7 +259,7 @@ impl RawSequenceRead {
     pub fn unpack(raw_string: String) -> Result<Self> {
         let mut raw_sequence_read = RawSequenceRead::new();
         for (line_num, line) in raw_string.split('\n').enumerate() {
-            let true_line = line_num as u8 + 1;
+            let true_line = line_num as u16 + 1;
             raw_sequence_read.add_line(true_line, line.to_string())?
         }
         Ok(raw_sequence_read)
@@ -292,7 +283,7 @@ impl RawSequenceRead {
 
     /// Fixes the constant region by finding the closest match within the full seqeuence that has fewer than the max errors allowed,
     /// then uses the format string to flip the barcodes into the 'N's and have a fixed constant region string
-    pub fn fix_constant_region(&mut self, format_string: &str, max_constant_errors: u8) {
+    pub fn fix_constant_region(&mut self, format_string: &str, max_constant_errors: u16) {
         // Find the region of the sequence that best matches the constant region.  This is doen by iterating through the sequence
         // Get the length difference between what was sequenced and the barcode region with constant regions
         // This is to stop the iteration in the next step
@@ -440,7 +431,7 @@ pub struct SequenceMatchResult {
     pub counted_barcodes: Vec<String>,
     pub counted_barcode_error: bool,
     pub sample_barcode_error: bool,
-    pub random_barcode: String,
+    pub random_barcode: Option<String>,
 }
 
 impl SequenceMatchResult {
@@ -448,9 +439,9 @@ impl SequenceMatchResult {
         barcodes: Captures, // The regex result on the sequence
         barcode_groups: &[String],
         counted_barcode_seqs: &[HashSet<String>], // The vec of known counted barcode sequences in order to fix sequencing errors.  Will be empty if none are known or included
-        counted_barcode_max_errors: &[u8], // The maximum errors allowed for each counted barcode
+        counted_barcode_max_errors: &[u16], // The maximum errors allowed for each counted barcode
         sample_seqs: &HashSet<String>, // A hashset of all known sample barcodes. Will be empty if none are known or included
-        sample_seqs_max_errors: u8,    // Maximum allowed sample barcode sequencing errors
+        sample_seqs_max_errors: u16,    // Maximum allowed sample barcode sequencing errors
     ) -> SequenceMatchResult {
         // Check for sample barcode and start with setting error to false
         let mut sample_barcode_error = false;
@@ -518,9 +509,9 @@ impl SequenceMatchResult {
         let random_barcode;
         // If a random barcode exists, add it.  Otherwise set it to an empty string
         if let Some(random_barcode_match) = barcodes.name("random") {
-            random_barcode = random_barcode_match.as_str().to_string()
+            random_barcode = Some(random_barcode_match.as_str().to_string())
         } else {
-            random_barcode = String::new()
+            random_barcode = None
         }
         SequenceMatchResult {
             sample_barcode,
@@ -550,7 +541,7 @@ impl SequenceMatchResult {
 /// let possible_barcodes_one_match: std::collections::HashSet<String> = ["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // only the first has a single mismatch
 /// let possible_barcodes_two_match: std::collections::HashSet<String> = ["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // first and second have a single mismatch
 ///
-/// let max_mismatches = barcode.chars().count() as u8 / 5; // allow up to 20% mismatches
+/// let max_mismatches = barcode.chars().count() as u16 / 5; // allow up to 20% mismatches
 ///
 /// let fixed_error_one = fix_error(barcode, &possible_barcodes_one_match, max_mismatches);
 /// let fixed_error_two = fix_error(barcode, &possible_barcodes_two_match, max_mismatches);
@@ -558,7 +549,7 @@ impl SequenceMatchResult {
 /// assert_eq!(fixed_error_one, Some("AGCAG".to_string()));
 /// assert_eq!(fixed_error_two, None);
 /// ```
-pub fn fix_error<'a, I>(mismatch_seq: &str, possible_seqs: I, mismatches: u8) -> Option<String>
+pub fn fix_error<'a, I>(mismatch_seq: &str, possible_seqs: I, mismatches: u16) -> Option<String>
 where
     I: IntoIterator<Item = &'a String>,
 {

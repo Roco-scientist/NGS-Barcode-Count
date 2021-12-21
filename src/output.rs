@@ -16,7 +16,9 @@ use itertools::Itertools;
 
 use crate::{
     arguments::Args,
-    info::{FormatType, MaxSeqErrors, Results, ResultsEnrichment, SequenceErrors, SequenceFormat},
+    info::{
+        MaxSeqErrors, Results, ResultsEnrichment, ResultsHashmap, SequenceErrors, SequenceFormat,
+    },
 };
 
 #[derive(PartialEq, Clone)]
@@ -71,19 +73,13 @@ impl WriteFiles {
     pub fn write_counts_files(&mut self) -> Result<()> {
         let unknown_sample = "barcode".to_string();
         // Pull all sample IDs from either random hashmap or counts hashmap
-        let mut sample_barcodes = match self.results.format_type {
-            FormatType::RandomBarcode => self
-                .results
-                .random_hashmap
-                .keys()
-                .cloned()
-                .collect::<Vec<String>>(),
-            FormatType::NoRandomBarcode => self
-                .results
-                .count_hashmap
-                .keys()
-                .cloned()
-                .collect::<Vec<String>>(),
+        let mut sample_barcodes = match &self.results.results_hashmap {
+            ResultsHashmap::RandomBarcode(random_hashmap) => {
+                random_hashmap.keys().cloned().collect::<Vec<String>>()
+            }
+            ResultsHashmap::NoRandomBarcode(count_hashmap) => {
+                count_hashmap.keys().cloned().collect::<Vec<String>>()
+            }
         };
 
         if self.args.enrich {
@@ -153,14 +149,9 @@ impl WriteFiles {
             let output_path = directory.join(file_name);
 
             self.sample_text.push_str(&header);
-            let count = match self.results.format_type {
-                FormatType::RandomBarcode => {
-                    self.add_random_string(sample_barcode, &sample_barcodes)?
-                }
-                FormatType::NoRandomBarcode => {
-                    self.add_counts_string(sample_barcode, &sample_barcodes, EnrichedType::Full)?
-                }
-            };
+            let count =
+                self.add_counts_string(sample_barcode, &sample_barcodes, EnrichedType::Full)?;
+
             let mut output = File::create(output_path)?; // Create the output file
             output.write_all(self.sample_text.as_bytes())?;
             self.sample_text.clear();
@@ -205,87 +196,6 @@ impl WriteFiles {
         header
     }
 
-    /// Writes the files for when a random barcode is included
-    fn add_random_string(
-        &mut self,
-        sample_barcode: &str,
-        sample_barcodes: &[String],
-    ) -> Result<usize> {
-        let sample_random_hash = self.results.random_hashmap.get(sample_barcode).unwrap();
-        // Iterate through all results and write as comma separated.  The keys within the hashmap are already comma separated
-        // If there is an included building block barcode file, it is converted here
-        let mut barcode_num = 0;
-        for (line_num, (code, random_barcodes)) in sample_random_hash.iter().enumerate() {
-            barcode_num = line_num + 1;
-            if barcode_num % 50000 == 0 {
-                print!(
-                    "Barcodes counted: {}\r",
-                    barcode_num.to_formatted_string(&Locale::en)
-                );
-                stdout().flush()?;
-            }
-            let written_barcodes;
-            if !self.counted_barcodes_hash.is_empty() {
-                // Convert the building block DNA barcodes and join them back to comma separated
-                written_barcodes = convert_code(code, &self.counted_barcodes_hash);
-            } else {
-                written_barcodes = code.clone();
-            }
-
-            // If merge output argument is called, pull data for the compound and write to merged file
-            if self.args.merge_output {
-                // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
-                let new = self.compounds_written.insert(code.clone());
-                if new {
-                    self.merged_count += 1;
-                    // Start a new row with the converted building block barcodes
-                    let mut merged_row = written_barcodes.clone();
-                    // For every sample, retrieve the count and add to the row with a comma
-                    for sample_barcode in sample_barcodes {
-                        merged_row.push(',');
-                        merged_row.push_str(
-                            &self
-                                .results
-                                .random_hashmap
-                                .get(sample_barcode)
-                                .unwrap()
-                                .get(code)
-                                .unwrap_or(&HashSet::new())
-                                .len()
-                                .to_string(),
-                        )
-                    }
-                    merged_row.push('\n');
-                    // write to the merged file
-                    self.merge_text.push_str(&merged_row);
-                }
-            }
-            // Create the row for the sample file and write
-            let row = format!("{},{}\n", written_barcodes, random_barcodes.len());
-            self.sample_text.push_str(&row);
-            if self.args.enrich {
-                self.results_enriched.add_single(
-                    sample_barcode,
-                    &written_barcodes,
-                    random_barcodes.len() as u32,
-                );
-                if self.sequence_format.barcode_num > 2 {
-                    self.results_enriched.add_double(
-                        sample_barcode,
-                        &written_barcodes,
-                        random_barcodes.len() as u32,
-                    )
-                }
-            }
-        }
-        print!(
-            "Barcodes counted: {}\r",
-            barcode_num.to_formatted_string(&Locale::en)
-        );
-        println!();
-        Ok(barcode_num)
-    }
-
     /// Writes the files for when a random barcode is not included
     fn add_counts_string(
         &mut self,
@@ -293,22 +203,77 @@ impl WriteFiles {
         sample_barcodes: &[String],
         enrichment: EnrichedType, // In order to make this non redundant with writing single and double barcodes, this enum determines some aspects
     ) -> Result<usize> {
-        let mut hash_holder: HashMap<String, HashMap<String, u32>> = HashMap::new(); // a hodler hash to hold the hashmap from sample_counts_hash for a longer lifetime.  Also used later
-                                                                                     // Select from the hashmap connected the the EnrichedType
-        let sample_counts_hash = match enrichment {
+        let mut hash_holder: HashMap<String, HashMap<String, usize>> = HashMap::new(); // a hodler hash to hold the hashmap from sample_counts_hash for a longer lifetime.  Also used later
+                                                                                       // Select from the hashmap connected the the EnrichedType
+        let codes = match enrichment {
             EnrichedType::Single => {
                 hash_holder = self.results_enriched.single_hashmap.clone();
-                hash_holder.get(sample_barcode).unwrap()
+                hash_holder
+                    .get(sample_barcode)
+                    .unwrap()
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<String>>()
             }
             EnrichedType::Double => {
                 hash_holder = self.results_enriched.double_hashmap.clone();
-                hash_holder.get(sample_barcode).unwrap()
+                hash_holder
+                    .get(sample_barcode)
+                    .unwrap()
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<String>>()
             }
-            EnrichedType::Full => self.results.count_hashmap.get(sample_barcode).unwrap(),
+            EnrichedType::Full => match &self.results.results_hashmap {
+                ResultsHashmap::NoRandomBarcode(count_hashmap) => count_hashmap
+                    .get(sample_barcode)
+                    .unwrap()
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<String>>(),
+                ResultsHashmap::RandomBarcode(random_hashmap) => random_hashmap
+                    .get(sample_barcode)
+                    .unwrap()
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<String>>(),
+            },
         };
 
         let mut barcode_num = 0;
-        for (line_num, (code, count)) in sample_counts_hash.iter().enumerate() {
+        for (line_num, code) in codes.iter().enumerate() {
+            let count = match enrichment {
+                EnrichedType::Single => self
+                    .results_enriched
+                    .single_hashmap
+                    .get(sample_barcode)
+                    .unwrap()
+                    .get(code)
+                    .unwrap()
+                    .clone(),
+                EnrichedType::Double => self
+                    .results_enriched
+                    .double_hashmap
+                    .get(sample_barcode)
+                    .unwrap()
+                    .get(code)
+                    .unwrap()
+                    .clone(),
+                EnrichedType::Full => match &self.results.results_hashmap {
+                    ResultsHashmap::NoRandomBarcode(count_hashmap) => count_hashmap
+                        .get(sample_barcode)
+                        .unwrap()
+                        .get(code)
+                        .unwrap()
+                        .clone(),
+                    ResultsHashmap::RandomBarcode(random_hashmap) => random_hashmap
+                        .get(sample_barcode)
+                        .unwrap()
+                        .get(code)
+                        .unwrap()
+                        .len(),
+                },
+            };
             barcode_num = line_num + 1;
             // Print the number counted so far ever 50,000 writes
             if barcode_num % 50000 == 0 {
@@ -323,13 +288,13 @@ impl WriteFiles {
                 // Convert the building block DNA barcodes and join them back to comma separated
                 written_barcodes = convert_code(code, &self.counted_barcodes_hash);
             } else {
-                written_barcodes = code.clone();
+                written_barcodes = code.to_string();
             }
 
             // If merge output argument is called, pull data for the compound and write to merged file
             if self.args.merge_output {
                 // If the compound has not already been written to the file proceed.  This will happen after the first sample is completed
-                let new = self.compounds_written.insert(code.clone());
+                let new = self.compounds_written.insert(code.to_string());
                 if new {
                     self.merged_count += 1;
                     // Start a new row with the converted building block barcodes
@@ -353,14 +318,21 @@ impl WriteFiles {
                                 .unwrap_or(&0)
                                 .to_string(),
 
-                            EnrichedType::Full => self
-                                .results
-                                .count_hashmap
-                                .get(sample_barcode)
-                                .unwrap()
-                                .get(code)
-                                .unwrap_or(&0)
-                                .to_string(),
+                            EnrichedType::Full => match &self.results.results_hashmap {
+                                ResultsHashmap::RandomBarcode(random_hashmap) => random_hashmap
+                                    .get(sample_barcode)
+                                    .unwrap()
+                                    .get(code)
+                                    .unwrap_or(&HashSet::new())
+                                    .len()
+                                    .to_string(),
+                                ResultsHashmap::NoRandomBarcode(count_hashmap) => count_hashmap
+                                    .get(sample_barcode)
+                                    .unwrap()
+                                    .get(code)
+                                    .unwrap_or(&0)
+                                    .to_string(),
+                            },
                         };
                         merged_row.push_str(&sample_count);
                     }
@@ -378,10 +350,10 @@ impl WriteFiles {
             // run when Full is used
             if enrichment == EnrichedType::Full && self.args.enrich {
                 self.results_enriched
-                    .add_single(sample_barcode, &written_barcodes, *count);
+                    .add_single(sample_barcode, &written_barcodes, count);
                 if self.sequence_format.barcode_num > 2 {
                     self.results_enriched
-                        .add_double(sample_barcode, &written_barcodes, *count);
+                        .add_double(sample_barcode, &written_barcodes, count);
                 }
             }
         }
