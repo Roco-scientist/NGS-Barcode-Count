@@ -667,7 +667,7 @@ pub enum ResultsHashmap {
 // A struct which holds the count results, whether that is for a scheme which contains a random barcode or not
 #[derive(Debug)]
 pub struct Results {
-    pub results_hashmap: ResultsHashmap,
+    pub results_hashmap: ResultsHashmap, // holds the counted results
     empty_count_hash: HashMap<String, usize>, // An empty hashmap that is used a few times and therefor stored within the struct
     empty_random_hash: HashMap<String, HashSet<String>>,
     sample_conversion_omited: bool,
@@ -681,9 +681,10 @@ impl Results {
         sample_barcode: bool,
     ) -> Self {
         let mut results_hashmap;
+        // Create an empty hashmap into the enum depending on whether or not a random barcode is
+        // included
         if random_barcode {
             results_hashmap = ResultsHashmap::RandomBarcode(HashMap::new());
-            // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
         } else {
             results_hashmap = ResultsHashmap::NoRandomBarcode(HashMap::new());
         }
@@ -693,6 +694,7 @@ impl Results {
         // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
         let empty_random_hash: HashMap<String, HashSet<String>> = HashMap::new();
         let empty_count_hash: HashMap<String, usize> = HashMap::new();
+        // If there is a sample barcode file included, add these as keys in the relevant count hashmap
         if !samples_barcode_hash.is_empty() {
             for sample in samples_barcode_hash.keys() {
                 let sample_barcode = sample.to_string();
@@ -706,7 +708,7 @@ impl Results {
                 }
             }
         } else if !sample_barcode {
-            // If sample names are not included, insert unknown name into the hashmaps
+            // If there is not a sample barcode within the format, add 'barcode' as key
             match results_hashmap {
                 ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
                     random_hashmap.insert("barcode".to_string(), empty_random_hash.clone());
@@ -716,6 +718,8 @@ impl Results {
                 }
             }
         } else {
+            // If there is a sample barcode in the format but no sample barcode conversion file,
+            // set the following to true to make sample DNA barcodes into keys later on
             sample_conversion_omited = true;
         }
         // return the Results struct
@@ -727,7 +731,7 @@ impl Results {
         }
     }
 
-    /// Adds the random barcode connected to the barcode_ID that is counted and the sample.  When writing these unique barcodes are counted to get a count
+    /// Adds the count to results hashmap
     pub fn add_count(
         &mut self,
         sample_barcode: &str,
@@ -753,6 +757,7 @@ impl Results {
         };
 
         match self.results_hashmap {
+            // If random barcode is not included, add the count to this hashmap
             ResultsHashmap::NoRandomBarcode(ref mut count_hashmap) => {
                 *count_hashmap
                     .get_mut(sample_barcode)
@@ -760,6 +765,8 @@ impl Results {
                     .entry(barcode_string)
                     .or_insert(0) += 1;
             }
+            // If a random barcode is included, add the random barcode and later use the number of
+            // random barcodes as the count
             ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
                 // Get the hashmap for the sample
                 let barcodes_hashmap_option;
@@ -796,6 +803,8 @@ impl Results {
             }
         }
 
+        // Return that a count was added.  An earlier return value is used for when a random
+        // barcode is already within the results
         true
     }
 }
