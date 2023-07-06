@@ -469,7 +469,7 @@ impl SequenceMatchResult {
             }
         } else {
             // If there was no sample, save an empty string which should not have any allocation
-            sample_barcode = String::new();
+            sample_barcode = "barcode".to_string();
         }
 
         // Check the counted barcodes and start with setting the error to false
