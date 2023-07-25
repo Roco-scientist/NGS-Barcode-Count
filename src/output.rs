@@ -504,7 +504,7 @@ impl WriteFiles {
         let output_dir = self.args.output_dir.clone();
         let directory = Path::new(&output_dir);
         let today = Local::today().format("%Y-%m-%d").to_string();
-        let stat_filename = directory.join(format!("{}_barcode_stats.txt", &today));
+        let stat_filename = directory.join(format!("{}_barcode_stats.txt", self.args.prefex));
         // Make the stat file and make it an appending function
         let mut stat_file = OpenOptions::new()
             .write(true)
