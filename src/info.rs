@@ -777,12 +777,12 @@ impl Results {
                 if let Some(barcodes_hashmap) = barcodes_hashmap_option {
                     // If the barcodes_hashmap is not empty
                     // but doesn't contain the barcode
-                    if !barcodes_hashmap.contains_key(&barcode_string) {
+                    if let std::collections::hash_map::Entry::Vacant(e) = barcodes_hashmap.entry(barcode_string.clone()) {
                         // insert the hashmap<barcode_id, Set<random_barcodes>>
                         let mut intermediate_set = AHashSet::new();
                         intermediate_set
                             .insert(random_barcode.unwrap_or(&"".to_string()).to_string());
-                        barcodes_hashmap.insert(barcode_string, intermediate_set);
+                        e.insert(intermediate_set);
                     } else {
                         // if the hashmap<sample_id, hashmap<barcode_id, Set<>> exists, check to see if the random barcode already was inserted
                         let random_set = barcodes_hashmap.get_mut(&barcode_string).unwrap();
