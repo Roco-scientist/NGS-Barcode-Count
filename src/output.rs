@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use num_format::{Locale, ToFormattedString};
 use std::{
-    collections::{HashMap, HashSet},
     fs::{File, OpenOptions},
     io::{stdout, Write},
     path::Path,
@@ -11,6 +10,8 @@ use std::{
         Arc, Mutex,
     },
 };
+
+use ahash::{HashMap, HashMapExt, AHashSet};
 
 use itertools::Itertools;
 
@@ -35,7 +36,7 @@ pub struct WriteFiles {
     sequence_format: SequenceFormat,
     counted_barcodes_hash: Vec<HashMap<String, String>>,
     samples_barcode_hash: HashMap<String, String>,
-    compounds_written: HashSet<String>,
+    compounds_written: AHashSet<String>,
     args: Args,
     output_files: Vec<String>,
     output_counts: Vec<usize>,
@@ -59,7 +60,7 @@ impl WriteFiles {
             sequence_format,
             counted_barcodes_hash,
             samples_barcode_hash,
-            compounds_written: HashSet::new(),
+            compounds_written: AHashSet::new(),
             args,
             output_files: Vec::new(),
             output_counts: Vec::new(),
@@ -323,7 +324,7 @@ impl WriteFiles {
                                     .get(sample_barcode)
                                     .unwrap()
                                     .get(code)
-                                    .unwrap_or(&HashSet::new())
+                                    .unwrap_or(&AHashSet::new())
                                     .len()
                                     .to_string(),
                                 ResultsHashmap::NoRandomBarcode(count_hashmap) => count_hashmap

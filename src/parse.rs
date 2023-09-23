@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use regex::Captures;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections:: VecDeque,
     fmt,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -10,14 +10,15 @@ use std::{
 };
 
 use crate::info::{MaxSeqErrors, Results, SequenceErrors, SequenceFormat};
+use ahash::AHashSet;
 
 pub struct SequenceParser {
     shared_mut_clone: SharedMutData,
     sequence_errors_clone: SequenceErrors,
     sequence_format_clone: SequenceFormat,
     max_errors_clone: MaxSeqErrors,
-    sample_seqs: HashSet<String>,
-    counted_barcode_seqs: Vec<HashSet<String>>,
+    sample_seqs: AHashSet<String>,
+    counted_barcode_seqs: Vec<AHashSet<String>>,
     raw_sequence: RawSequenceRead,
     barcode_groups: Vec<String>,
     min_quality_score: f32,
@@ -29,8 +30,8 @@ impl SequenceParser {
         sequence_errors_clone: SequenceErrors,
         sequence_format_clone: SequenceFormat,
         max_errors_clone: MaxSeqErrors,
-        sample_seqs: HashSet<String>,
-        counted_barcode_seqs: Vec<HashSet<String>>,
+        sample_seqs: AHashSet<String>,
+        counted_barcode_seqs: Vec<AHashSet<String>>,
         min_quality_score: f32,
     ) -> Self {
         let mut barcode_groups = Vec::new();
@@ -438,9 +439,9 @@ impl SequenceMatchResult {
     pub fn new(
         barcodes: Captures, // The regex result on the sequence
         barcode_groups: &[String],
-        counted_barcode_seqs: &[HashSet<String>], // The vec of known counted barcode sequences in order to fix sequencing errors.  Will be empty if none are known or included
+        counted_barcode_seqs: &[AHashSet<String>], // The vec of known counted barcode sequences in order to fix sequencing errors.  Will be empty if none are known or included
         counted_barcode_max_errors: &[u16], // The maximum errors allowed for each counted barcode
-        sample_seqs: &HashSet<String>, // A hashset of all known sample barcodes. Will be empty if none are known or included
+        sample_seqs: &AHashSet<String>, // A hashset of all known sample barcodes. Will be empty if none are known or included
         sample_seqs_max_errors: u16,    // Maximum allowed sample barcode sequencing errors
     ) -> SequenceMatchResult {
         // Check for sample barcode and start with setting error to false
@@ -538,8 +539,8 @@ impl SequenceMatchResult {
 ///
 /// let barcode = "AGTAG";
 ///
-/// let possible_barcodes_one_match: std::collections::HashSet<String> = ["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // only the first has a single mismatch
-/// let possible_barcodes_two_match: std::collections::HashSet<String> = ["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // first and second have a single mismatch
+/// let possible_barcodes_one_match: std::collections::AHashSet<String> = ["AGCAG".to_string(), "ACAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // only the first has a single mismatch
+/// let possible_barcodes_two_match: std::collections::AHashSet<String> = ["AGCAG".to_string(), "AGAAG".to_string(), "AGCAA".to_string()].iter().cloned().collect(); // first and second have a single mismatch
 ///
 /// let max_mismatches = barcode.chars().count() as u16 / 5; // allow up to 20% mismatches
 ///

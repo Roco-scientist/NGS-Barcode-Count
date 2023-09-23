@@ -3,13 +3,13 @@ use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use regex::Regex;
 use std::{
-    collections::{HashMap, HashSet},
     fmt, fs,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
     },
 };
+use ahash::{HashMap, HashMapExt, AHashSet};
 
 // Struct to keep track of sequencing errors and correct matches.  This is displayed at the end of the algorithm for QC measures
 #[derive(Debug, Clone)]
@@ -313,7 +313,7 @@ impl SequenceFormat {
 impl fmt::Display for SequenceFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut key = String::new();
-        let mut new_char = HashSet::new();
+        let mut new_char = AHashSet::new();
         for key_char in self.regions_string.chars() {
             if new_char.insert(key_char) {
                 let key_info = match key_char {
@@ -337,9 +337,9 @@ impl fmt::Display for SequenceFormat {
 /// Contains all possible barcode sequences for error handling and barcode to ID conversion
 pub struct BarcodeConversions {
     pub samples_barcode_hash: HashMap<String, String>,
-    pub sample_seqs: HashSet<String>,
+    pub sample_seqs: AHashSet<String>,
     pub counted_barcodes_hash: Vec<HashMap<String, String>>,
-    pub counted_barcode_seqs: Vec<HashSet<String>>,
+    pub counted_barcode_seqs: Vec<AHashSet<String>>,
 }
 
 impl Default for BarcodeConversions {
@@ -353,7 +353,7 @@ impl BarcodeConversions {
     pub fn new() -> Self {
         BarcodeConversions {
             samples_barcode_hash: HashMap::new(),
-            sample_seqs: HashSet::new(),
+            sample_seqs: AHashSet::new(),
             counted_barcodes_hash: Vec::new(),
             counted_barcode_seqs: Vec::new(),
         }
@@ -408,7 +408,7 @@ impl BarcodeConversions {
         for _ in 0..barcode_num {
             self.counted_barcodes_hash.push(HashMap::new());
         }
-        let mut barcode_num_contained = HashSet::new();
+        let mut barcode_num_contained = AHashSet::new();
         for (barcode, id, barcode_num) in barcode_vecs {
             let barcode_num_usize = barcode_num.parse::<usize>().context(format!(
                 "Third column of barcode file contains something other than an integer: {}",
@@ -449,9 +449,9 @@ impl BarcodeConversions {
                 .map(|hash| {
                     hash.keys()
                         .map(|key| key.to_string())
-                        .collect::<HashSet<String>>()
+                        .collect::<AHashSet<String>>()
                 }) // creates a hashset for each sequential barcode, then collects into a vector with the index being each sequential counted barcode
-                .collect::<Vec<HashSet<String>>>();
+                .collect::<Vec<AHashSet<String>>>();
         }
     }
 }
@@ -660,7 +660,7 @@ impl fmt::Display for MaxSeqErrors {
 
 #[derive(Debug)]
 pub enum ResultsHashmap {
-    RandomBarcode(HashMap<String, HashMap<String, HashSet<String>>>),
+    RandomBarcode(HashMap<String, HashMap<String, AHashSet<String>>>),
     NoRandomBarcode(HashMap<String, HashMap<String, usize>>),
 }
 
@@ -669,7 +669,7 @@ pub enum ResultsHashmap {
 pub struct Results {
     pub results_hashmap: ResultsHashmap, // holds the counted results
     empty_count_hash: HashMap<String, usize>, // An empty hashmap that is used a few times and therefor stored within the struct
-    empty_random_hash: HashMap<String, HashSet<String>>,
+    empty_random_hash: HashMap<String, AHashSet<String>>,
     sample_conversion_omited: bool,
 }
 
@@ -692,7 +692,7 @@ impl Results {
         // If sample name conversion was included, add all sample names to the hashmaps used to count
         let mut sample_conversion_omited = false;
         // create empty hashmaps to insert and have the sample name included.  This is so sample name doesn't need to be searched each time
-        let empty_random_hash: HashMap<String, HashSet<String>> = HashMap::new();
+        let empty_random_hash: HashMap<String, AHashSet<String>> = HashMap::new();
         let empty_count_hash: HashMap<String, usize> = HashMap::new();
         // If there is a sample barcode file included, add these as keys in the relevant count hashmap
         if !samples_barcode_hash.is_empty() {
@@ -780,7 +780,7 @@ impl Results {
                     // but doesn't contain the barcode
                     if !barcodes_hashmap.contains_key(&barcode_string) {
                         // insert the hashmap<barcode_id, Set<random_barcodes>>
-                        let mut intermediate_set = HashSet::new();
+                        let mut intermediate_set = AHashSet::new();
                         intermediate_set
                             .insert(random_barcode.unwrap_or(&"".to_string()).to_string());
                         barcodes_hashmap.insert(barcode_string, intermediate_set);
@@ -792,7 +792,7 @@ impl Results {
                     }
                 } else {
                     // create the Set<RandomBarcode>
-                    let mut intermediate_set = HashSet::new();
+                    let mut intermediate_set = AHashSet::new();
                     intermediate_set.insert(random_barcode.unwrap_or(&"".to_string()).to_string());
                     let mut intermediate_hash = HashMap::new();
                     // create the HashMap<barcode_id, Set<RandomBarcodes>>
@@ -885,7 +885,7 @@ impl ResultsEnrichment {
                         double_barcode_string.push_str(barcode_split[first_barcode_index])
                     } else if column_index == (first_barcode_index + next_barcode_add) {
                         double_barcode_string
-                            .push_str(barcode_split[(first_barcode_index + next_barcode_add)])
+                            .push_str(barcode_split[first_barcode_index + next_barcode_add])
                     }
                     // If we are not on the last barcode, add a comma
                     if column_index != (barcode_num - 1) {
