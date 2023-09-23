@@ -769,12 +769,11 @@ impl Results {
             // random barcodes as the count
             ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
                 // Get the hashmap for the sample
-                let barcodes_hashmap_option;
-                if sample_barcode.is_empty() {
-                    barcodes_hashmap_option = random_hashmap.get_mut("barcode");
+                let barcodes_hashmap_option = if sample_barcode.is_empty() {
+                    random_hashmap.get_mut("barcode")
                 } else {
-                    barcodes_hashmap_option = random_hashmap.get_mut(sample_barcode);
-                }
+                    random_hashmap.get_mut(sample_barcode)
+                };
                 if let Some(barcodes_hashmap) = barcodes_hashmap_option {
                     // If the barcodes_hashmap is not empty
                     // but doesn't contain the barcode

@@ -111,16 +111,15 @@ impl WriteFiles {
                 // Create the merge file and push the header
                 let mut merged_header = header.clone();
                 for sample_barcode in &sample_barcodes {
-                    let sample_name;
-                    if self.samples_barcode_hash.is_empty() {
-                        sample_name = sample_barcode
+                    let sample_name = if self.samples_barcode_hash.is_empty() {
+                        sample_barcode
                     } else {
                         // Get the sample name from the sample barcode
-                        sample_name = self
+                        self
                             .samples_barcode_hash
                             .get(sample_barcode)
-                            .unwrap_or(&unknown_sample);
-                    }
+                            .unwrap_or(&unknown_sample)
+                    };
                     merged_header.push(',');
                     merged_header.push_str(sample_name);
                 }
@@ -134,15 +133,14 @@ impl WriteFiles {
 
         // For each sample, write the counts file
         for sample_barcode in &sample_barcodes {
-            let sample_name;
-            if !self.samples_barcode_hash.is_empty() {
-                sample_name = self
+            let sample_name = if !self.samples_barcode_hash.is_empty() {
+                self
                     .samples_barcode_hash
                     .get(sample_barcode)
-                    .unwrap_or(&unknown_sample);
+                    .unwrap_or(&unknown_sample)
             } else {
-                sample_name = sample_barcode
-            }
+                sample_barcode
+            };
             let file_name = format!("{}_{}_counts.csv", self.args.prefix, sample_name);
             println!("{}", file_name);
             self.output_files.push(file_name.clone());
@@ -244,29 +242,26 @@ impl WriteFiles {
         let mut barcode_num = 0;
         for (line_num, code) in codes.iter().enumerate() {
             let count = match enrichment {
-                EnrichedType::Single => self
+                EnrichedType::Single => *self
                     .results_enriched
                     .single_hashmap
                     .get(sample_barcode)
                     .unwrap()
                     .get(code)
-                    .unwrap()
-                    .clone(),
-                EnrichedType::Double => self
+                    .unwrap(),
+                EnrichedType::Double => *self
                     .results_enriched
                     .double_hashmap
                     .get(sample_barcode)
                     .unwrap()
                     .get(code)
-                    .unwrap()
-                    .clone(),
+                    .unwrap(),
                 EnrichedType::Full => match &self.results.results_hashmap {
-                    ResultsHashmap::NoRandomBarcode(count_hashmap) => count_hashmap
+                    ResultsHashmap::NoRandomBarcode(count_hashmap) => *count_hashmap
                         .get(sample_barcode)
                         .unwrap()
                         .get(code)
-                        .unwrap()
-                        .clone(),
+                        .unwrap(),
                     ResultsHashmap::RandomBarcode(random_hashmap) => random_hashmap
                         .get(sample_barcode)
                         .unwrap()
@@ -284,13 +279,12 @@ impl WriteFiles {
                 );
                 stdout().flush()?;
             }
-            let written_barcodes;
-            if enrichment == EnrichedType::Full && !self.counted_barcodes_hash.is_empty() {
+            let written_barcodes = if enrichment == EnrichedType::Full && !self.counted_barcodes_hash.is_empty() {
                 // Convert the building block DNA barcodes and join them back to comma separated
-                written_barcodes = convert_code(code, &self.counted_barcodes_hash);
+                convert_code(code, &self.counted_barcodes_hash)
             } else {
-                written_barcodes = code.to_string();
-            }
+                code.to_string()
+            };
 
             // If merge output argument is called, pull data for the compound and write to merged file
             if self.args.merge_output {
@@ -419,16 +413,15 @@ impl WriteFiles {
         if self.args.merge_output {
             let mut merged_header = header.clone();
             for sample_barcode in &sample_barcodes {
-                let sample_name;
-                if self.samples_barcode_hash.is_empty() {
-                    sample_name = sample_barcode
+                let sample_name = if self.samples_barcode_hash.is_empty() {
+                    sample_barcode
                 } else {
                     // Get the sample name from the sample barcode
-                    sample_name = self
+                    self
                         .samples_barcode_hash
                         .get(sample_barcode)
-                        .unwrap_or(&unknown_sample);
-                }
+                        .unwrap_or(&unknown_sample)
+                };
                 merged_header.push(',');
                 merged_header.push_str(sample_name);
             }
@@ -442,15 +435,14 @@ impl WriteFiles {
         // For each sample, write the enriched file
         for sample_barcode in &sample_barcodes {
             // Create the file_name with the single or double descriptor
-            let sample_name;
-            if !self.samples_barcode_hash.is_empty() {
-                sample_name = self
+            let sample_name = if !self.samples_barcode_hash.is_empty() {
+                self
                     .samples_barcode_hash
                     .get(sample_barcode)
                     .unwrap_or(&unknown_sample)
             } else {
-                sample_name = sample_barcode;
-            }
+                sample_barcode
+            };
             let file_name = format!(
                 "{}_{}_counts.{}.csv",
                 self.args.prefix, sample_name, descriptor
