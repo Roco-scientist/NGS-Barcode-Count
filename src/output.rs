@@ -11,7 +11,7 @@ use std::{
     },
 };
 
-use ahash::{HashMap, HashMapExt, AHashSet};
+use ahash::{AHashSet, HashMap, HashMapExt};
 
 use itertools::Itertools;
 
