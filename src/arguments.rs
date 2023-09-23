@@ -22,7 +22,7 @@ pub struct Args {
 impl Args {
     pub fn new() -> Result<Self> {
         let total_cpus = num_cpus::get().to_string();
-        let today = Local::today().format("%Y-%m-%d").to_string();
+        let today = Local::now().format("%Y-%m-%d").to_string();
         // parse arguments
         let args = App::new("NGS-Barcode-Count")
         .version(crate_version!())
