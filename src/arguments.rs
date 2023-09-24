@@ -170,18 +170,8 @@ impl Args {
             constant_errors_option = None
         }
 
-        let merge_output;
-        if args.is_present("merge-output") {
-            merge_output = true
-        } else {
-            merge_output = false
-        }
-        let enrich;
-        if args.is_present("enrich") {
-            enrich = true
-        } else {
-            enrich = false
-        }
+        let merge_output = args.is_present("merge-output");
+        let enrich = args.is_present("enrich");
         let fastq = args.value_of("fastq").unwrap().to_string();
         let format = args.value_of("format_file").unwrap().to_string();
         let output_dir = args.value_of("dir").unwrap().to_string();

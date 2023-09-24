@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use regex::Captures;
 use std::{
-    collections:: VecDeque,
+    collections::VecDeque,
     fmt,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -57,16 +57,16 @@ impl SequenceParser {
                 if let Some(seq_match_result) = self.match_seq()? {
                     let barcode_string = seq_match_result.barcode_string();
                     // If there is a random barcode included
-                        let added = self.shared_mut_clone
-                            .results
-                            .lock()
-                            .unwrap()
-                            .add_count(&seq_match_result.sample_barcode, seq_match_result.random_barcode.as_ref(), barcode_string);
-                        if added {
-                            self.sequence_errors_clone.correct_match()
-                        } else {
-                            self.sequence_errors_clone.duplicated();
-                        }
+                    let added = self.shared_mut_clone.results.lock().unwrap().add_count(
+                        &seq_match_result.sample_barcode,
+                        seq_match_result.random_barcode.as_ref(),
+                        barcode_string,
+                    );
+                    if added {
+                        self.sequence_errors_clone.correct_match()
+                    } else {
+                        self.sequence_errors_clone.duplicated();
+                    }
                 }
             } else if self.shared_mut_clone.finished.load(Ordering::Relaxed) {
                 break;

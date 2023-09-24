@@ -1,3 +1,4 @@
+use ahash::{AHashSet, HashMap, HashMapExt};
 use anyhow::{anyhow, Context, Result};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
@@ -9,7 +10,6 @@ use std::{
         Arc,
     },
 };
-use ahash::{HashMap, HashMapExt, AHashSet};
 
 // Struct to keep track of sequencing errors and correct matches.  This is displayed at the end of the algorithm for QC measures
 #[derive(Debug, Clone)]
@@ -174,16 +174,16 @@ impl fmt::Display for SequenceErrors {
 // Struct to keep the format information for the sequencing, ie barcodes, regex search etc.
 #[derive(Debug, Clone)]
 pub struct SequenceFormat {
-    pub format_string: String,      // sequence with 'N's replacing barcodes
-    pub regions_string: String,     // String with each region contain a code
-    pub length: usize,              // Total length of format sequence
+    pub format_string: String,       // sequence with 'N's replacing barcodes
+    pub regions_string: String,      // String with each region contain a code
+    pub length: usize,               // Total length of format sequence
     pub constant_region_length: u16, // Length of only the consant nucleotides
-    pub format_regex: Regex,        // The regex search used to find barcodes
-    pub barcode_num: usize,         // Number of counted barcodes.  More for DEL
+    pub format_regex: Regex,         // The regex search used to find barcodes
+    pub barcode_num: usize,          // Number of counted barcodes.  More for DEL
     pub barcode_lengths: Vec<u16>,   // The length of each counted barcode
     pub sample_length_option: Option<u16>, // Sample barcode length
-    pub random_barcode: bool,       // Whether a random barcode is included
-    pub sample_barcode: bool,       // Whether a sammple barcode is included
+    pub random_barcode: bool,        // Whether a random barcode is included
+    pub sample_barcode: bool,        // Whether a sammple barcode is included
 }
 
 impl SequenceFormat {
@@ -769,21 +769,20 @@ impl Results {
             // random barcodes as the count
             ResultsHashmap::RandomBarcode(ref mut random_hashmap) => {
                 // Get the hashmap for the sample
-                let barcodes_hashmap_option;
-                if sample_barcode.is_empty() {
-                    barcodes_hashmap_option = random_hashmap.get_mut("barcode");
+                let barcodes_hashmap_option = if sample_barcode.is_empty() {
+                    random_hashmap.get_mut("barcode")
                 } else {
-                    barcodes_hashmap_option = random_hashmap.get_mut(sample_barcode);
-                }
+                    random_hashmap.get_mut(sample_barcode)
+                };
                 if let Some(barcodes_hashmap) = barcodes_hashmap_option {
                     // If the barcodes_hashmap is not empty
                     // but doesn't contain the barcode
-                    if !barcodes_hashmap.contains_key(&barcode_string) {
+                    if let std::collections::hash_map::Entry::Vacant(e) = barcodes_hashmap.entry(barcode_string.clone()) {
                         // insert the hashmap<barcode_id, Set<random_barcodes>>
                         let mut intermediate_set = AHashSet::new();
                         intermediate_set
                             .insert(random_barcode.unwrap_or(&"".to_string()).to_string());
-                        barcodes_hashmap.insert(barcode_string, intermediate_set);
+                        e.insert(intermediate_set);
                     } else {
                         // if the hashmap<sample_id, hashmap<barcode_id, Set<>> exists, check to see if the random barcode already was inserted
                         let random_set = barcodes_hashmap.get_mut(&barcode_string).unwrap();
