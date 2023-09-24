@@ -164,11 +164,11 @@ Counted barcode mismatches:  5,682,306
 Duplicates:                  0
 Low quality barcodes:        0
 
-Compute time: 0 hours, 26 minutes, 52.315 seconds
+Compute time: 0 hours, 23 minutes, 43.439 seconds
 
 -WRITING COUNTS-
 
-Total time: 0 hours, 27 minutes, 17.396 seconds
+Total time: 0 hours, 24 minutes, 11.016 seconds
 ```
   
 #### Gzipped fastq:  
