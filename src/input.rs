@@ -40,6 +40,8 @@ pub fn read_fastq(
         }
 
         // go line by line
+        let mut stdout = std::io::stdout();
+        let mut lock = stdout.lock();
         for line_result in BufReader::new(fastq_file).lines() {
             let mut line =
                 line_result.context(format!("Bufread could not read line for file: {}", fastq))?;
@@ -51,8 +53,8 @@ pub fn read_fastq(
             }
             // Add to read count to print numnber of sequences read by this thread
             if fastq_line_reader.total_reads % 10000 == 0 {
-                print!("{}", fastq_line_reader);
-                std::io::stdout().flush()?;
+                write!(lock, "{}", fastq_line_reader)?;
+                stdout.flush()?;
             }
         }
     } else {
