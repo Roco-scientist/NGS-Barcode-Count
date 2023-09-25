@@ -65,9 +65,11 @@ pub fn read_fastq(
 
         let mut stdout = std::io::stdout();
         let mut lock = stdout.lock();
+        let mut read_response = 10;
         // continue reading until there is a response of 0, which indicates the end of file.  This may be where some gzipped files abrupty end
-        let mut line = String::new();
-        while let Ok(_read_response) = reader.read_line(&mut line) {
+        while read_response != 0 {
+            let mut line = String::new();
+            read_response = reader.read_line(&mut line)?;
             // post the line to the shared vector and keep track of the number of sequences etc
             fastq_line_reader.read(line);
             if fastq_line_reader.line_num == 4 {
@@ -78,7 +80,6 @@ pub fn read_fastq(
                 write!(lock, "{}", fastq_line_reader)?;
                 stdout.flush()?;
             }
-            line = String::new();
         }
     }
     // Display the final total read count
