@@ -181,9 +181,9 @@ Counted barcode mismatches:  5,682,306
 Duplicates:                  0
 Low quality barcodes:        0
 
-Compute time: 0 hours, 28 minutes, 43.359 seconds
+Compute time: 0 hours, 23 minutes, 20.122 seconds
 
 -WRITING COUNTS-
 
-Total time: 0 hours, 29 minutes, 8.219 seconds
+Total time: 0 hours, 23 minutes, 47.645 seconds
 ```

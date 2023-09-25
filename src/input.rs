@@ -1,5 +1,4 @@
 use anyhow::{bail, Context, Result};
-use flate2::read::GzDecoder;
 use num_format::{Locale, ToFormattedString};
 use std::{
     collections::VecDeque,
@@ -11,6 +10,7 @@ use std::{
         Arc, Mutex,
     },
 };
+use rust_htslib::bgzf;
 
 use crate::parse::RawSequenceRead;
 
@@ -27,13 +27,13 @@ pub fn read_fastq(
     exit_clone: Arc<AtomicBool>,
     total_reads_arc: Arc<AtomicU32>,
 ) -> Result<()> {
-    let fastq_file = File::open(&fastq).context(format!("Failed to open file: {}", fastq))?; // open file
 
     // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
     let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
 
     // If the file is not gzipped use BufReader to read in lines
     if !fastq.ends_with("fastq.gz") {
+        let fastq_file = File::open(&fastq).context(format!("Failed to open file: {}", fastq))?; // open file
         // If the file does not end with fastq, return with an error
         if !fastq.ends_with("fastq") {
             bail!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental")
@@ -61,14 +61,14 @@ pub fn read_fastq(
         println!("If this program stops reading before the expected number of sequencing reads, unzip the gzipped fastq and rerun.");
         println!();
         // stream in first by decoding with GzDecoder, the reading into buffer
-        let mut reader = BufReader::new(GzDecoder::new(fastq_file));
+        let mut reader = BufReader::new(bgzf::Reader::from_path(fastq)?);
 
-        // artificially set the read response to 10.  The first number does not matter
+        let mut stdout = std::io::stdout();
+        let mut lock = stdout.lock();
         let mut read_response = 10;
         // continue reading until there is a response of 0, which indicates the end of file.  This may be where some gzipped files abrupty end
         while read_response != 0 {
             let mut line = String::new();
-            // move the read line to the line variable and get the response to check if it is 0 and therefore the file is done
             read_response = reader.read_line(&mut line)?;
             // post the line to the shared vector and keep track of the number of sequences etc
             fastq_line_reader.read(line);
@@ -77,8 +77,8 @@ pub fn read_fastq(
             }
             // Add to read count to print numnber of sequences read by this thread
             if fastq_line_reader.total_reads % 10000 == 0 {
-                print!("{}", fastq_line_reader);
-                std::io::stdout().flush()?;
+                write!(lock, "{}", fastq_line_reader)?;
+                stdout.flush()?;
             }
         }
     }
