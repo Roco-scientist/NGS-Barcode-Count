@@ -10,7 +10,7 @@ use std::{
         Arc, Mutex,
     },
 };
-use rust_htslib::bgzf;
+use bgzip::BGZFReader;
 
 use crate::parse::RawSequenceRead;
 
@@ -31,9 +31,9 @@ pub fn read_fastq(
     // Create a fastq line reader which keeps track of line number, reads, and posts the sequence to the shared vector
     let mut fastq_line_reader = FastqLineReader::new(seq_clone, exit_clone);
 
+    let fastq_file = File::open(&fastq).context(format!("Failed to open file: {}", fastq))?; // open file
     // If the file is not gzipped use BufReader to read in lines
     if !fastq.ends_with("fastq.gz") {
-        let fastq_file = File::open(&fastq).context(format!("Failed to open file: {}", fastq))?; // open file
         // If the file does not end with fastq, return with an error
         if !fastq.ends_with("fastq") {
             bail!("This program only works with *.fastq files and *.fastq.gz files.  The latter is still experimental")
@@ -61,7 +61,7 @@ pub fn read_fastq(
         println!("If this program stops reading before the expected number of sequencing reads, unzip the gzipped fastq and rerun.");
         println!();
         // stream in first by decoding with GzDecoder, the reading into buffer
-        let mut reader = BufReader::new(bgzf::Reader::from_path(fastq)?);
+        let mut reader = BGZFReader::new(fastq_file)?;
 
         let mut stdout = std::io::stdout();
         let mut lock = stdout.lock();
